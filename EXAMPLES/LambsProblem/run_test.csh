@@ -1,4 +1,4 @@
-#!/bin/csh -f
+#!/usr/bin/csh -f
 # run_test.csh exit code 0 = succesful
 
 # run SEM2DPACK

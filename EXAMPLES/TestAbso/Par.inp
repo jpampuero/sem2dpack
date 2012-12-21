@@ -11,8 +11,8 @@
 &MESH_CART xlim=-1.5d3,0.5d3 ,zlim=-50d0,50d0 , nelem=40,2 /
 
 #---- Elastic material parameters --------------
-&MATERIAL tag=1, kind='ELAST' /
-&MAT_ELASTIC rho=2500.d0, cp=5000.d0, cs=2887.d0 /
+&MATERIAL tag=1, mode='ISOTR' /
+2500.d0 5000.d0 2887.d0
 
 #----- Boundary conditions ---------------------
 
@@ -20,22 +20,22 @@
 #&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
 
 #&BC_DEF  tag = 1 , kind = 'ABSORB' /
-#&BC_ABSORB  stacey=T /
+#&BC_ABSORB side = 'D', stacey=T /
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=T /
+&BC_ABSORB side = 'R', stacey=T, periodic=T /
 
 #&BC_DEF  tag = 3 , kind = 'ABSORB' /  
-#&BC_ABSORB  stacey=T /
+#&BC_ABSORB side = 'U', stacey=T /
 
 &BC_DEF  tag = 4 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=T /
+&BC_ABSORB side = 'L', stacey=T, periodic=T /
 
 #---- Time scheme settings ----------------------
 &TIME  TotalTime=0.5d0, courant = 0.6d0  /
 
 #---- Sources ----------------------------------
-&SRC_DEF stf= 'RICKER' ,coord= 0.d0,0.d0 
+&SRC_DEF TimeFunction= 'RICKER' ,coord= 0.d0,0.d0 
 mechanism= 'WAVE' /
 &STF_RICKER  f0= 30d0, onset = 0.05d0, ampli = 1.d0 /
 

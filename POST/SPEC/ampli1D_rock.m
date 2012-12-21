@@ -5,7 +5,7 @@
 % Reference: Aki & Richards, page 140
 
 % Test: figure 5.6 page 142  
-% WARNING: their figure is cut before p = 0.2 (at least for the PP)
+% WARNING: their figure is cutted before p = 0.2 (at least for the PP)
 index = 1 ; a2 = 5000. ; b2 = 3000.;
 
 N = 100 ;

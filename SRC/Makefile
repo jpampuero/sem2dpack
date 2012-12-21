@@ -1,7 +1,47 @@
+# SEM2DPACK version 2.2.12beta -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+#                             with emphasis on computational seismology and earthquake source dynamics.
+# 
+# Copyright (C) 2003-2007 Jean-Paul Ampuero
+# All Rights Reserved
+# 
+# Jean-Paul Ampuero
+# 
+# ETH Zurich (Swiss Federal Institute of Technology)
+# Institute of Geophysics
+# Seismology and Geodynamics Group
+# ETH Hönggerberg HPP O 13.1
+# CH-8093 Zürich
+# Switzerland
+# 
+# ampuero@erdw.ethz.ch
+# +41 44 633 2197 (office)
+# +41 44 633 1065 (fax)
+# 
+# http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+# 
+# 
+# This software is freely available for scientific research purposes. 
+# If you use this software in writing scientific papers include proper 
+# attributions to its author, Jean-Paul Ampuero.
+# 
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+# 
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
+EXEC = $(HOME)/bin/sem2dsolve_2.2.12b
 
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
@@ -9,20 +49,15 @@ EXEC = $(HOME)/bin/sem2dsolve
 #F90 = g95
 #OPT = 
 #F90 = gfortran
-#OPT = -O3 -Wall
-#OPT = -O3 
+#OPT = 
 
 #-- Intel Fortran --
 F90 = ifort
-OPT = -O3 -ip -ipo -unroll
-#-no-inline-factor
 #OPT = -O3
-#OPT = -O0 -warn all -C
-#OPT = -O0 -g
-
 #OPT = -O3 -ip -ipo -arch SSE2 -tpp7 -xN # pablo.ethz.ch
 #OPT = -O3 -ip -ipo -xB   # lapfabio
-#OPT = -O3 -ip -ipo -unroll
+OPT = -O3 -ip -ipo -unroll
+#OPT = -warn all -C
 
 #-- Lahey Fortran95 --
 #F90 = lf95

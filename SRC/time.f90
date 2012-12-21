@@ -1,11 +1,50 @@
+! SEM2DPACK version 2.2.12beta -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module time_evol
 
   implicit none
 
   type timescheme_type
-    !private !devel: main and solver need it public
     character(10) :: kind
-    double precision :: dt,courant,time,total,alpha,beta,gamma,Omega_max
+    double precision :: dt,courant,time,total,alpha,beta,gamma,rho,Omega_max
     double precision, dimension(:), pointer :: a,b 
     integer :: nt,nstages
   end type timescheme_type
@@ -18,83 +57,66 @@ contains
 !
 ! NAME   : TIME
 ! PURPOSE: Defines time integration scheme
-! SYNTAX : &TIME kind, {Dt or Courant}, {NbSteps or TotalTime} /
-!          Possibly followed by a TIME_XXXX block.
+! SYNTAX : &TIME kind, NbSteps, Dt, Courant, TotalTime /
 !
-! ARG: kind      [char*10] ['leapfrog'] Type of scheme:
-!                'newmark'       Explicit Newmark
-!                'HHT-alpha'     Explicit HHT-alpha
-!                'leapfrog'      Central difference
-!                'symp_PV'       Position Verlet
-!                'symp_PFR'      Position Forest-Ruth (4th order)
-!                'symp_PEFRL'    Extended PFR (4th order)
-! ARG: Dt        [dble] [none] Timestep (in seconds)
-! ARG: Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
-!                stability number (CFL), defined as
-!                  CFL = Dt*wave_velocity/dx 
-!                where dx is the distance between GLL nodes. Tipically CFL<= 0.5
-! ARG: NbSteps   [int] [none] Total number of timesteps
-! ARG: TotalTime [int] [none] Total duration (in seconds)
+! ARG: kind     [char*10] ['leapfrog'] Type of scheme:
+!			'newmark'	Newmark-alpha
+!			'leapfrog'	Central difference
+!			'symp_PV'		Position Verlet
+!			'symp_PFR'	Position Forest-Ruth (4th order)
+!			'symp_PEFRL'	Extended PFR (4th order)
+! ARG: NbSteps  [int] [none] Number of timesteps to be performed
+! ARG: Dt       [dble] [none] Amplitude of the timestep
+! ARG: Courant  [dble] [0.5d0] Courant stability number: the maximum ratio
+!               Dt*wave_velocity/dx where dx is the inter-GLL node distance
+!               Tipically <= 0.5
+! ARG: TotalTime[int] [none] Total duration (in seconds) of simulation
 !
-! NOTE   : The leap-frog scheme is recommended for dynamic faults. It is equivalent 
-!          to the default Newmark scheme (beta=0, gamma=1/2). However it is 
-!          faster and requires less memory.
+! NOTE   :      Not all combinations of parameters need to be set at once.
+!               You can set the total duration (secs) or the number of steps.
+!               You can set the timestep or the Courant number (or use default).
+! 
+! NOTE:		The leap-frog scheme is equivalent to the Newmark scheme
+!		with alpha=1, beta=0, gamma=1/2.
+!		However it is faster and requires less memory.
+!		Dynamic faults require this scheme.
 !
 ! END INPUT BLOCK
 
+!		with alpha=1/2, beta=1/2, gamma=1.
 
 ! BEGIN INPUT BLOCK
 !
 ! NAME   : TIME_NEWMARK
-! GROUP  : TIME SCHEMES
-! PURPOSE: Explicit Newmark time integration scheme 
-! SYNTAX : &TIME_NEWMARK gamma, beta /
+! PURPOSE: Parameters of the explicit Newmark or HHT-alpha time scheme 
+! SYNTAX : &TIME_NEWMARK alpha|gamma, beta|rho /
 !
-! ARG: beta     [dble] [0d0] First Newmark parameter.
-!               If beta=0 the scheme is fully explicit (the update of
-!               displacement depends only on the last value of acceleration),
+! ARG: beta     [dble] [0.5d0] The algorithm is fully explicit if beta=0
 !               otherwise it is a single-predictor-corrector scheme
-! ARG: gamma    [dble] [0.5d0] Second Newmark parameter.
-!               Second order requires gamma=1/2.
+! ARG: gamma    [dble] [1.d0] 
+! ARG: alpha    [dble] [0.5d0] parameter in the Hilber-Hughes-Taylor method
+!               Actually, here alpha = 1 + their original definition of alpha
+! ARG: rho      [dble] [1.d0] high frequencies are damped by a factor>=rho. 
+!               The default is non-dissipative. Dissipation is limited however 
+!               to rho>=0.5 . For max dissipation you should work close to
+!               the stability limit (Courant around 0.56 for rho=0.5).
 !
-! END INPUT BLOCK
-
-
-! BEGIN INPUT BLOCK
+! NOTE: For second order schemes only two parameters need to be set:
+!       (alpha OR gamma) AND (beta OR rho)
 !
-! NAME   : TIME_HHTA
-! GROUP  : TIME SCHEMES
-! PURPOSE: Explicit HHT-alpha time integration scheme, second order 
-! SYNTAX : &TIME_HHTA alpha, rho /
-!
-! ARG: alpha    [dble] [0.5d0] Parameter in the HHT-alpha method. Values in [0,1].
-!               Defined here as 1 + HHT's original definition of alpha.
-!               When alpha=1 it reduces to second order explicit Newmark
-!               (beta=0, gamma=0.5).
-! ARG: rho      [dble] [0.5d0] Minimum damping factor for high frequencies.
-!               Values in [0.5,1]. Rho=1 is non-dissipative.
-!
-! NOTE: We consider only second order schemes, for which alpha+gamma=3/2
-!       If  alpha<1, Newmark's beta is related to the HHT parameters by
-!         beta = 1 -alpha -rho^2*(rho-1)/[(1-alpha)*(1+rho)^3]
-!       If alpha=1, we set rho=1 (beta=0, gamma=0.5)
-! 
-! NOTE: Dissipative schemes (rho<1) require slightly smaller Courant number
+! NOTE: Dissipative schemes (0.5<=rho<1) are slightly more unstable,
+!       i.e. they require slightly smaller Courant number
 !       (0.56 for rho=0.5, compared to 0.6 for rho=1)
 !
-! NOTE:	This is an explicit version of the HHT-alpha scheme of
-!         H.M. Hilber, T.J.R. Hughes and R.L. Taylor (1977) "Improved numerical 
-!         dissipation for time integration algorithms in structural dynamics" 
-!         Earthquake Engineering and Structural Dynamics, 5, 283-292
-!       implemented with a slightly different definition of alpha (1+original).
-!      	Its properties can be derived from the EG-alpha scheme of
-!         G.M. Hulbert and J. Chung (1996) "Explicit time integration 
-!         algorithms for structural dynamics with optimal numerical dissipation"
-!         Comp. Methods Appl. Mech. Engrg. 137, 175-188
-!       by setting alpha_m=0 and alpha=1-alpha_f.
-!
 ! END INPUT BLOCK
 
+! NOTE: Some properties of the explicit HHT-alpha scheme can be derived
+!       from the more general EG-alpha scheme of
+!       	G.M. Hulbert and J. Chung (1996) "Explicit time integration 
+!		algorithms for structural dynamics with optimal numerical dissipation"
+!		Comp. Methods Appl. Mech. Engrg. 137, 175-188
+!
+!       . our HHT-alpha = EG-alpha with alpha_m=0, alpha=1-alpha_f
 !
 !       . second order iff alpha+gamma=3/2 (from eq.21)
 !
@@ -132,8 +154,7 @@ contains
   character(10) :: kind
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime
-  NAMELIST / TIME_NEWMARK / beta,gamma
-  NAMELIST / TIME_HHTA / alpha,rho
+  NAMELIST / TIME_NEWMARK / alpha,beta,gamma,rho
     
 !-------------------------------------------------------------------------------
 
@@ -167,18 +188,18 @@ contains
     if (NbSteps > 0) then
       write(iout,202) NbSteps
     else
-      write(iout,203)
+      write(iout,'(A)') '     The number of steps will be set later'
     endif
     if (dt > 0.d0) then
       write(iout,204) dt
     else
-      write(iout,205)
+      write(iout,'(A)') '     The timestep will be set later'
       write(iout,206) courant
     endif
     if (TotalTime > 0) then
       write(iout,208) TotalTime
     else
-      write(iout,209)
+      write(iout,'(A)') '     The total duration will be set later'
     endif
   endif
 
@@ -186,15 +207,13 @@ contains
   t%dt      = dt
   t%courant = courant
   t%total   = TotalTime
-  t%kind    = kind
 
 !-------------------------------------------------------------------------------
 
-! old default was: alpha=1/2, beta=1/2, gamma=1, rho=1
-! new default is equivalent to leapfrog: alpha=1, beta=0, gamma=1/2, rho=1.
-  alpha    = 1d0
-  beta     = 0d0
-  gamma    = 0.5d0
+  alpha    = 0.5d0
+  beta     = 0.5d0
+  gamma    = 1.d0
+  rho      = 1.d0
 
   select case (kind)
 
@@ -204,33 +223,17 @@ contains
    case ('newmark')
     read(iin,TIME_NEWMARK, END = 101)
   
+    if (alpha < 0.d0 .or. alpha > 1.d0) call IO_abort('TIME_NEWMARK: alpha is out of range [0,1]')
     if (beta < 0.d0 .or. beta > 1.d0) call IO_abort('TIME_NEWMARK: beta is out of range [0,1]')
     if (gamma < 0.d0 .or. gamma > 1.d0) call IO_abort('TIME_NEWMARK: gamma is out of range [0,1]')
+    if (rho<0.5d0 .or. rho>1.d0) call IO_abort('TIME_NEWMARK: rho is out of range [0.5,1]')
   
+    if (alpha/=0.5d0) gamma = 1.5d0-alpha
+    if (gamma/=1.d0)  alpha = 1.5d0-gamma
+    if (rho/=1.d0)    beta  = 1.d0 -alpha -rho**2*(rho-1.d0)/((1.d0-alpha)*(1.d0+rho)**3)
+
 101 continue
-    if (echo_input) write(iout,300) beta,gamma
-    t%Omega_max = sqrt(2d0/gamma)
-
-
-   case ('HHT-alpha')
-
-    alpha = 0.5d0
-    rho = 0.5d0
-
-    read(iin,TIME_HHTA, END = 102)
-
-    if (alpha < 0.d0 .or. alpha > 1.d0) call IO_abort('TIME_HHTA: alpha is out of range [0,1]')
-    if (rho<0.5d0 .or. rho>1.d0) call IO_abort('TIME_HHTA: rho is out of range [0.5,1]')
-
-    gamma = 1.5d0-alpha
-    if (alpha/=1.d0) then
-      beta  = 1.d0 -alpha -rho**2*(rho-1.d0)/((1.d0-alpha)*(1.d0+rho)**3)
-    else
-      beta  = 0d0   ! back to explicit newmark
-    endif
-
-102 continue
-    if (echo_input) write(iout,310) alpha,rho
+    if (echo_input) write(iout,300) alpha,beta,gamma
     t%Omega_max = sqrt( -4d0*(1d0+rho)**5 &
                    /( rho**5 +9d0*rho**4 -34d0*rho**3 +6d0*rho**2 -15d0*rho +1d0 ) )
 
@@ -275,14 +278,15 @@ contains
     t%b(4) = t%b(1)
     t%Omega_max = 2.97633d0
 
-   case default
-    call IO_abort('TIME: unknown kind')
-
   end select
 
   t%alpha = alpha
   t%beta  = beta
   t%gamma = gamma
+  t%rho   = rho
+  
+  t%kind = kind
+
 
 !-------------------------------------------------------------------------------
 
@@ -290,23 +294,17 @@ contains
 
   100 call IO_abort('TIME parameters not found')
 
-  200 format(//' T i m e   i n t e g r a t i o n'/1x,31('='),/)
+  200 format(//' T i me   i n t e g r a t i o n'/1x,30('='),/)
   201 format(5x,'Scheme. . . . . . . . . . . . . .(kind) = ',A)
   202 format(5x,'Number of time steps. . . . . (NbSteps) = ',I0)
-  203 format(5x,'Number of time steps. . . . . (NbSteps) = will be set later')
   204 format(5x,'Time step increment . . . . . . . .(Dt) = ',EN12.3)
-  205 format(5x,'Time step increment . . . . . . . .(Dt) = will be set later')
   206 format(5x,'Courant number. . . . . . . . (Courant) = ',F0.2)
   208 format(5x,'Total simulation duration . (TotalTime) = ',EN12.3)
-  209 format(5x,'Total simulation duration . (TotalTime) = will be set later')
 
   300   format(///' N e w m a r k   p a r a m e t e r s '/1x,35('=')//5x, &
-      'First integration parameter . . . . (beta) = ',F0.3,/5x, &
-      'Second time integration parameter .(gamma) = ',F0.3)
-
-  310   format(///' H H T - a l p h a   p a r a m e t e r s '/1x,39('=')//5x, &
-      'Force collocation parameter . . . .(alpha) = ',F0.3,/5x, &
-      'High-frequency damping factor . . . .(rho) = ',F0.3)
+      'First integration parameter . . . .(alpha) = ',F0.3,/5x, &
+      'Second integration parameter. . . . (beta) = ',F0.3,/5x, &
+      'Third time integration parameter . (gamma) = ',F0.3)
 
   end subroutine TIME_read
 
@@ -314,7 +312,7 @@ contains
 
 !=======================================================================
 !
-!  Set time integration parameters
+!  Set time sequence parameters
 !
   subroutine TIME_init(t,grid_cfl)
 
@@ -347,7 +345,6 @@ contains
     write(iout,101) '    Courant number        = ',t%courant
     write(iout,*) 
     write(iout,102) '    STABILITY:  CFL number               = ',grid_cfl*t%dt
-    write(iout,*) 
 
   endif
 
@@ -390,96 +387,5 @@ contains
   104 format(A,I0)
 
   end subroutine TIME_init
-
-!=======================================================================
-  logical function TIME_needsAlphaField(t) 
-  type(timescheme_type), intent(in) :: t
-  TIME_needsAlphaField = t%kind=='HHT-alpha'
-  end function TIME_needsAlphaField
-  
-!=======================================================================
-  double precision function TIME_getTimeStep(t)
-  type(timescheme_type), intent(in) :: t
-  TIME_getTimeStep = t%dt
-  end function TIME_getTimeStep
-
-!=======================================================================
-  integer function TIME_getNbTimeSteps(t)
-  type(timescheme_type), intent(in) :: t
-  TIME_getNbTimeSteps = t%nt
-  end function TIME_getNbTimeSteps
-
-!=======================================================================
-  double precision function TIME_getTime(t)
-  type(timescheme_type), intent(in) :: t
-  TIME_getTime = t%time
-  end function TIME_getTime
-
-!=======================================================================
-! Coefficients of corrector phase (see solver.f90)
-!  vnew = vpredictor + coefA2V *anew   
-!  dnew = dpredictor + coefA2D *anew
-
-  function TIME_getCoefA2D(t) result(c)
-
-  use stdio, only : IO_abort
-
-  type(timescheme_type), intent(in) :: t
-  double precision :: c
-
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%beta * t%dt**2
-    case ('leapfrog'); c = 0d0
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
-
-  end function TIME_getCoefA2D
-
-!-----------------------------------------------------------------------
-  function TIME_getCoefA2V(t) result(c)
-
-  use stdio, only : IO_abort
-
-  type(timescheme_type), intent(in) :: t
-  double precision :: c
-
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%gamma * t%dt
-    case ('leapfrog'); c = t%dt
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
-
-  end function TIME_getCoefA2V
-
-!-----------------------------------------------------------------------
-! Get the coefficient in 
-!   v_rhs = v_rhs_pre + coefficient*a
-! where v_rhs is the velocity on the r.h.s. of the equation M*a = ...
-! and v_rhs_pre its predicted value
-! 
-  function TIME_getCoefA2Vrhs(t) result(c)
-
-  use stdio, only : IO_abort
-
-  type(timescheme_type), intent(in) :: t
-  double precision :: c
-
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%alpha * TIME_getCoefA2V(t)
-    case ('leapfrog'); c = 0.5d0 * TIME_getCoefA2V(t)
- ! NOTE: for the leapfrog time scheme, v_rhs = v_(n+1)
- !	 but the velocity field is stored at n+1/2, 
- !       v_rhs = v_(n+1/2) + 1/2*dt*a_(n+1)
- !       v_rhs_pre = v_(n+1/2)
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
-
-  end function TIME_getCoefA2Vrhs
 
 end module time_evol

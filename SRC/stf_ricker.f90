@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12beta -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module stf_ricker
 
   use constants, only: PI
@@ -23,7 +63,7 @@ contains
 ! BEGIN INPUT BLOCK
 !
 ! NAME   : STF_RICKER
-! GROUP  : SOURCE TIME FUNCTIONS
+! GROUP  : SRC_TIMEFUNCTION
 ! PURPOSE: The Ricker wavelet is the second derivative of a gaussian.
 ! SYNTAX : &STF_RICKER ampli, f0, onset /
 !
@@ -61,7 +101,7 @@ contains
   read(iin,STF_RICKER,END=100)
 
   if (f0 <= 0.) call IO_abort('RICKER_read: f0 must be positive')
-  if (onset < 1/f0) then
+  if (onset <= 1/f0) then
     !onset = 1./f0
     write(iout,*) '*** WARNING: RICKER_read: Onset time too small, ***'
 !    write(iout,'(A,EN12.3)') '             will be reset to t0 = ',onset
@@ -77,7 +117,7 @@ contains
   
   100 call IO_abort('RICKER_read: STF_RICKER input block not found')
   200 format(5x, & 
-     'Source time function . . . . . . . . . = Ricker',/5x, &
+     'Source time function . .(TimeFunction) = Ricker',/5x, &
      'Fundamental frequency (Hz) . . . .(f0) =',EN12.3,/5x, &
      'Time delay (s) . . . . . . . . (onset) =',EN12.3,/5x, &
      'Multiplying factor . . . . . . (ampli) =',EN12.3)

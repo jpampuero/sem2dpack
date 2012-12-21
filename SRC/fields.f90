@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12beta -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module fields_class
 ! Fields (scalar or vector) with nodal storage
 
@@ -18,8 +58,12 @@ module fields_class
     module procedure FIELD_add_elem_1, FIELD_add_elem_2
   end interface FIELD_add_elem
 
+  interface FIELD_strain_elem
+    module procedure FIELD_strain_elem_1, FIELD_strain_elem_2
+  end interface FIELD_strain_elem
+
   public :: fields_type, FIELDS_read, FIELDS_init &
-          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
+          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem
 
 contains
 
@@ -166,93 +210,72 @@ function FIELD_get_elem_2(Fin,ibool) result(fout)
 end function FIELD_get_elem_2
 
 !=============================================================================
-function FIELD_strain_elem(Uloc,ngll,ndof,grid,e) result(eij)
+function FIELD_strain_elem_1(Uloc,grid,e) result(eij)
 
   use spec_grid, only : sem_grid_type, SE_InverseJacobian
-  use mxmlib
 
-  integer, intent(in) :: ngll,ndof
   type (sem_grid_type), intent(in) :: grid
-  double precision    , intent(in) :: Uloc(ngll,ngll,ndof)
+  double precision    , intent(in) :: Uloc(grid%ngll,grid%ngll)
   integer             , intent(in) :: e
 
-  double precision :: eij(ngll,ngll,ndof+1)
+  double precision :: eij(grid%ngll,grid%ngll,2)
+  double precision, dimension(grid%ngll,grid%ngll) :: dU_dxi, dU_deta
+  double precision, dimension(2,2,grid%ngll,grid%ngll), target :: xjaci
+  double precision, dimension(:,:), pointer :: dxi_dx, dxi_dz, deta_dx, deta_dz
 
-  double precision, dimension(ngll,ngll) :: dUy_dxi, dUy_deta,dUx_dxi, dUx_deta, dUz_dxi, dUz_deta
-  double precision, dimension(2,2,ngll,ngll), target :: xjaci
+
+!-- Local gradient
+    dU_dxi  = MATMUL( grid%hTprime, Uloc )
+    dU_deta = MATMUL( Uloc, grid%hprime )
+
+!-- Jacobian matrix
+    xjaci = SE_InverseJacobian(grid,e)
+    dxi_dx  => xjaci(1,1,:,:)
+    dxi_dz  => xjaci(1,2,:,:)
+    deta_dx => xjaci(2,1,:,:)
+    deta_dz => xjaci(2,2,:,:)
+
+!-- Strain 
+    eij(:,:,1) = 0.5d0*( dU_dxi*dxi_dx + dU_deta*deta_dx ) ! e13 = dUy_dx
+    eij(:,:,2) = 0.5d0*( dU_dxi*dxi_dz + dU_deta*deta_dz ) ! e23 = dUy_dz
+
+end function FIELD_strain_elem_1
+
+!-----------------------------------------------------------------------------
+function FIELD_strain_elem_2(Uloc,grid,e) result(eij)
+
+  use spec_grid, only : sem_grid_type, SE_InverseJacobian
+
+  type (sem_grid_type), intent(in) :: grid
+  double precision    , intent(in) :: Uloc(grid%ngll,grid%ngll,2)
+  integer             , intent(in) :: e
+
+  double precision :: eij(grid%ngll,grid%ngll,3)
+  double precision, dimension(grid%ngll,grid%ngll) :: &
+    dUx_dxi, dUx_deta, dUz_dxi, dUz_deta
+  double precision, dimension(2,2,grid%ngll,grid%ngll), target :: xjaci
   double precision, dimension(:,:), pointer :: dxi_dx, dxi_dz, deta_dx, deta_dz
 
 !-- Local gradient
-  if (ndof==1) then
-    dUy_dxi  = mxm( grid%hTprime, Uloc(:,:,1), ngll )
-    dUy_deta = mxm( Uloc(:,:,1), grid%hprime, ngll )
-  else
-    dUx_dxi  = mxm( grid%hTprime, Uloc(:,:,1), ngll )
-    dUz_dxi  = mxm( grid%hTprime, Uloc(:,:,2), ngll )
-    dUx_deta = mxm( Uloc(:,:,1), grid%hprime, ngll )
-    dUz_deta = mxm( Uloc(:,:,2), grid%hprime, ngll )
-  endif
+    dUx_dxi  = MATMUL( grid%hTprime, Uloc(:,:,1) )
+    dUz_dxi  = MATMUL( grid%hTprime, Uloc(:,:,2) )
+    dUx_deta = MATMUL( Uloc(:,:,1), grid%hprime )
+    dUz_deta = MATMUL( Uloc(:,:,2), grid%hprime )
 
 !-- Jacobian matrix
-  xjaci = SE_InverseJacobian(grid,e)
-  dxi_dx  => xjaci(1,1,:,:)
-  dxi_dz  => xjaci(1,2,:,:)
-  deta_dx => xjaci(2,1,:,:)
-  deta_dz => xjaci(2,2,:,:)
+    xjaci = SE_InverseJacobian(grid,e)
+    dxi_dx  => xjaci(1,1,:,:)
+    dxi_dz  => xjaci(1,2,:,:)
+    deta_dx => xjaci(2,1,:,:)
+    deta_dz => xjaci(2,2,:,:)
 
 !-- Strain 
-  if (ndof==1) then
-    eij(:,:,1) = 0.5d0*( dUy_dxi*dxi_dx + dUy_deta*deta_dx ) ! e13
-    eij(:,:,2) = 0.5d0*( dUy_dxi*dxi_dz + dUy_deta*deta_dz ) ! e23
-  else
     eij(:,:,1) = dUx_dxi*dxi_dx + dUx_deta*deta_dx  ! e11
     eij(:,:,2) = dUz_dxi*dxi_dz + dUz_deta*deta_dz  ! e22
     eij(:,:,3) = 0.5d0*( dUx_dxi*dxi_dz + dUx_deta*deta_dz  &
                        + dUz_dxi*dxi_dx + dUz_deta*deta_dx  ) ! e12
-  endif
-
-end function FIELD_strain_elem
 
 
-!=============================================================================
-! divergence and curl, only for P-SV (ndof=2)
-function FIELD_divcurl_elem(Uloc,ngll,grid,e) result(eij)
-
-  use spec_grid, only : sem_grid_type, SE_InverseJacobian
-  use mxmlib
-
-  integer, intent(in) :: ngll
-  type (sem_grid_type), intent(in) :: grid
-  double precision    , intent(in) :: Uloc(ngll,ngll,2)
-  integer             , intent(in) :: e
-
-  double precision :: eij(ngll,ngll,2)
-
-  double precision, dimension(ngll,ngll) :: dUx_dxi, dUx_deta, dUy_dxi, dUy_deta
-  double precision, dimension(2,2,ngll,ngll), target :: xjaci
-  double precision, dimension(:,:), pointer :: dxi_dx, dxi_dy, deta_dx, deta_dy
-
-!-- Local gradient
-  dUx_dxi  = mxm( grid%hTprime, Uloc(:,:,1), ngll )
-  dUy_dxi  = mxm( grid%hTprime, Uloc(:,:,2), ngll )
-  dUx_deta = mxm( Uloc(:,:,1), grid%hprime, ngll )
-  dUy_deta = mxm( Uloc(:,:,2), grid%hprime, ngll )
-
-!-- Jacobian matrix
-  xjaci = SE_InverseJacobian(grid,e)
-  dxi_dx  => xjaci(1,1,:,:)
-  dxi_dy  => xjaci(1,2,:,:)
-  deta_dx => xjaci(2,1,:,:)
-  deta_dy => xjaci(2,2,:,:)
-
- ! div = dUx/dx + dUy/dy
-  eij(:,:,1) = dUx_dxi * dxi_dx + dUx_deta * deta_dx &
-             + dUy_dxi * dxi_dy + dUy_deta * deta_dy
-
- ! curl = dUx/dy - dUy/dx
-  eij(:,:,2) = dUx_dxi * dxi_dy + dUx_deta * deta_dy &
-             - dUy_dxi * dxi_dx - dUy_deta * deta_dx  
-
-end function FIELD_divcurl_elem
+end function FIELD_strain_elem_2
 
 end module fields_class

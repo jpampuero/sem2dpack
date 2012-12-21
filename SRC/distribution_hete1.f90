@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12beta -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_hete1
   
   implicit none
@@ -25,18 +65,18 @@ module distribution_hete1
 ! PURPOSE: Linear interpolation of values from a regular 2D grid.
 ! SYNTAX : &DIST_HETE1 file, col /
 !
-! ARG: file     [name] [none] Name of the file containing the definition
-!               of the regular grid and values at grid points.
-!               The format of this ASCII file is:
-!                 Line 1 :  ncol nx nz x0 z0 dx dz
-!                   ncol  = [int] number of data columns 
-!                   nx,nz = [2*int] number of nodes along x and z
-!                   x0,z0 = [2*dble] bottom-left corner 
-!                   dx,dz = [2*dble] spacing along x and z
-!                 Line 2 to nx*nz+1 : [ncol*dble] values at grid points
-!                   listed from left to right (x0 to x0+nx*dx), 
-!                   then from bottom to top (z0 to z0+nz*dx)
-! ARG: col      [int] [1] Column of the file to be read
+! ARG: file             [name] [none] Name of the file containing the definition
+!                       of the regular grid and values at grid points.
+!                       The format of this ASCII file is:
+!                          Line 1 :  ncol nx nz x0 z0 dx dz
+!                            ncol  = [int] number of data columns 
+!                            nx,nz = [2*int] number of nodes along x and z
+!                            x0,z0 = [2*dble] bottom-left corner 
+!                            dx,dz = [2*dble] spacing along x and z
+!                          Line 2 to nx*nz+1 : [ncol*dble] values at grid points
+!                            listed from left to right (x0 to x0+nx*dx), 
+!                            then from bottom to top (z0 to z0+nz*dx)
+! ARG: col              [int] [1] 	Column of the file to be read
 !
 ! NOTE   : The same file can contain values for (ncol) different properties,
 !          (e.g. rho, vp, vs) but each DIST_HETE1 block will read only one.
@@ -121,17 +161,15 @@ module distribution_hete1
 
     xi  = (coord(1,k)-d%x0)/d%dx
     i = floor(xi)
-    if (i>=d%nx-1) i = d%nx-2
-    if (i<0) i = 0
+    if (i>=d%nx) i = d%nx-1
+    if (i<1) i = 1
     xi  = xi -dble(i)
-    i = i + 1
 
     eta = (coord(2,k)-d%z0)/d%dz
     j = floor(eta)
-    if (j>=d%nz-1) j = d%nz-2
-    if (j<0) j = 0
+    if (j>=d%nz) j = d%nz-1
+    if (j<1) j = 1
     eta = eta -dble(j) 
-    j = j + 1
 
     ip=i+1
     jp=j+1

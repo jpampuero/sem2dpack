@@ -1,150 +1,81 @@
--- KNOWN ISSUES: 
-     + check examples. TestLayers fails
-     + incompatibility between dynamic faults and absorbing boundaries:
-       . see 1D test
-       . see 2D test: fault normal stress in homogeneous symmetric examples 
-         is not uniform when using Stacey absorbing boundaries
-     + note gfortran (older versions) sequential binary files, 
-       http://www.nabble.com/binary-file-problem-to12555962.html
-     + absorbing boundaries with incident waves are correct only for full homogeneous space
-     + rsf is not the same as in Ampuero and Ben-Zion (2008)
-     + rsf with v<0 is inconsistent
-     + compatibility between dynamic faults and free surface is not enforced yet
-     + incompatible update of friction when there is opening
-     + Kelvin-Voigt for inhomogeneous materials (gradient, etc) is not consistent 
-     + Kelvin-Voigt for plastic materials is not consistent 
-     + damage needs plasticity after loss of convexity
+BUGS: no known bugs
 
-   POSSIBLE ISSUES (need further verification, including beta features):
-     + plastic solver is first order?
-     + revise Stacey boundary conditions
-     + plasticity with non-explicit Newmark 
-     + damage with beta>0
+CHECK:
+     + damage material (and absorbing bcs)
+     + elastic hete, aniso, kelvin-voigt with the new material objects
+     + Q9 elements
      
--- TO DO LIST:
-
-  SOLVER:
-
-   Materials:
-     + attenuation Q, merge code by Yihe
-     + in damage: plasticity after loss of convexity, merge code by Shiqing
-     + plasticity with dilatancy (helps regularization, 
-       see Rudnicki and Rice, 1975; Templeton and Rice, 2008)
-     + non-local regularization for plasticity
-     + plasticity with softening
-     + 2.5D models for "crustal-plane" rupture, local corrections for teleseismic
-     + Perfectly Matched Layers, split or unsplit
-     + coarse-grained variables for attenuation Q (Day)
-     + more smoothing and interpolation options for heterogeneous velocity models
-     + Rayleigh damping
-     + poro-elasticity
-     + acoustic fluid 
-     + fluid-solid interaction
-     + non-linear laws as in Shake and other commercial packages
-     + homogeneization correction for shallow layers
-
-   Sources:
-     + broad band source time functions: Morlet, Berlage
-     + other source time functions: Gabor, Kupper (see table in Mavroeidis and Papageorgiou, 2003)
-     + source time functions for kinematic sources
-     + allow sources not at node
-
-   Boundary conditions:
-     + nucleation through time-dependent stress
+SOLVER:
+     + bc_abso: handle "side" internally
+     + visco-plasticity
      + more friction laws: 
-        . logarithmic rate-and-state
-        . time weakening with spontaneous rupture speed
-        . time healing
-        . velocity toughening
-     + couple dynamic faults to off-fault (1D) heat and fluid equations
-     + dynamic faults: handle branching points
+        . velocity-weakening (regularized) 
+        . rate-and-state
+        . bimaterial regularization
+     + Rayleigh damping
+     + attenuation Q
+     + attenuation Q with coarse-grained variables
      + higher order ABC for SH
-     + time-dependent Dirichlet conditions
-     + Dirichlet and Neumann conditions on non vertical/horizontal boundaries
-     + spatially non uniform Dirichlet and Neumann boundary conditions
-
-   Other:
-     + critical timestep estimate based on reciprocal lattice stepsize
-       or computing the maximum eigenvalue for each element
-     + memory usage report for boundary conditions
-     + add warning on timestep for kelvin-voigt material
-     + domain reduction method with boundary traction data (Bielak)
-     + non-conformal mesh with mortar elements
+     + Perfectly Matched Layers
+     + more smoothing and interpolation options for heterogeneous velocity models
+     + broad band sources: Gaussian, Morlet, Berlage
+     + usual Dirichlet and Neumann conditions
+     + allow sources not at node
+     + noise sources
      + domain decomposition database, for MPI test and multidomain coupling
+     + domain reduction method with boundary traction data
      + a few triangles, Fekete or other
+     + poro-elasticity
+     + non-linear laws (as in Shake and other commercial packages)
      + sub-cycling for simulations with disparate time-scales 
+     + non-conformal mesh with mortar elements
      + implicit dynamic solvers (test pre-conditionners, blended mass)
      + implicit/explicit partitioning near small geometrical features
      + implicit quasi-static solvers with conjugate gradient 
      + soil-structure interaction (see QUAD4M, etc)
      
-
-  MESHER:
-     + add surrounding zone extending to a circle (refinement ratio = (r0+h0/2)/(r0-h0/2))
-     + refinement layers 4:2 and 3:1
-     + add surrounding strip of elements for PML
-     + element quality metrics
-     + more precise stability estimate (element-wise eigenvalue problem)
-     + automated meshing starting with a triangulation in Cubit or: 
+MESHER:
+[1]  + kinked and curved faults 
+[2]  + add surrounding strip of elements for PML
+     + automated meshing starting with a triangulation: 
        Triangle (http://www.cs.cmu.edu/~quake/triangle.html)
         -->  CQmesh (http://www.dct.ufms.br/~marcelo/cqmesh.html)
          --> QMPP (http://www.dct.ufms.br/~marcelo/qmpp.html)
           --> SEM2DPACK 
+     + element quality metrics
      
-  REFACTORING:
-     + merge mesh_read and mesh_build ?
-     + Fortran 2003's "submodules" allow implementation of the "dependency inversion principle",
-       which solves cyclic dependency issues.
-       Unfortunately the feature is not yet implemented in compilers
+REFACTORING:
+[1]  + 'material property' object
      + 'domain' object
-     + improve reusability (disentangle code that is too tied to the current application)
      + encapsulate echo MSG...OK
      
-  OPTIMIZATION:
-     + element coloring to allow parallelization on multicore machines (OpenMP)
-     + vectorize computation of stress in damage materials
-     + needs further optimization:
-       v2.2.12e shows 50% CPU time loss compared to v2.2.11 on EXAMPLES/UsingEMC2
-       Expanding size arguments on MAT_ELAST_f did not work
-       (see junk/mat_elast_longarg.f90 and junk/solver_longarg.f90)
-       Issue appeared in v2.2.12b (possible cause: moved element loop out of ELAST_KD) 
-     + Pointer components of structures are referenced directly within some procedures.
-       This prevents more agressive compiler optimization: compiler is conservative,
-       assumes aliasing (pointer components can point to same memory) 
-       and produces safe but slower code
-       Can be resolved by layering: 
-       1. procedure calls a sub-procedure 
-          with structure pointer components expanded as arguments
-       or
-       2. allocatable components of Fortran 2003 (implemented in Intel compiler)
-     + improve data locality: declare large working arrays instead of 
-       element-by-element pointer allocation
+OPTIMIZATION:
+     + store coefficients elast%a in an element-by-element basis to 
+       minimize memory for rectangular elements, homogeneous regions, etc.
+     + more element oriented approach...  may degrade performance
+       => try first with the internal-forces
      + allow single precision
      
-  INPUTS/OUTPUTS/POST:
+INPUTS/OUTPUTS/POST:
      + GMT scripts for snapshot plots
      + matlab snapshots with tricontour
-     + seismograms and snapshots: input sampling rate instead of number of timesteps (interpolate)
+     + seismograms: input sampling rate instead of number of timesteps (interpolate)
      + interpol/subsampling in all snapshot outputs
      + gnuplot plotting scripts: pm3d, vectors
      + 1D response: integrate Fabian Bonilla's contrib
-     + update the POST/SPEC tools (1D model response)
+     + update the 1.x tools (1D model response)
      + Nakamura's H/V method (script)
      + engineering outputs: PGA, PGV, response spectra, etc
      + Graphical User Interface front end
 
-  DOCUMENTATION:
-     + complete description of visco-plasticity
-     + complete description of the boundary conditions
-     + add full operational sequence in examples (README files)
-     + add examples in matlab doc
-     + guidelines for advanced users on how-to implement new 
-       materials, outputs, distributions, sources, friction laws, boundary conditions
-     + emc2: detailed example of quadrangulate domains for structured regions
+DOCUMENTATION:
      + improve self-documentation script: make latex output, test RoboDoc or similar
+     + emc2: detailed example of quadrangulate domains for structured regions
+     + add a list of papers that use SEM2DPACK
+     + add description of the physics
      
-  PACKAGING:
-     + expand test suite, test each main feature
+PACKAGING:
+     + tests for each main feature
      + create a SubVersion project
      + avoid unnecessary recompilation of modules (www.theochem.uwa.edu.au/fortran/recompile)
      + add compiler_variable to Makefile

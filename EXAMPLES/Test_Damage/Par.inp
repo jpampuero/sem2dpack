@@ -1,0 +1,56 @@
+# Parameter file for SEM2DPACK 2.0 
+
+#----- Some general parameters ----------------
+&ECHO title = 'Damage test 1', verbose='1111'
+    , ItInfo = 200, ItSnapshots = 200 /
+&GENERAL iexec=1, ngll=5, fmax=25d0 , ndof=2 /
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-1.d3,1.d3 ,zlim=-1.d3,1.d3 , nelem=40,40 /
+
+#---- Elastic material parameters --------------
+
+#&MATERIAL tag=1, mode='ISOTR' /
+2400.d0 3800.d0 2000.d0
+
+&MATERIAL tag=1, mode='DAMAGE' /
+&MAT_DAMAGE rho=2400.d0, cp=3800.d0, cs=2000.d0, 
+            beta=0.4, R=0.4, Cd=5d0, phi=30d0, alpha=0.3d0 ,
+            e0 = -2d-3,-2d-3,-2d-3, 0.2d-3  /
+
+#----- Boundary conditions ---------------------
+
+#&BC_DEF  tags =1,3 ,kind = 'PERIOD' /
+&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_ABSORB side = 'D' , stacey=F /
+
+#&BC_DEF  tag = 2 , kind = 'ABSORB' /
+#&BC_ABSORB side = 'R' , stacey=F/
+
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB side = 'U' , stacey=F /
+
+#&BC_DEF  tag = 4 , kind = 'ABSORB' /
+#&BC_ABSORB side = 'L' , stacey=F /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=2d0, courant = 0.3d0 , kind='leapfrog'/
+
+#---- Sources ----------------------------------
+
+# a point force
+&SRC_DEF TimeFunction= 'RICKER' ,coord= 0.d0,0.d0, mechanism= 'WAVE' /
+&STF_RICKER  f0= 5.d0, onset = 0.4d0, ampli = 1.d-6 /
+&SRC_WAVE angle = 0d0 , phase= 'S' /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 11 , first = -1.d3,1d3, last = 1.d3,1d3 / 
+&REC_LINE number = 21 , first = -0.5d3,-1d3, last = -0.5d3,1d3 / 
+
+#--------- Plots settings ----------------------
+&PLOTS fields='V', components='a' / #, gmt=T /
+&PLOTS_POSTSCRIPT  vectors =F, color=T, interpol= F / 
+#,ScaleField = 1.d-2 /
