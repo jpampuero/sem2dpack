@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module fields_class
 ! Fields (scalar or vector) with nodal storage
 
@@ -19,7 +57,7 @@ module fields_class
   end interface FIELD_add_elem
 
   public :: fields_type, FIELDS_read, FIELDS_init &
-          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
+          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem
 
 contains
 
@@ -212,47 +250,5 @@ function FIELD_strain_elem(Uloc,ngll,ndof,grid,e) result(eij)
   endif
 
 end function FIELD_strain_elem
-
-
-!=============================================================================
-! divergence and curl, only for P-SV (ndof=2)
-function FIELD_divcurl_elem(Uloc,ngll,grid,e) result(eij)
-
-  use spec_grid, only : sem_grid_type, SE_InverseJacobian
-  use mxmlib
-
-  integer, intent(in) :: ngll
-  type (sem_grid_type), intent(in) :: grid
-  double precision    , intent(in) :: Uloc(ngll,ngll,2)
-  integer             , intent(in) :: e
-
-  double precision :: eij(ngll,ngll,2)
-
-  double precision, dimension(ngll,ngll) :: dUx_dxi, dUx_deta, dUy_dxi, dUy_deta
-  double precision, dimension(2,2,ngll,ngll), target :: xjaci
-  double precision, dimension(:,:), pointer :: dxi_dx, dxi_dy, deta_dx, deta_dy
-
-!-- Local gradient
-  dUx_dxi  = mxm( grid%hTprime, Uloc(:,:,1), ngll )
-  dUy_dxi  = mxm( grid%hTprime, Uloc(:,:,2), ngll )
-  dUx_deta = mxm( Uloc(:,:,1), grid%hprime, ngll )
-  dUy_deta = mxm( Uloc(:,:,2), grid%hprime, ngll )
-
-!-- Jacobian matrix
-  xjaci = SE_InverseJacobian(grid,e)
-  dxi_dx  => xjaci(1,1,:,:)
-  dxi_dy  => xjaci(1,2,:,:)
-  deta_dx => xjaci(2,1,:,:)
-  deta_dy => xjaci(2,2,:,:)
-
- ! div = dUx/dx + dUy/dy
-  eij(:,:,1) = dUx_dxi * dxi_dx + dUx_deta * deta_dx &
-             + dUy_dxi * dxi_dy + dUy_deta * deta_dy
-
- ! curl = dUx/dy - dUy/dx
-  eij(:,:,2) = dUx_dxi * dxi_dy + dUx_deta * deta_dy &
-             - dUy_dxi * dxi_dx - dUy_deta * deta_dx  
-
-end function FIELD_divcurl_elem
 
 end module fields_class

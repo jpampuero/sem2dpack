@@ -197,7 +197,6 @@ end
 function data_subfields_refresh
 warning('off','sem2d_snapshot_read:FileNotFound');
 data.loaded = sem2d_snapshot_read(data.field,data.time,data.dir);
-warning('on','sem2d_snapshot_read:FileNotFound');
 if isempty(data.loaded)
   my_error('Data not found');
   return
@@ -270,7 +269,7 @@ if isstruct(data.loaded)
   sem2d_snapshot_plot( getfield(data.loaded,data.subfield), data.grid,data.scale);
   fieldtxt = [data.field ' ' data.subfield];
 else
-  sem2d_snapshot_plot(data.loaded, data.grid,data.scale);
+  sem2d_snapshot_plot(data.loaded, data.grid,data.scale)
   fieldtxt = data.field;
 end
 % title

@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module stdio
 
   implicit none
@@ -12,7 +50,7 @@ module stdio
   integer, save :: ierror = 6 
 
   public :: IO_read_skip, IO_new_unit, IO_test_msg, IO_rw_field, IO_abort, &
-    IO_file_length, IO_file_columns
+    IO_file_length
 
 contains
 
@@ -63,28 +101,6 @@ contains
   close(io)
   
   end function IO_file_length
-
-!=====================================================================
-!! Count the number of columns in a text file
-  function IO_file_columns(filename) result(ncol)
-
-  character(*) :: filename
-  character(500) :: line !WARNING: assumed max line length
-  integer  :: ncol,i,iin
-  double precision :: xread !WARNING: assume double precision inputs
-
-  iin = IO_new_unit()
-  open(iin,file=filename)
-  read(iin,'(A)') line
-  close(iin)
-
-  do ncol=1,huge(ncol)
-    read(line,*,end=200) (xread, i=1,ncol)
-  enddo
-  200 continue
-  ncol = ncol-1
-
-  end function IO_file_columns
 
 !=====================================================================
 !! Tests a section name in input file

@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_gen
 
 ! MAT_GEN: handles material properties
@@ -69,7 +107,7 @@ module mat_gen
   public :: matwrk_elem_type, &
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
-            MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces
+            MAT_set_derint, MAT_strain, MAT_forces
 
 contains
 
@@ -84,7 +122,7 @@ contains
 !
 ! ARG: tag      [int] [none]    Number identifying a mesh domain 
 ! ARG: kind     [name(2)] ['ELAST','']  Material types:
-!               'ELAST', 'DMG','PLAST', 'KV' 
+!                               'ELAST', 'DMG','PLAST', 'KV' 
 !
 ! NOTE   : Some combinations of material kinds can be assigned to the same domain.
 !          Any material type can be combined with 'KV', for instance:
@@ -199,16 +237,14 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
 
   use spec_grid, only : sem_grid_type, SE_elem_coord
   use echo, only : echo_init, iout, fmt1, fmtok
-  use stdio, only : IO_abort, IO_new_unit
+  use stdio, only : IO_abort
   use memory_info
 
   type(matpro_elem_type), pointer :: mat_elem(:)
   type(matpro_input_type), intent(in), target :: mat_input(:)
   type(sem_grid_type), intent(in) :: grid
 
-  double precision :: celem(grid%ngll,grid%ngll)
   integer :: e,tag
-  integer :: ngll,cpunit,csunit,rhounit,cpunit2,csunit2,rhounit2,iol
 
   if (echo_init) then
     write(iout,*) 
@@ -219,10 +255,6 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   endif
 
   allocate(mat_elem(grid%nelem))
-
-  do tag=1,size(mat_input)
-    if (all(grid%tag<tag)) write(iout,*) 'WARNING: material ',tag,' is not assigned to any element'
-  enddo
 
   do e=1,grid%nelem
     tag = grid%tag(e)
@@ -241,57 +273,6 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   call storearray('matpro:dmg',MAT_DMG_mempro,idouble)
   call storearray('matpro:plast',MAT_PLAST_mempro,idouble)
   !!call storearray('matpro:user',MAT_USER_mempro,idouble)
-
-  ! export velocity and density model
-  if (echo_init) write(iout,fmt1,advance='no') 'Exporting model'
-
-  inquire( IOLENGTH=iol ) real(celem)
-
-  cpunit = IO_new_unit()
-  open(cpunit,file='Cp_sem2d.tab')
-  cpunit2 = IO_new_unit()
-  open(cpunit2,file='Cp_sem2d.dat',status='replace',access='direct',recl=iol)
-
-  csunit = IO_new_unit()
-  open(csunit,file='Cs_sem2d.tab')
-  csunit2 = IO_new_unit()
-  open(csunit2,file='Cs_sem2d.dat',status='replace',access='direct',recl=iol)
-
-  rhounit = IO_new_unit()
-  open(rhounit,file='Rho_sem2d.tab')
-  rhounit2 = IO_new_unit()
-  open(rhounit2,file='Rho_sem2d.dat',status='replace',access='direct',recl=iol)
-
-  ngll = grid%ngll
-
-  do e=1,grid%nelem
-
-    call MAT_getProp(celem,mat_elem(e),'cp')
-    write(cpunit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
-    write(cpunit2,rec=e) real(celem)
-
-    call MAT_getProp(celem,mat_elem(e),'cs')
-    write(csunit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
-    write(csunit2,rec=e) real(celem)
-
-    call MAT_getProp(celem,mat_elem(e),'rho')
-    write(rhounit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
-    write(rhounit2,rec=e) real(celem)
-
-  enddo
-
-  close(cpunit)
-  close(csunit)
-  close(rhounit)
-  close(cpunit2)
-  close(csunit2)
-  close(rhounit2)
-
-  if (echo_init) write(iout,fmtok)
-  
-  return
-
-  100 format(4(e11.4,1x))
 
 end subroutine MAT_init_prop
 
@@ -314,7 +295,7 @@ end subroutine MAT_init_elem_prop
 !=======================================================================
 subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
-  use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged, SE_elem_coord
+  use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged
   use echo, only : echo_init,iout,fmt1,fmtok
   use stdio, only : IO_abort
   use memory_info
@@ -362,7 +343,6 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       allocate(matwrk(e)%plast)
       call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt)
-      !call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt, SE_elem_coord(grid,e))
 
     elseif (MAT_isDamage(matpro(e))) then
       allocate(matwrk(e)%derint)
@@ -399,7 +379,7 @@ end subroutine MAT_init_work
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
+subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid)
 
   use spec_grid, only : sem_grid_type
 
@@ -410,9 +390,6 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   type(matwrk_elem_type), intent(inout) :: matwrk
   double precision, intent(in) :: dt
   type(sem_grid_type), intent(in) :: grid
-  double precision, intent(out) :: E_ep !increment of plastic energy
-  double precision, intent(out) :: E_el !total elastic energy
-  double precision, intent(out) :: sg(3),sgp(3)   !stress glut
 
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
 
@@ -421,55 +398,29 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
    ! elastic material has a specialized scheme
    ! that does not require intermediate computation of strain and stress
     call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof) 
-  !if (MAT_isCrustalPlane(matpro)) call MAT_CP_add_f(d,matwrk%cp,ngll,ndof) !DEVEL
-    E_ep = 0d0
-    E_el = 0d0
-    sg = 0d0
-    sgp = 0d0
   else
-    e  = MAT_strain(d,matwrk,ngll,ndof)
-! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
-    !e = e + eta*( MAT_strain(v,matwrk,ngll,ndof) - ep_rate )
-    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp)
+    e = MAT_strain(d,matwrk,ngll,ndof)
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
 end subroutine MAT_Fint
 
 !=======================================================================
- subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
+subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt)
 
   integer, intent(in) :: ngll,ndof
-  double precision, intent(in) :: e(ngll,ngll,ndof+1)
+  double precision :: e(ngll,ngll,ndof+1)
   double precision, intent(out) :: s(ngll,ngll,ndof+1)
   type (matwrk_elem_type) :: matwrk
   type(matpro_elem_type), intent(in) :: matpro
   logical, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
-
-  double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
-  double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local
-  integer :: k
-
-  sg_local = 0d0
-  sgp_local = 0d0
 
   if (MAT_isElastic(matpro)) call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
-  if (MAT_isPlastic(matpro)) call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update, &
-                                                   E_ep_local,E_el_local,sgp_local) 
-  if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
-                                                E_ep_local,E_el_local,sg_local,sgp_local)
+  if (MAT_isPlastic(matpro)) call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update) 
+  if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt)
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
-
-  if (present(E_ep)) E_ep = sum( matwrk%derint%weights * E_ep_local )
-  if (present(E_el)) E_el = sum( matwrk%derint%weights * E_el_local )
-  if (present(sg)) then
-    do k =1,3
-      sg(k) = sum( matwrk%derint%weights * sg_local(:,:,k) )
-      sgp(k) = sum( matwrk%derint%weights * sgp_local(:,:,k) )
-    enddo
-  endif
 
 end subroutine MAT_stress
 
@@ -513,7 +464,7 @@ end subroutine MAT_write
   nelem = size(mp)
 
  ! initialize
-  if (.not.initialized) then 
+  if (.not.initialized) then
     iout = IO_new_unit()
     open(unit=iout,file='pla_elems_sem2d.tab')
     k=0
@@ -568,7 +519,7 @@ end subroutine MAT_write
   nelem = size(mp)
 
  ! initialize
-  if (.not.initialized) then 
+  if (.not.initialized) then
     iout = IO_new_unit()
     open(unit=iout,file='dmg_elems_sem2d.tab')
     k=0
@@ -609,7 +560,7 @@ subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
   type(matwrk_elem_type) :: matwrk
   type(matpro_elem_type), intent(in) :: matpro
   type(sem_grid_type), intent(in) :: grid
-  
+
   if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   call MAT_stress(s, MAT_strain(d,matwrk,grid,e,ngll,ndof) &
                  ,matwrk,matpro,ngll,ndof,update=.false.)
@@ -749,59 +700,6 @@ end subroutine MAT_stress_dv
 
   end function MAT_strain_PSV
 
-  
-!=======================================================================
-  function MAT_divcurl(d,m,g,enum,ngll,ndof) result(e)
-
-  use spec_grid, only : sem_grid_type
-  use fields_class, only : FIELD_divcurl_elem
-  use stdio, only : IO_abort
-
-  integer, intent(in) :: ngll,ndof
-  double precision, intent(in) :: d(ngll,ngll,ndof)
-  type(matwrk_elem_type), intent(in) :: m
-  type(sem_grid_type), intent(in) :: g
-  integer, intent(in) :: enum
-  double precision :: e(ngll,ngll,2)
-  
-  if (ndof/=2) call IO_abort('mat_gen:MAT_divcurl_gen: only for P-SV')
-
-  if (associated(m%derint)) then
-    e = MAT_divcurl_PSV(d,m%derint,ngll)
-  else
-    e = FIELD_divcurl_elem(d,ngll,g,enum)
-  endif
-  
-  end function MAT_divcurl
-
-!-----------------------------------------------------------------------
-  function MAT_divcurl_PSV(d,m,ngll) result(e)
-
-  use mxmlib
-
-  integer, intent(in) :: ngll
-  double precision, intent(in) :: d(ngll,ngll,2)
-  type(derint_type), intent(in) :: m
-  double precision :: e(ngll,ngll,2)
-
-  double precision, dimension(ngll,ngll) :: dUx_dxi,dUy_dxi,dUx_deta,dUy_deta
-
- ! local gradient
-  dUx_dxi  = mxm( m%Ht, d(:,:,1), ngll )
-  dUy_dxi  = mxm( m%Ht, d(:,:,2), ngll )
-  dUx_deta = mxm( d(:,:,1), m%H, ngll )
-  dUy_deta = mxm( d(:,:,2), m%H, ngll )
-
- ! div = dUx/dx + dUy/dy
-  e(:,:,1) = dUx_dxi * m%dxi_dx + dUx_deta * m%deta_dx &
-           + dUy_dxi * m%dxi_dy + dUy_deta * m%deta_dy
-
- ! curl = dUx/dy - dUy/dx
-  e(:,:,2) = dUx_dxi * m%dxi_dy + dUx_deta * m%deta_dy &
-           - dUy_dxi * m%dxi_dx - dUy_deta * m%deta_dx  
-
-  end function MAT_divcurl_PSV
-
 !=======================================================================
 ! computes element forces from element stresses
 
@@ -836,6 +734,7 @@ end subroutine MAT_stress_dv
   endif
 
   end function MAT_forces
+
 
 
 end module mat_gen

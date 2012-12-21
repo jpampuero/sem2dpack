@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dynflt_normal
 
 ! BC_DYNFLT_NOR: normal stress response for dynamic faults 
@@ -25,9 +63,6 @@ contains
 ! SYNTAX : &BC_DYNFLT_NOR kind, V, L, T /
 !
 ! ARG: kind     [int] [1] Type of normal stress response:
-!                       0 = shear strength is independent of normal stress
-!                           (the cohesive strength is set as the product of
-!                           friction coefficient and initial normal stress)
 !                       1 = Coulomb 
 !                       2 = Prakash-Clifton with regularizing time scale
 !                       3 = Prakash-Clifton with regularizing length scale
@@ -58,7 +93,7 @@ contains
   read(iin,BC_DYNFLT_NOR,END=100)
 100 continue
 
-  if (kind>3 .or. kind<0) call IO_abort('BC_SWFF_init: invalid kind in BC_DYNFLT_NOR input block')
+  if (kind>3 .or. kind<1) call IO_abort('BC_SWFF_init: invalid kind in BC_DYNFLT_NOR input block')
   if (L<=0d0) call IO_abort('BC_SWFF_init: L must be positive in BC_DYNFLT_NOR input block')
   if (V<=0d0) call IO_abort('BC_SWFF_init: V must be positive in BC_DYNFLT_NOR input block')
   if (T<=0d0) call IO_abort('BC_SWFF_init: T must be positive in BC_DYNFLT_NOR input block')
@@ -70,8 +105,6 @@ contains
 
   if (echo_input) then
     select case (n%kind)
-    case (0) 
-      write(iout,200) 'Cohesion'
     case (1) 
       write(iout,200) 'Coulomb'
     case (2) ! modified Prakash Clifton law #1
@@ -102,7 +135,7 @@ contains
   allocate(n%sigma(size(sigma_0)))
 
   select case (n%kind)
-    case (0,1) ! cohesion or Coulomb friction
+    case (1) ! Coulomb friction
       continue
     case (2) ! modified Prakash Clifton law #1
       n%coef = exp(-dt/n%T)
@@ -121,8 +154,6 @@ contains
   double precision, intent(in) :: Tn(:),V(:)
 
   select case (n%kind)
-    case (0) ! cohesion
-      continue
     case (1) ! Coulomb friction
       n%sigma = Tn
     case (2) ! modified Prakash Clifton law #1

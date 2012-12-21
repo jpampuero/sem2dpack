@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module time_evol
 
   implicit none
@@ -21,20 +59,20 @@ contains
 ! SYNTAX : &TIME kind, {Dt or Courant}, {NbSteps or TotalTime} /
 !          Possibly followed by a TIME_XXXX block.
 !
-! ARG: kind      [char*10] ['leapfrog'] Type of scheme:
-!                'newmark'       Explicit Newmark
-!                'HHT-alpha'     Explicit HHT-alpha
-!                'leapfrog'      Central difference
-!                'symp_PV'       Position Verlet
-!                'symp_PFR'      Position Forest-Ruth (4th order)
-!                'symp_PEFRL'    Extended PFR (4th order)
-! ARG: Dt        [dble] [none] Timestep (in seconds)
-! ARG: Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
-!                stability number (CFL), defined as
-!                  CFL = Dt*wave_velocity/dx 
-!                where dx is the distance between GLL nodes. Tipically CFL<= 0.5
-! ARG: NbSteps   [int] [none] Total number of timesteps
-! ARG: TotalTime [int] [none] Total duration (in seconds)
+! ARG: kind     [char*10] ['leapfrog'] Type of scheme:
+!                       'newmark'       Explicit Newmark
+!                       'HHT-alpha'     Explicit HHT-alpha
+!                       'leapfrog'      Central difference
+!                       'symp_PV'       Position Verlet
+!                       'symp_PFR'      Position Forest-Ruth (4th order)
+!                       'symp_PEFRL'    Extended PFR (4th order)
+! ARG: Dt       [dble] [none] Timestep (in seconds)
+! ARG: Courant  [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
+!		stability number (CFL), defined as
+!                 CFL = Dt*wave_velocity/dx 
+!		where dx is the distance between GLL nodes. Tipically CFL<= 0.5
+! ARG: NbSteps  [int] [none] Total number of timesteps
+! ARG: TotalTime[int] [none] Total duration (in seconds)
 !
 ! NOTE   : The leap-frog scheme is recommended for dynamic faults. It is equivalent 
 !          to the default Newmark scheme (beta=0, gamma=1/2). However it is 
@@ -51,11 +89,11 @@ contains
 ! SYNTAX : &TIME_NEWMARK gamma, beta /
 !
 ! ARG: beta     [dble] [0d0] First Newmark parameter.
-!               If beta=0 the scheme is fully explicit (the update of
+!		If beta=0 the scheme is fully explicit (the update of
 !               displacement depends only on the last value of acceleration),
 !               otherwise it is a single-predictor-corrector scheme
 ! ARG: gamma    [dble] [0.5d0] Second Newmark parameter.
-!               Second order requires gamma=1/2.
+!		Second order requires gamma=1/2.
 !
 ! END INPUT BLOCK
 
@@ -75,23 +113,23 @@ contains
 !               Values in [0.5,1]. Rho=1 is non-dissipative.
 !
 ! NOTE: We consider only second order schemes, for which alpha+gamma=3/2
-!       If  alpha<1, Newmark's beta is related to the HHT parameters by
+!	If  alpha<1, the Newmark parameter beta is related to the HHT parameters by
 !         beta = 1 -alpha -rho^2*(rho-1)/[(1-alpha)*(1+rho)^3]
-!       If alpha=1, we set rho=1 (beta=0, gamma=0.5)
+!	If alpha=1, we set rho=1 (beta=0, gamma=0.5)
 ! 
 ! NOTE: Dissipative schemes (rho<1) require slightly smaller Courant number
 !       (0.56 for rho=0.5, compared to 0.6 for rho=1)
 !
 ! NOTE:	This is an explicit version of the HHT-alpha scheme of
-!         H.M. Hilber, T.J.R. Hughes and R.L. Taylor (1977) "Improved numerical 
-!         dissipation for time integration algorithms in structural dynamics" 
-!         Earthquake Engineering and Structural Dynamics, 5, 283-292
-!       implemented with a slightly different definition of alpha (1+original).
+!   	  H.M. Hilber, T.J.R. Hughes and R.L. Taylor (1977) "Improved numerical 
+!    	  dissipation for time integration algorithms in structural dynamics" 
+!	  Earthquake Engineering and Structural Dynamics, 5, 283-292
+! 	implemented with a slightly different definition of alpha (1+original).
 !      	Its properties can be derived from the EG-alpha scheme of
-!         G.M. Hulbert and J. Chung (1996) "Explicit time integration 
-!         algorithms for structural dynamics with optimal numerical dissipation"
-!         Comp. Methods Appl. Mech. Engrg. 137, 175-188
-!       by setting alpha_m=0 and alpha=1-alpha_f.
+!   	  G.M. Hulbert and J. Chung (1996) "Explicit time integration 
+!	  algorithms for structural dynamics with optimal numerical dissipation"
+!	  Comp. Methods Appl. Mech. Engrg. 137, 175-188
+!  	by setting alpha_m=0 and alpha=1-alpha_f.
 !
 ! END INPUT BLOCK
 
@@ -209,7 +247,7 @@ contains
   
 101 continue
     if (echo_input) write(iout,300) beta,gamma
-    t%Omega_max = sqrt(2d0/gamma)
+    t%Omega_max = 2d0 !devel: can be improved
 
 
    case ('HHT-alpha')
@@ -274,9 +312,6 @@ contains
     t%b(3) = t%b(2)
     t%b(4) = t%b(1)
     t%Omega_max = 2.97633d0
-
-   case default
-    call IO_abort('TIME: unknown kind')
 
   end select
 
@@ -422,17 +457,12 @@ contains
 
   function TIME_getCoefA2D(t) result(c)
 
-  use stdio, only : IO_abort
-
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
   select case (t%kind)
     case ('newmark','HHT-alpha'); c = t%beta * t%dt**2
     case ('leapfrog'); c = 0d0
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
   end select
 
   end function TIME_getCoefA2D
@@ -440,17 +470,12 @@ contains
 !-----------------------------------------------------------------------
   function TIME_getCoefA2V(t) result(c)
 
-  use stdio, only : IO_abort
-
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
   select case (t%kind)
     case ('newmark','HHT-alpha'); c = t%gamma * t%dt
     case ('leapfrog'); c = t%dt
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
   end select
 
   end function TIME_getCoefA2V
@@ -463,8 +488,6 @@ contains
 ! 
   function TIME_getCoefA2Vrhs(t) result(c)
 
-  use stdio, only : IO_abort
-
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
@@ -475,9 +498,6 @@ contains
  !	 but the velocity field is stored at n+1/2, 
  !       v_rhs = v_(n+1/2) + 1/2*dt*a_(n+1)
  !       v_rhs_pre = v_(n+1/2)
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
   end select
 
   end function TIME_getCoefA2Vrhs

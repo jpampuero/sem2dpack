@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module spec_grid
 
   use stdio, only : IO_abort
@@ -100,7 +138,6 @@ module spec_grid
          SE_Jacobian ,&
          SE_elem_coord, &
          BC_inquire ,&
-         BC_tag_exists, &
          BC_get_normal_and_weights &
           , edge_D,edge_R,edge_U,edge_L
  
@@ -145,7 +182,7 @@ contains
 ! and derivatives of Lagrange polynomials  H_ij = h'_i(xgll(j))
   subroutine SE_init_gll(se)
 
-  use gll, only : get_GLL_info, print_GLL
+  use gll, only : get_GLL_info
 
   type (sem_grid_type), intent(inout) :: se
   double precision :: xi,eta 
@@ -160,7 +197,6 @@ contains
   allocate(se%wgll2(ngll,ngll))
 
   call get_GLL_info(ngll,se%xgll,se%wgll,se%hprime)
-  call print_GLL(ngll,se%xgll,se%wgll,se%hprime)
   se%hTprime = transpose(se%hprime)
   
  ! wgll2(i,j) = wgll(i) * wgll(j)
@@ -245,7 +281,6 @@ contains
 
   do e = 1,se%nelem
 
-
    !-- interior nodes are unique
     do j=2,ngll-1
     do i=2,ngll-1
@@ -264,7 +299,6 @@ contains
         if (ee>0) ibool(iedgR(k,nn),jedgR(k,nn),ee) = npoin
       enddo
     enddo
-
 
    !-- vertex nodes
     do n = 1,4
@@ -424,15 +458,12 @@ contains
     endif
   enddo
 
-  if (present(coord)) coord = grid%coord(:,iglob)
+  if (present(coord)) coord(:) = grid%coord(:,iglob)
   if (present(distance)) distance = sqrt(d2min)
 
   end subroutine SE_find_nearest_node
 
 !=====================================================================
-! Find (e,i,j), element and local indices associated to a global node iglob
-! Version 1: first element found
-! Version 2: all elements
 !
   subroutine SE_node_belongs_to_1(iglob,e,i,j,grid)
 
@@ -716,7 +747,8 @@ subroutine BC_set_bulk_node(bc,grid)
   do n=1,bc%nelem
 
 !   get edge nodes, counterclockwise by default
-    call SE_get_edge_nodes(grid,bc%elem(n),bc%edge(n), bulk_node_vect)
+    call SE_get_edge_nodes(grid,bc%elem(n),bc%edge(n) &
+                          ,bulk_node_vect)
 
     do kloc = 1,bc%ngnod
 
@@ -867,7 +899,6 @@ end subroutine BC_set_bulk_node
   double precision :: dmin,dmax
 
   !-- give the GLL local numbering ITAB,JTAB for a given EDGE
-  !   assuming counterclockwise orientation
   if ( present(edge) .and. present(itab) .and. present(jtab) ) then
     select case(edge)
       case(edge_D); itab = (/ (k, k=1,grid%ngll) /)   ; jtab = 1
@@ -932,25 +963,6 @@ end subroutine BC_set_bulk_node
   end subroutine BC_inquire
 
 !=======================================================================
-!
-  logical function BC_tag_exists(bounds,tag) result(exists)
-
-  type (bnd_grid_type), intent(in) :: bounds(:)
-  integer, intent(in) :: tag
-
-  integer :: i
-  
-  exists = .false.
-  do i=1,size(bounds)
-    if ( bounds(i)%tag == tag ) then
-      exists = .true.
-      exit
-    endif
-  enddo
-
-  end function BC_tag_exists
-
-!=======================================================================
 ! Normal to a boundary, pointing out of the element
 ! Normals are assembled --> "average" normal between elements
   subroutine BC_get_normal_and_weights(bc,grid,NORM,W,periodic)
@@ -970,10 +982,7 @@ end subroutine BC_set_bulk_node
   do BcElmt = 1,bc%nelem
     call SE_inquire(grid, edge=bc%edge(BcElmt) &
                    ,itab=iGLLtab, jtab=jGLLtab, dim_t=LocDimTanToEdge)
-   ! LocDimTanToEdge = local dimension (1=xi, 2=eta) tangent to current edge                    
    ! SignTang enforces the counterclockwise convention for tangent vector
-   ! (iGLLtab,jGLLtab) are the GLL indices of the nodes of boundary element BcElmt
-   ! in the same order (counterclockwise) as they appear in bc%ibool(:,BcElmt)
     if (bc%edge(BcElmt)==edge_U .OR. bc%edge(BcElmt)==edge_L) then
       SignTang = -1d0
     else

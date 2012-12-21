@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dirneu
 
 ! Dirichlet (null displacement) and/or Neumann (null traction) conditions
@@ -39,10 +77,10 @@ contains
 ! ARG: v        [char]['N'] Boundary condition on the vertical component :
 !                       'N' : Neumann 
 !                       'D' : Dirichlet
-! ARG: hsrc     [name]['none'] Name of the source time function for a
+! ARG: hsrc     [name]['null'] Name of the source time function for a
 !                time-dependent horizontal traction: 
 !                'RICKER', 'TAB', 'USER', etc  (see STF_XXXX input blocks)
-! ARG: vsrc     [name]['none'] Same for the vertical component
+! ARG: vsrc     [name]['null'] Same for the vertical component
 !
 ! END INPUT BLOCK
 
@@ -62,8 +100,8 @@ subroutine bc_DIRNEU_read(bc,iin)
 
   h = 'N'
   v = 'N'
-  hstf = 'none'
-  vstf = 'none'
+  hstf = 'null'
+  vstf = 'null'
 
   read(iin,BC_DIRNEU,END=100)
 
@@ -75,12 +113,12 @@ subroutine bc_DIRNEU_read(bc,iin)
   elseif (h=='D') then
     bc%kind(1) = IS_DIRICHLET
     htype = 'Dirichlet'
-    hstf ='none' ! time-dependent only for Neumann
+    hstf ='null' ! time-dependent only for Neumann
   else
     call IO_abort('bc_DIRNEU_read: h must be N or D')
   endif
   if (echo_input) write(iout,200) htype,hstf
-  if (hstf/='none') then
+  if (hstf/='null') then
     allocate(bc%hstf)
     call STF_read(hstf,bc%hstf,iin)
   endif
@@ -91,12 +129,12 @@ subroutine bc_DIRNEU_read(bc,iin)
   elseif (v=='D') then
     bc%kind(2) = IS_DIRICHLET
     vtype = 'Dirichlet'
-    vstf ='none' ! time-dependent only for Neumann
+    vstf ='null' ! time-dependent only for Neumann
   else
     call IO_abort('bc_DIRNEU_read: h must be N or D')
   endif
   if (echo_input) write(iout,300) vtype,vstf
-  if (vstf/='none') then
+  if (vstf/='null') then
     allocate(bc%vstf)
     call STF_read(vstf,bc%vstf,iin)
   endif
@@ -104,7 +142,7 @@ subroutine bc_DIRNEU_read(bc,iin)
   return
   100 call IO_abort('bc_DIRNEU_read: no BC_DIRNEU block found')
   200 format(5x,'Horizontal component. . . . . . . . . (h) = ',A, &
-            /5x,'         source time function . . .(hstf) = ',A)
+            /5x,'           source time function . .(hstf) = ',A)
   300 format(5x,'Vertical component. . . . . . . . . . (v) = ',A, &
             /5x,'         source time function . . .(vstf) = ',A)
 
@@ -156,7 +194,7 @@ subroutine bc_DIRNEU_set(bc,field,t)
     field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,t)*bc%B
   endif
 
-  if (size(field,2)==1) return
+  if (size(field,1)==1) return
  
   if (bc%kind(2)==IS_DIRICHLET) then
     field(bc%topo%node,2) = 0.d0

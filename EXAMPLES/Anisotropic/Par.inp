@@ -1,4 +1,4 @@
-# Parameter file for SEM2DPACK
+# Parameter file for SEM2DPACK 2.0 
 # Anisotropic test from figure 7 of Komatitsch, Barnes and Tromp (Geophysics, 2000)
 
 #----- Some general parameters ----------------
@@ -37,9 +37,16 @@
 
 # for absorbing boundaries:
 #&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_ABSORB  stacey=F/
+
 #&BC_DEF  tag = 2 , kind = 'ABSORB' /
+#&BC_ABSORB  stacey=F/
+
 #&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+#&BC_ABSORB  stacey=F/
+
 #&BC_DEF  tag = 4 , kind = 'ABSORB' /
+#&BC_ABSORB  stacey=F/
 
 #---- Time scheme settings ----------------------
 &TIME  TotalTime=1.d-4, dt= 5d-8 /

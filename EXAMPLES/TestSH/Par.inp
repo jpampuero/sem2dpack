@@ -15,7 +15,10 @@
 #----- Boundary conditions ---------------------
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB stacey=F/
+
 &BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB stacey=F/
 
 #---- Time scheme settings ----------------------
 &TIME  TotalTime=35.d0, courant = 0.3d0 / 

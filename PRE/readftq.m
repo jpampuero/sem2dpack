@@ -18,9 +18,8 @@
 
 function ftq = readftq(name)
 
-name = deblank(name);
-if isempty(regexp(name,'\.ftq$')), name = strcat(name,'.ftq'); end
-fid = fopen(name);
+ftqfile = strcat(name,'.ftq');
+fid = fopen(ftqfile);
 header = fscanf(fid,'%i',[4 1]);
 ntri = header(3);
 if ntri >0, error( sprintf('There are %n triangles in your mesh!',ntri) ), end

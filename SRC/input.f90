@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module input
 
   implicit none
@@ -31,7 +69,7 @@ contains
 !-----------------------------------------------------------------------
 
   iin  = IO_new_unit()
-  open (iin,file=input_file,status='old',action='read')
+  open (iin,file=input_file)
   
   call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,iin)
 
@@ -74,11 +112,12 @@ contains
 !                       1 = solve
 ! ARG: ngll     [int] [9] Number of GLL nodes per edge on each spectral element
 !                ( polynomial order +1 ). Usually 5 to 9.
-! ARG: fmax     [dble] [1.d0] The code checks if this maximum frequency is
-!                well resolved by the mesh and issues a warning if not. 
-!                This parameter is not used in computations, only for checking.
-!                To improve the resolution for a given fmax you must increase ngll 
-!                (but you will have to use shorter timesteps) or refine the mesh.
+! ARG: fmax     [dble] [0.d0] Maximum frequency to be well resolved. Mandatory.
+!                This is a target frequency, the code will check if it is
+!                compatible with the mesh and issue a warning if not. To
+!                improve the resolution for a given fmax you must increase ngll 
+!                (but you will have to use shorter timesteps) or refine/redesign 
+!                the mesh.
 ! ARG: ndof     [int] [2] Number of degrees of freedom per node
 !                       1 = SH waves, anti-plane
 !                       2 = P-SV waves, in-plane
@@ -110,7 +149,7 @@ contains
   iexec = 0
   ndof = 2
   ngll = 9
-  fmax = 1d0
+  fmax = 0.d0
   title   = ''
   verbose = '1101'
   itInfo  = 100
@@ -120,7 +159,7 @@ contains
 
   if (ndof>2 .or. ndof<1) call IO_abort('GENERAL input block: ndof must be 1 or 2 (SH or P-SV)')
   if (ngll <= 0) call IO_abort('GENERAL input block: ngll must be positive')
-  if (fmax <= 0.d0) call IO_abort('GENERAL input block: fmax must be positive')
+  if (fmax <= 0.d0) call IO_abort('GENERAL input block: fmax null or missing')
   if (itInfo<=0) call IO_abort('GENERAL input block: itInfo must be positive')
 
   if (iexec==0) then

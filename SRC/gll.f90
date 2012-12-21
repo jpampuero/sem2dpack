@@ -1,13 +1,47 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module gll
 
   implicit none
   private
 
-  interface print_GLL
-    module procedure print_GLL_a, print_GLL_b
-  end interface print_GLL
-
-  public :: get_GLL_info, print_GLL, hgll,hdgll,zwgljd
+  public :: get_GLL_info,hgll,hdgll,zwgljd
 
 contains
 
@@ -18,65 +52,25 @@ contains
 
   subroutine get_GLL_info(n,x,w,H)
 
-  integer, intent(in) :: n
-  double precision, intent(out) :: w(n),x(n),H(n,n)
-
-  integer :: ix,ip
+  integer :: i,ip,n
+  double precision :: w(n),x(n),H(n,n)
 
   call zwgljd(x,w,n,0.d0,0.d0)
   !if n is odd make sure the middle point is exactly zero:
   if(mod(n,2) /= 0) x((n-1)/2+1) = 0.d0
 
-  do ix=1,n
+  do i=1,n
   do ip=1,n
-    H(ip,ix)  = hdgll(ip-1,ix-1,x,n) ! in hdggl, indices start at 0
+    H(ip,i)  = hdgll(ip-1,i-1,x,n) ! in hdggl, indices start at 0
   enddo
   enddo
 
   end subroutine get_GLL_info
 !
 !=======================================================================
-!
-! Print GLL information to a text file
-
-  subroutine print_GLL_a(n,x,w,H)
-
-  use stdio, only: IO_new_unit
-
-  integer, intent(in) :: n
-  double precision, intent(in) :: w(n),x(n),H(n,n)
-
-  integer :: ip,iout
-  character(15) :: fmt
-
- ! fmt = (n(x,F0.16))
-  write(fmt,'("(",I0,"(x,F0.16))")') n
-
-  iout = IO_new_unit()
-  open(unit=iout,file='gll_sem2d.tab')
-  write(iout,fmt) x
-  write(iout,fmt) w
-  do ip=1,n
-    write(iout,fmt) H(ip,:)
-  enddo
-  close(iout)
-
-  end subroutine print_GLL_a
-
-!-----------------------------------------------------------------------
-
-  subroutine print_GLL_b(n)
-
-  integer, intent(in) :: n
-
-  double precision :: w(n),x(n),H(n,n)
-
-  call get_GLL_info(n,x,w,H)
-  call print_GLL_a(n,x,w,H)
-
-  end subroutine print_GLL_b
-
       
+  double precision function endw1 (n,alpha,beta)
+!
 !=======================================================================
 !
 !     E n d w 1 :
@@ -84,7 +78,6 @@ contains
 !
 !=======================================================================
 !
-  double precision function endw1 (n,alpha,beta)
   
 
   integer n

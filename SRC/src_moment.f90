@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.3 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module src_moment
 
 ! SRC_MOMENT: moment tensor sources
@@ -33,17 +71,6 @@ contains
 !          moves up (positive Z direction) in PSV and forward (positive Y 
 !          direction) in SH.
 !
-! NOTE   : The source time function gives the cumulative seismic moment Mo(t), 
-!          NOT the seismic moment rate.
-!
-! NOTE   : The seismic moment Mo must be rescaled because a 2D point source is 
-!          equivalent to a 3D line source. A proper scaling is obtained by 
-!          dividing the original 3D moment by the characteristic size of the 
-!          rupture area in the off-plane dimension. An approximate scaling for
-!          a fault area with aspect ratio close to unity is
-!            Mo_2D = (Mo_3D/dtau)^2/3 * dtau
-!          where dtau is the stress drop (typically a few MPa).
-!
 ! END INPUT BLOCK
 
 
@@ -52,11 +79,10 @@ contains
 ! NAME   : SRC_MOMENT
 ! GROUP  : SOURCE MECHANISM
 ! PURPOSE: Define a moment tensor source
-! SYNTAX : &SRC_MOMENT Mxx,Mxz,Mzx,Mzz /
-!          &SRC_MOMENT Myx,Myz /
+! SYNTAX : &SRC_MOMENT Mxx,Mxz,Mzx,Mzz , Myx,Myz /
 !
 ! ARG: Mxx,Mxz,Mzx,Mzz [dble] [0] Tensor components for PSV
-! ARG: Myx,Myz         [dble] [0] Tensor components for SH
+! ARG: Myx,Myz       [dble] [0] Tensor components for SH
 !                     
 ! END INPUT BLOCK
 
