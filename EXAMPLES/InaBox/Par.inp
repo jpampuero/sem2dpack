@@ -1,8 +1,9 @@
-# Parameter file for SEM2DPACK
+# Parameter file for SEM2DPACK 2.0 
 
 #----- Some general parameters ----------------
-&GENERAL iexec=0, ngll=5, fmax=25d0 , ndof=2 ,
-  title = 'Example 1: a box', verbose='1111' , ItInfo = 100 /
+&ECHO title = 'Example 1: a box', verbose='1111'
+    , ItInfo = 100, ItSnapshots = 100 /
+&GENERAL iexec=1, ngll=5, fmax=25d0 , ndof=1 /
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN' /
@@ -10,7 +11,7 @@
 
 #---- Elastic material parameters --------------
 
-&MATERIAL tag=1, kind='ELAST' /
+&MATERIAL tag=1, isElastic=T /
 
 # Example 1: homogeneous medium
 &MAT_ELASTIC rho=2400.d0, cp=3800.d0, cs=2000.d0 /
@@ -35,16 +36,16 @@
 #&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
 
 &BC_DEF  tag = 1 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'D' , stacey=F /
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F/
+&BC_ABSORB side = 'R' , stacey=F/
 
 &BC_DEF  tag = 3 , kind = 'ABSORB' /  
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'U' , stacey=F /
 
 &BC_DEF  tag = 4 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'L' , stacey=F /
 
 #---- Time scheme settings ----------------------
 &TIME  TotalTime=2d0, courant = 0.3d0 , kind='newmark'/
@@ -71,6 +72,6 @@
 &REC_LINE number = 21 , first = -0.5d3,-1d3, last = -0.5d3,1d3 / 
 
 #--------- Plots settings ----------------------
-&SNAP_DEF itd=100, fields='V', components='a' / #, gmt=T /
-&SNAP_PS vectors =F, color=T, interpol= F / 
+&PLOTS fields='V', components='a' / #, gmt=T /
+&PLOTS_POSTSCRIPT  vectors =F, color=T, interpol= F / 
 #,ScaleField = 1.d-2 /

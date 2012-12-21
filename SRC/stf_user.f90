@@ -1,10 +1,50 @@
+! SEM2DPACK version 2.2.12c -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module stf_user
 
 !! To add a new source time function:
 !!   1. Modify the current template module following the instructions 
 !!      in comment lines starting by "!!"
-!!      or create a new stf_XXX.f90 module based on this template
-!!   2. Modify the stf_gen.f90 module
+!!      or create a new src_XXX.f90 module based on this template
+!!   2. Modify the src_gen.f90 module
 !!   3. Modify the file Makefile.depend
 !!   4. Re-compile
 
@@ -31,9 +71,7 @@ contains
 !
 ! NAME   : STF_USER
 ! GROUP  : SOURCE TIME FUNCTIONS
-! PURPOSE: A template for user-supplied source time function.
-!          File stf_user.f90 must be modified by the user to fit
-!          special needs.
+! PURPOSE: User-supplied source time function (a template)
 ! SYNTAX : &STF_USER ampli, onset, par1, par2, ipar1, ipar2 /
 !
 ! ARG: ampli    [dble] [1.] Amplitude
@@ -43,6 +81,7 @@ contains
 ! ARG: par1     [int] [0]  Example parameter
 ! ARG: par1     [int] [0]  Example parameter
 !
+! NOTE   : The user must modify the template module stf_user.f90
 !
 ! END INPUT BLOCK
 
@@ -106,7 +145,7 @@ function STF_USER_fun(stf,t) result(fun)
   double precision, intent(in) :: t
   double precision :: fun
 
-!  integer :: seed = 12345       !! example of remanent variable
+  integer :: seed = 12345       !! example of remanent variable
                                 !! might be used for initialization
                                 !! or for random number generator
   double precision :: arg

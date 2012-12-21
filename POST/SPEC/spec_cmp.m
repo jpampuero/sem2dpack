@@ -1,4 +1,4 @@
-% 2D Amplification Ratio from SEM2DPACK data
+% 2D Amplification Ratio from SPECFEM data
 % compared to 1D estimation
 % -> contour plots
 % H. Rendon and J.P. Ampuero - Sept. 2001

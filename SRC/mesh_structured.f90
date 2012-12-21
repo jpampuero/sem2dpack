@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12c -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mesh_structured
 
   implicit none
@@ -9,20 +49,26 @@ module mesh_structured
 contains
 
 ! Set connectivity table: indices of nodes for each element
-subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
+subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod)
 
   use stdio, only : IO_abort
   use utils, only : sub2ind
 
   integer, intent(out) :: knods(ngnod,nx*nz)
   integer, intent(in) :: nx,nz,ngnod
-  integer, intent(in), optional :: ezflt
 
   integer :: ie,je,i,j,k,nxp
 
- ! Elements are sequentially numbered horizontally from bottom-left to top-right
   if (ngnod==4) then
     nxp = nx+1 
+  elseif (ngnod==9) then
+    nxp = 2*nx+1 
+  else
+    call IO_abort('MESH_STRUCTURED_connect: ngnod must be 4 or 9')
+  endif
+
+ ! Elements are sequentially numbered horizontally from bottom-left to top-right
+  if (ngnod==4) then
     k = 0
     do j=1,nz
     do i=1,nx
@@ -33,28 +79,7 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
       knods(4,k) = sub2ind(i,j+1,nxp)
     enddo
     enddo 
-
-  elseif (ngnod==8) then
-    nxp = 3*nx+1 
-    k = 0
-    do je=1,nz
-    do ie=1,nx
-      k = k + 1
-      i = 3*(ie-1)+1
-      j = je
-      knods(1,k) = sub2ind(i,j,nxp)
-      knods(2,k) = sub2ind(i+3,j,nxp)
-      knods(3,k) = sub2ind(i+3,j+1,nxp)
-      knods(4,k) = sub2ind(i,j+1,nxp)
-      knods(5,k) = sub2ind(i+1,j,nxp)
-      knods(6,k) = sub2ind(i+2,j,nxp)
-      knods(7,k) = sub2ind(i+1,j+1,nxp)
-      knods(8,k) = sub2ind(i+2,j+1,nxp)
-    enddo
-    enddo 
-
-  elseif (ngnod==9) then
-    nxp = 2*nx+1 
+  else
     k = 0
     do je=1,nz
     do ie=1,nx
@@ -72,27 +97,21 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
       knods(9,k) = sub2ind(i+1,j+1,nxp)
     enddo
     enddo 
-  else
-    call IO_abort('MESH_STRUCTURED_connectivity: ngnod must be 4 or 9')
-  endif
-
-  if (present(ezflt)) then
-    if (ezflt>0) knods(:,nx*ezflt+1:) = knods(:,nx*ezflt+1:)+nxp
   endif
 
 end subroutine MESH_STRUCTURED_connectivity
 
 !=====================================================================
-subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
+subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,hcut)
 
   use fem_grid, only : edge_D,edge_R,edge_U,edge_L, & 
-                       side_D,side_R,side_U,side_L
+                        side_D,side_R,side_U,side_L
   use bnd_grid, only : bnd_grid_type
   use utils, only : sub2ind
 
   type(bnd_grid_type) :: bnds(:)
   integer, intent(in) :: nx,nz
-  integer, intent(in), optional :: ezflt
+  logical, intent(in), optional :: hcut
 
   integer :: i,j
   integer, parameter :: fault_D = 5
@@ -138,8 +157,8 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
   enddo
   bnds(side_L)%edge = edge_L
 
-  if (present(ezflt)) then
-  if (ezflt>0) then
+  if (present(hcut)) then
+  if (hcut) then
 
    ! Fault Up: 
     bnds(fault_U)%tag = fault_U
@@ -147,7 +166,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
     allocate(bnds(fault_U)%elem(nx))
     allocate(bnds(fault_U)%edge(nx))
     do i =1,nx
-      bnds(fault_U)%elem(i) = sub2ind(i,ezflt+1,nx)
+      bnds(fault_U)%elem(i) = sub2ind(i,nz/2+1,nx)
     enddo
     bnds(fault_U)%edge = edge_D
     
@@ -157,7 +176,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
     allocate(bnds(fault_D)%elem(nx))
     allocate(bnds(fault_D)%edge(nx))
     do i =1,nx
-      bnds(fault_D)%elem(i) = sub2ind(i,ezflt,nx)
+      bnds(fault_D)%elem(i) = sub2ind(i,nz/2,nx)
     enddo
     bnds(fault_D)%edge = edge_U
 

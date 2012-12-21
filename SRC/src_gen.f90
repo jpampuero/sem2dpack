@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12c -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module sources
 
   use src_moment
@@ -20,8 +60,8 @@ module sources
 
   type source_type
     private
-    double precision :: coord(NDIME)
-    double precision :: tdelay = 0d0, ampli = 1d0
+    double precision :: coord(NDIME) 
+    double precision :: tdelay
     type (stf_type), pointer  :: stf
     type (src_mechanism_type) :: mech
   end type source_type
@@ -58,38 +98,33 @@ contains
 !
 ! NAME   : SRC_DEF
 ! PURPOSE: Define the sources.
-! SYNTAX : &SRC_DEF stf, mechanism, coord /
-!          &SRC_DEF stf, mechanism, file /
-!          followed by one SOURCE TIME FUNCTION block (STF_XXXX)
-!          and one SOURCE MECHANISM block (SRC_XXXX) 
+! SYNTAX : &SRC_DEF stf, mechanism, coord, file /
+!          followed by one SOURCE MECHANISM block (SRC_XXXX) 
+!          and one SOURCE TIME FUNCTION block (STF_XXXX)
 !
 ! ARG: stf        [name] [none] Name of the source time function:
-!                  'RICKER', 'TAB', 'HARMONIC', 'BRUNE' or 'USER'
+!                  'RICKER', 'TAB' or 'USER'
 ! ARG: mechanism  [name] [none] Name of the source mechanism:
 !                  'FORCE', 'EXPLOSION', 'DOUBLE_COUPLE', 'MOMENT' or 'WAVE'
-! ARG: coord      [dble(2)] [huge] Location (x,z) of the source (m). 
-! ARG: file       [name] ['none'] Name of file containing source parameters.
-!                  The file format is ASCII with one line per source and
-!                  2, 3 or 4 columns per line:
-!                    (1) X position (in m)
-!                    (2) Z position (in m)
-!                    (3) time delay (in seconds)
-!                    (4) relative amplitude
-!                  If column 4 is absent, amplitude = 1.
-!                  If columns 3 and 4 are absent, delay = 0 and amplitude = 1.
+! ARG: coord      [dble] [huge] Location of the source (m). 
+! ARG: file       [string] ['none'] Station coordinates and delay times can
+!                  be read from an ASCII file, with 3 columns per line:
+!                  (1) X position (in m),
+!                  (2) Z position (in m) and
+!                  (3) time delay (in seconds)
 !
 ! END INPUT BLOCK
 
   subroutine SO_read(so,iin,ndof)
 
-  use stdio, only : IO_abort,IO_new_unit, IO_file_length, IO_file_columns
+  use stdio, only : IO_abort,IO_new_unit, IO_file_length
   use echo , only : echo_input,iout
 
   integer, intent(in) :: iin,ndof
   type(source_type), pointer :: so(:)
 
   double precision :: coord(NDIME),init_double
-  integer :: i,n, iin2, ncol
+  integer :: i,n, iin2
   character(15) :: stf,mechanism
   character(50) :: file
 
@@ -127,29 +162,16 @@ contains
     n=1
     allocate(so(1))
     so(1)%coord = coord
+    so(1)%tdelay = 0d0
 
   else
     n = IO_file_length(file)
-    ncol = IO_file_columns(file)
     allocate(so(n))
     iin2 = IO_new_unit()
     open(iin2,file=file)
-    select case (ncol)
-      case (2)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:)
-        enddo
-      case (3)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:), so(i)%tdelay
-        enddo
-      case(4)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:), so(i)%tdelay, so(i)%ampli
-        enddo
-      case default
-        call IO_abort('SO_read: inappropriate number of columns in file')
-    end select
+    do i=1,n
+      read(iin2 ,*) so(i)%coord(:), so(i)%tdelay
+    enddo
     close(iin2)
   endif
 
@@ -302,7 +324,6 @@ end subroutine SO_read
 
    ! get source amplitude
     ampli = STF_get(so(k)%stf,t-so(k)%tdelay)
-    ampli = ampli * so(k)%ampli
   
    ! add source term
     select case (so(k)%mech%kind)

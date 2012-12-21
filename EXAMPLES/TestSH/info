@@ -2,13 +2,13 @@
 
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- Program  S E M 2 D P A C K : start
+ Program  S P E C F E M : start
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
                                                    
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:41
+ D a t e : 14 - 01 - 2008                                 T i m e  : 20:30:33
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
  
@@ -18,6 +18,19 @@
  
 
 
+ E c h o   S e t t i n g s
+ =========================
+
+     Echo during input phase. . . . . . . . . . . (Verbose(1)) = T
+     Echo during init phase . . . . . . . . . . . (Verbose(2)) = T
+     Echo during check phase. . . . . . . . . . . (Verbose(3)) = T
+     Echo during run phase. . . . . . . . . . . . (Verbose(4)) = T
+     Number of timesteps between snapshots. . . .(ItSnapshots) = 100000
+     First display at timestep number . . . . . .(ItSnapshot1) = 0
+     Number of timesteps between basic output . . . . (ItInfo) = 1000
+
+
+
  G e n e r a l   P a r a m e t e r s
  ===================================
 
@@ -25,25 +38,19 @@
      Number of nodes per edge . . . . . . . . . . .(ngll) = 6
      Number of d.o.f per node . . . . . . . . . . .(ndof) = 1
      Highest frequency to be resolved . . . . . . .(fmax) =    1.250E+00
-     Print progress information during 
-                 input phase  . . . . . . . .(verbose(1)) = T
-                 initialization phase . . . .(verbose(2)) = T
-                 checking phase . . . . . . .(verbose(3)) = T
-                 solver phase . . . . . . . .(verbose(4)) = T
-     Frequency for solver progress information  .(itInfo) = 1000
-
 
 
  M e s h   G e n e r a t i o n
  =============================
 
-     Method  . . . . . . . . . . . . . . . .(method) = CARTESIAN 
+     Method. . . . . . . . . . . . . . . . .(method) = CARTESIAN 
      Minimum X . . . . . . . . . . . . . . (xlim(1)) =  0.000E+00
      Maximum X . . . . . . . . . . . . . . (xlim(2)) =  3.000E+01
      Minimum Z . . . . . . . . . . . . . . (zlim(1)) =  0.000E+00
      Maximum Z . . . . . . . . . . . . . . (zlim(2)) =  3.000E+01
      Number of elements along X. . . . . .(nelem(1)) = 60
      Number of elements along Z. . . . . .(nelem(2)) = 60
+     Cut by horizontal fault . . . . . . . .(faultx) = F
 
 
  T i m e   i n t e g r a t i o n
@@ -62,7 +69,9 @@
      Number of materials . . . . . . . . . . . = 1
 
      Material index. . . . . . . . . . . (tag) = 1
-     Material type . . . . . . . . . . .(kind) = Elastic
+     Is elastic. . . . . . . . . . . . . . . . = T
+     Is Kelving-Voigt. . . . . . . . . . . . . = F
+     Is damage . . . . . . . . . . . . . . . . = F
      P-wave velocity . . . . . . . . . . .(cp) =   1.732E+00
      S-wave velocity . . . . . . . . . . .(cs) =   1.000E+00
      Mass density. . . . . . . . . . . . (rho) =   1.000E+00
@@ -105,12 +114,6 @@
  =================
 
      Number of receivers . . . . . . . . . . . . (number) = 7
-     First receiver X location . . . . . . . . (first(1)) =    0.000E+00
-     First receiver Z location . . . . . . . . (first(2)) =    0.000E+00
-     Last receiver X location. . . . . . . . . .(last(1)) =   30.000E+00
-     Last receiver Z location. . . . . . . . . .(last(2)) =    0.000E+00
-
-     Relocate to the nearest GLL node. . . . . . (AtNode) = T
      Subsampling for seismograms recording . . . .(isamp) = 1
      Field recorded. . . . . . . . . . . . . . . .(field) = D
      Axis of the seismogram plot . . . . . . . . .(irepr) = D
@@ -119,9 +122,7 @@
  S n a p s h o t   O u t p u t s
  ===============================
 
-     Timestep of first snapshot output  . . . . . . (it1) = 0
-     Number of timesteps between snapshots. . . . . (itd) = 100000
-     Save results in PS file or not . . . . . . . . .(ps) = F
+     Save results in PS file or not . . . . .(postscript) = F
      Save grid triangulation for GMT. . . . . . . . (gmt) = F
      Save results in AVS file or not. . . . . . . . (avs) = F
      Save results in Visual3 file or not. . . . (visual3) = F
@@ -132,8 +133,6 @@
        Acceleration . . . . . . . . . . . . . . . . . . . = F
        Strain . . . . . . . . . . . . . . . . . . . . . . = F
        Stress . . . . . . . . . . . . . . . . . . . . . . = F
-       Divergence . . . . . . . . . . . . . . . . . . . . = F
-       Curl . . . . . . . . . . . . . . . . . . . . . . . = F
      Selected components for PostScript snapshots :
        X  . . . . . . . . . . . . . . . . . . . . . . . . = F
        Y  . . . . . . . . . . . . . . . . . . . . . . . . = T
@@ -153,7 +152,6 @@
  ===========================================
  
      Numbering GLL points ...... [OK]
-     Total number of elements. . . . . . . . = 3600
      Total number of GLL points. . . . . . . = 90601
  
      Saving element/node table in binary file ibool_sem2d.dat ...... [OK]
@@ -177,8 +175,6 @@
     Ratio max/min =    2.428E+00
  
     RESOLUTION: nodes per min wavelength =    8.000E+00
-                for maximum frequency   =    1.250E+00 Hz
-                    minimum wavelength  =    1.600E+00 m
  
      Dump PostScript Resolution_sem2d.ps ...... [OK]
      Dump PostScript Stability_sem2d.ps ...... [OK]
@@ -192,8 +188,7 @@
     Courant number        =  300.000E-03
  
     STABILITY:  CFL number               =  300.000E-03
- 
-     Defining material work arrays ...... [OK]
+     Defining work arrays for elasticity ...... [OK]
      Initializing kinematic fields ...... [OK]
        Max displ =    0.000E+00
        Max veloc =    0.000E+00
@@ -238,41 +233,44 @@
 
   Maximum distance between requested and real =   0.000E+00
 ... [OK]
+Timestep #       0  t =   0.000E+00  vmax =   0.000E+00  dmax =   0.000E+00
+
+Snapshot at timestep = 0
+ 
  
 ***********************************************
 *           S o l v e r   p h a s e           *
 ***********************************************
  
-Timestep #       0  t =   0.000E+00  vmax =   0.000E+00  dmax =   0.000E+00
 
 ---  CPU TIME ESTIMATES (in seconds) :
-  CPU time for initialization . . 610.908E-03
-  CPU time per timestep . . . . .   6.399E-03
-  Total solver CPU time . . . . .  12.715E+00
-                   (mins) . . . . 211.914E-03
-                   (hours). . . .   3.532E-03
+  CPU time for initialization . . 775.882E-03
+  CPU time per timestep . . . . .  18.997E-03
+  Total solver CPU time . . . . .  37.747E+00
+                   (mins) . . . . 629.118E-03
+                   (hours). . . .  10.485E-03
 
 Timestep #    1000  t =  17.621E+00  vmax =  91.661E-03  dmax =  28.653E-03
 
 
 ---  CPU TIME INFORMATION (in seconds) :
-  CPU time for initialization . . 610.908E-03
-  CPU time per timestep . . . . .   6.267E-03
-  Total solver CPU time . . . . .  12.453E+00
-                   (mins) . . . . 207.552E-03
-                   (hours). . . .   3.459E-03
+  CPU time for initialization . . 775.882E-03
+  CPU time per timestep . . . . .  19.865E-03
+  Total solver CPU time . . . . .  39.472E+00
+                   (mins) . . . . 657.867E-03
+                   (hours). . . .  10.964E-03
 
- Storing seismograms (SEP format) ...
+ Storing sismos data (SEP format) ...
 
 
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- Program  S E M 2 D P A C K :  end
+ Program  S P E C F E M :  end
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
  Test SH                                           
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:55
+ D a t e : 14 - 01 - 2008                                 T i m e  : 20:31:14
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------

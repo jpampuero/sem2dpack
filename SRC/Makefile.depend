@@ -1,21 +1,55 @@
+# SEM2DPACK version 2.2.12c -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+#                             with emphasis on computational seismology and earthquake source dynamics.
+# 
+# Copyright (C) 2003-2007 Jean-Paul Ampuero
+# All Rights Reserved
+# 
+# Jean-Paul Ampuero
+# 
+# ETH Zurich (Swiss Federal Institute of Technology)
+# Institute of Geophysics
+# Seismology and Geodynamics Group
+# ETH Hönggerberg HPP O 13.1
+# CH-8093 Zürich
+# Switzerland
+# 
+# ampuero@erdw.ethz.ch
+# +41 44 633 2197 (office)
+# +41 44 633 1065 (fax)
+# 
+# http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+# 
+# 
+# This software is freely available for academic research purposes. 
+# If you use this software in writing scientific papers include proper 
+# attributions to its author, Jean-Paul Ampuero.
+# 
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+# 
 bc_abso.o: bc_periodic.o bnd_grid.o constants.o echo.o memory_info.o \
 	prop_mat.o spec_grid.o src_gen.o stdio.o time.o
-bc_dirneu.o: bc_periodic.o bnd_grid.o constants.o echo.o spec_grid.o stdio.o \
-	stf_gen.o
-bc_dynflt.o: bc_dynflt_normal.o bc_dynflt_rsf.o bc_dynflt_swf.o \
-	bc_dynflt_twf.o bc_periodic.o bnd_grid.o constants.o \
-	distribution_cd.o echo.o spec_grid.o stdio.o time.o
-bc_dynflt_normal.o: echo.o stdio.o
-bc_dynflt_rsf.o: distribution_cd.o echo.o stdio.o
-bc_dynflt_swf.o: distribution_cd.o echo.o stdio.o
-bc_dynflt_twf.o: echo.o stdio.o
-bc_gen.o: bc_abso.o bc_dirneu.o bc_dynflt.o bc_kinflt.o bc_lsf.o \
-	bc_periodic.o bnd_grid.o echo.o fields.o prop_mat.o spec_grid.o \
-	src_gen.o stdio.o time.o
-bc_kinflt.o: bc_periodic.o bnd_grid.o constants.o distribution_cd.o echo.o \
-	spec_grid.o stdio.o stf_gen.o time.o
+bc_dirneu.o: bc_periodic.o bnd_grid.o echo.o spec_grid.o stdio.o stf_gen.o
+bc_DTTTN0.o: bnd_grid.o constants.o distribution_general.o echo.o spec_grid.o \
+	stdio.o
+bc_gen.o: bc_DTTTN0.o bc_abso.o bc_dirneu.o bc_lsf.o bc_periodic.o bc_swff.o \
+	bnd_grid.o echo.o fields.o prop_mat.o spec_grid.o src_gen.o stdio.o \
+	time.o
 bc_lsf.o: bc_periodic.o bnd_grid.o constants.o echo.o spec_grid.o stdio.o
 bc_periodic.o: bnd_grid.o constants.o echo.o spec_grid.o stdio.o
+bc_swff.o: bc_periodic.o bnd_grid.o constants.o distribution_cd.o echo.o \
+	spec_grid.o stdio.o time.o
 bnd_grid.o: constants.o stdio.o
 butterworth_filter.o: stdio.o
 distribution_cd.o: distribution_general.o echo.o stdio.o utils.o
@@ -28,51 +62,50 @@ distribution_hete1.o: constants.o stdio.o
 distribution_linear.o: stdio.o utils.o
 distribution_pwconr.o: stdio.o
 distribution_spline.o: stdio.o utils.o
-energy.o: fields.o mat_gen.o prop_mat.o spec_grid.o stdio.o
-fem_grid.o: bnd_grid.o constants.o elem_q4.o elem_q8h.o elem_q9.o \
-	generic_list.o stdio.o utils.o
-fields.o: echo.o memory_info.o mxmlib.o spec_grid.o stdio.o
-gll.o: stdio.o
-init.o: bc_gen.o constants.o echo.o energy.o fields.o mat_gen.o mat_mass.o \
+echo.o: stdio.o
+fem_grid.o: bnd_grid.o constants.o elem_q4.o elem_q9.o generic_list.o stdio.o \
+	utils.o
+fields.o: echo.o memory_info.o spec_grid.o stdio.o
+init.o: bc_gen.o echo.o fem_grid.o fields.o mat_gen.o mat_mass.o \
 	memory_info.o mesh_gen.o plot_gen.o plot_postscript.o problem_class.o \
 	prop_mat.o receivers.o spec_grid.o src_gen.o stdio.o time.o
 input.o: bc_gen.o echo.o mat_gen.o mesh_gen.o plot_gen.o problem_class.o \
 	receivers.o src_gen.o stdio.o time.o
-main.o: bc_gen.o constants.o echo.o energy.o init.o input.o plot_gen.o \
-	problem_class.o receivers.o solver.o
-mat_damage.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o utils.o
-mat_elastic.o: constants.o echo.o mxmlib.o prop_mat.o spec_grid.o stdio.o
-mat_gen.o: echo.o fields.o mat_damage.o mat_elastic.o mat_kelvin_voigt.o \
-	mat_mass.o mat_plastic.o memory_info.o mxmlib.o prop_mat.o \
+main.o: bc_gen.o echo.o init.o input.o plot_gen.o problem_class.o receivers.o \
+	solver.o
+mat_damage.o: constants.o echo.o memory_info.o prop_mat.o spec_grid.o stdio.o \
+	utils.o
+mat_elastic.o: constants.o echo.o fields.o memory_info.o prop_mat.o \
 	spec_grid.o stdio.o
-mat_kelvin_voigt.o: echo.o prop_mat.o stdio.o
+mat_gen.o: echo.o mat_damage.o mat_elastic.o mat_kelvin_voigt.o mat_mass.o \
+	prop_mat.o spec_grid.o stdio.o
+mat_kelvin_voigt.o: echo.o memory_info.o prop_mat.o stdio.o
 mat_mass.o: echo.o fields.o memory_info.o prop_mat.o spec_grid.o
-mat_plastic.o: constants.o echo.o prop_mat.o stdio.o
 memory_info.o: stdio.o
 mesh_cartesian.o: constants.o echo.o fem_grid.o memory_info.o \
 	mesh_structured.o stdio.o utils.o
 mesh_emc2.o: constants.o echo.o fem_grid.o generic_list.o memory_info.o \
 	stdio.o
 mesh_gen.o: echo.o fem_grid.o mesh_cartesian.o mesh_emc2.o mesh_layers.o \
-	mesh_mesh2d.o stdio.o
+	stdio.o
 mesh_layers.o: constants.o distribution_cd.o echo.o fem_grid.o memory_info.o \
 	mesh_structured.o rcm.o stdio.o utils.o
-mesh_mesh2d.o: constants.o echo.o fem_grid.o memory_info.o stdio.o
 mesh_structured.o: bnd_grid.o fem_grid.o rcm.o stdio.o utils.o
 plot_avs.o: echo.o spec_grid.o stdio.o
-plot_gen.o: echo.o fields.o mat_gen.o plot_avs.o plot_gmt.o plot_postscript.o \
-	plot_visual3.o problem_class.o spec_grid.o stdio.o time.o
+plot_gen.o: echo.o mat_elastic.o plot_avs.o plot_gmt.o plot_postscript.o \
+	plot_visual3.o problem_class.o spec_grid.o stdio.o
 plot_gmt.o: echo.o stdio.o
 plot_postscript.o: constants.o echo.o fem_grid.o prop_mat.o receivers.o \
 	spec_grid.o src_gen.o stdio.o
 plot_visual3.o: echo.o prop_mat.o spec_grid.o stdio.o
-problem_class.o: bc_gen.o energy.o fields.o mat_gen.o mesh_gen.o prop_mat.o \
-	receivers.o spec_grid.o src_gen.o time.o
+problem_class.o: bc_gen.o fields.o mesh_gen.o prop_mat.o receivers.o \
+	spec_grid.o src_gen.o time.o
 prop_elem.o: distribution_cd.o
 prop_mat.o: distribution_cd.o echo.o prop_elem.o stdio.o
 receivers.o: constants.o echo.o fields.o memory_info.o spec_grid.o stdio.o \
 	time.o
-solver.o: bc_gen.o fields.o mat_gen.o problem_class.o src_gen.o
+solver.o: bc_gen.o fields.o mat_damage.o mat_elastic.o mat_kelvin_voigt.o \
+	problem_class.o src_gen.o
 spec_grid.o: bnd_grid.o constants.o echo.o fem_grid.o generic_list.o gll.o \
 	memory_info.o stdio.o utils.o
 src_force.o: constants.o echo.o stdio.o
@@ -80,11 +113,8 @@ src_gen.o: constants.o echo.o prop_mat.o spec_grid.o src_force.o src_moment.o \
 	src_wave.o stdio.o stf_gen.o
 src_moment.o: constants.o echo.o spec_grid.o stdio.o
 src_wave.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o stf_ricker.o
-stf_brune.o: constants.o echo.o stdio.o
-stf_gaussian.o: constants.o echo.o stdio.o
-stf_gen.o: butterworth_filter.o stdio.o stf_brune.o stf_gaussian.o \
-	stf_harmonic.o stf_ricker.o stf_tabulated.o stf_user.o
-stf_harmonic.o: constants.o echo.o stdio.o
+stf_gen.o: butterworth_filter.o stdio.o stf_ricker.o stf_tabulated.o \
+	stf_user.o
 stf_ricker.o: constants.o echo.o stdio.o
 stf_tabulated.o: echo.o stdio.o utils.o
 stf_user.o: echo.o stdio.o
