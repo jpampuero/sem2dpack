@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.6 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_gen
 
 !! To add a new boundary condition, say "bc_user" :
@@ -16,7 +53,7 @@ module bc_gen
   use bc_abso
   use bc_periodic
   use bc_dirneu
-  use bc_KINFLT 
+  use bc_DTTTN0 
   use bc_lsf
   use bc_dynflt
 !!  use bc_user
@@ -31,18 +68,18 @@ module bc_gen
     integer :: tag(2)
     integer :: kind
 !--- List here all bc types
-    type(bc_dirneu_type)  , pointer :: dirneu => null()
-    type(bc_kinflt_type)  , pointer :: kinflt => null()
-    type(bc_abso_type)    , pointer :: abso => null()
-    type(bc_periodic_type), pointer :: perio => null()
-    type(bc_lsf_type)     , pointer :: lsf  => null()
-    type(bc_dynflt_type)  , pointer :: dynflt => null()
+    type(bc_dirneu_type)  , pointer :: dirneu
+    type(bc_DTTTN0_type)  , pointer :: DTTTN0
+    type(bc_abso_type)    , pointer :: abso
+    type(bc_periodic_type), pointer :: perio
+    type(bc_lsf_type)     , pointer :: lsf 
+    type(bc_dynflt_type)    , pointer :: dynflt
     !! type(bc_user_type) , pointer :: user
   end type bc_type
 
   integer, parameter :: IS_EMPTY  = 0, &
                         IS_DIRNEU = 1, &
-                        IS_KINFLT = 2, &
+                        IS_DTTTN0 = 2, &
                         IS_ABSORB = 3, &
                         IS_PERIOD = 4, &
                         IS_LISFLT = 5, &
@@ -69,11 +106,11 @@ contains
 !                       4       left
 !               If you are importing a mesh, you must use the tags assigned
 !               to the boundaries during the mesh construction.
-! ARG:  tags    [int(2)] [none] Two tags are needed for split-node interfaces (faults)
+! ARG:  tags    [int(2)] [none] Two tags are needed for interfaces (split-node)
 !               and for periodic boundaries.
 ! ARG:  kind    [char*6] [none] Type of boundary condition. The following are
 !               implemented:
-!               'DIRNEU', 'ABSORB', 'PERIOD', 'LISFLT', 'DYNFLT', 'KINFLT'
+!               'DIRNEU', 'ABSORB', 'PERIOD', 'LISFLT', 'DYNFLT'
 !
 ! NOTE   : Most of the boundary conditions need additional data, given
 !          in a BC_kind input block of the BOUNDARY_CONDITIONS group
@@ -124,21 +161,15 @@ subroutine bc_read(bc,iunit)
     enddo
 
     bc(i)%tag = 0
-    if (tag > 0) then
+    if (tag /= 0) then
       bc(i)%tag(1) = tag
-    elseif ( tags(1)>0 ) then
+      if (echo_input) write(iout,200) bc(i)%tag(1)
+    elseif ( any(tags /= 0) ) then
       bc(i)%tag    = tags
+      if (echo_input) write(iout,201) bc(i)%tag
     else
-      call IO_abort('bc_read: tag(s) are null or not set')
+      call IO_abort('bc_read: tag null or not set')
     endif
-    if (echo_input) then
-      if ( bc(i)%tag(2)==0 ) then
-        write(iout,200) bc(i)%tag(1)
-      else
-        write(iout,201) bc(i)%tag
-      endif
-    endif
-
     if (kind == ' ') call IO_abort('bc_read: kind not set')
     if (echo_input) write(iout,202) kind
  
@@ -148,10 +179,10 @@ subroutine bc_read(bc,iunit)
         bc(i)%kind = IS_DIRNEU
         allocate(bc(i)%dirneu)
         call BC_DIRNEU_read(bc(i)%dirneu,iunit)
-      case('KINFLT')
-        bc(i)%kind = IS_KINFLT
-        allocate(bc(i)%kinflt)
-        call BC_KINFLT_read(bc(i)%kinflt,iunit)
+      case('DTTTN0')
+        bc(i)%kind = IS_DTTTN0
+        allocate(bc(i)%DTTTN0)
+        call BC_DTTTN0_read(bc(i)%DTTTN0,iunit)
       case('ABSORB')
         bc(i)%kind = IS_ABSORB
         allocate(bc(i)%abso)
@@ -232,8 +263,8 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
               ! DEVEL write warning
       case(IS_DIRNEU)
         call BC_DIRNEU_init(bc(i)%dirneu,bc(i)%tag(1),grid,perio)
-      case(IS_KINFLT)
-        call BC_KINFLT_init(bc(i)%kinflt,bc(i)%tag(1),grid,M,tim,perio)
+      case(IS_DTTTN0)
+        call BC_DTTTN0_init(bc(i)%DTTTN0,bc(i)%tag(1),grid)
       case(IS_ABSORB)
         call BC_ABSO_init(bc(i)%abso,bc(i)%tag(1),grid,mat,M,tim,src,perio)
       case(IS_LISFLT)
@@ -288,8 +319,8 @@ contains
     select case(bc%kind)
       case(IS_DIRNEU)
         call bc_DIRNEU_set(bc%dirneu,field,time)
-      case(IS_KINFLT)
-        call bc_KINFLT_set(bc%kinflt,fields%accel,fields%veloc,time)
+      case(IS_DTTTN0)
+        call bc_DTTTN0_set(bc%DTTTN0,fields%veloc,time)
       case(IS_ABSORB)
         call BC_ABSO_set(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
@@ -322,13 +353,9 @@ subroutine BC_write(bc,itime,d,v)
   if (.not. associated(bc)) return
 
   do i = 1,size(bc)
-    if (bc(i)%kind == IS_DYNFLT .or. bc(i)%kind == IS_KINFLT) then
+    if (bc(i)%kind == IS_DYNFLT) then
       if (echo_init .and. itime==0) write(iout,fmt1,advance='no') 'Exporting initial boundary data'
-      if (bc(i)%kind == IS_DYNFLT) then
-        call BC_DYNFLT_write(bc(i)%dynflt,itime,d,v)
-      else
-        call BC_KINFLT_write(bc(i)%kinflt,itime)
-      endif
+      call BC_DYNFLT_write(bc(i)%dynflt,itime,d,v)
       if (echo_init .and. itime==0) write(iout,fmtok)
     endif
   enddo

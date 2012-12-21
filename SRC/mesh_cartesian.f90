@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.6 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mesh_cartesian
 
 ! MESH_CARTESIAN: generation of a rectangular mesh
@@ -16,7 +53,7 @@ module mesh_cartesian
   type mesh_cart_type
     private
     double precision :: xmin,xmax,zmin,zmax
-    integer :: ndom,nz,nx,ezflt,fztag,fznz
+    integer :: ndom,nz,nx,ezflt,fztag
     type (domain_type), pointer :: domains(:) 
   end type mesh_cart_type
 
@@ -41,14 +78,12 @@ contains
 ! ARG: ezflt    [int][0] introduce a horizontal fault between the ezflt-th
 !                and the (ezflt+1)-th element rows. Rows are numbered from
 !                bottom to top, starting at ezflt=1.
-!                If ezflt=0, (default) no fault is introduced inside the box
-!                (for symmetric problems a fault can still be set at an external boundary)
-!                If ezflt=-1, a fault is introduced at/near the middle of the box
-!                (ezflt is reset to int[nelem(2)/2])
-! ARG: fztag    [int][0] fault zone tag for elements close to the fault
+!                If ezflt=0, no fault is introduced (default). 
+!                If ezflt=-1, a fault is introduced at the middle of the box
+!                or near below the middle (ezflt is reset to int[nelem(2)/2])
+! ARG: fztag    [int][0] fault zone tag for elements touching the fault
 !                Useful to set a damping layer near the fault.
 !                If ezflt=0, a fault is assumed at the bottom boundary
-! ARG: fznz     [int][1] vertical size (number of elements) of near-fault layer
 ! ARG: FaultX   [log] [F] Same as ezflt=-1. Obsolete (will be deprecated) 
 !
 ! NOTE: the following tags are automatically assigned to the boundaries: 
@@ -89,10 +124,10 @@ subroutine CART_read(mesh,iin)
   integer, intent(in) :: iin
 
   double precision :: init_double,xlim(2),zlim(2)
-  integer :: nelem(2),ezflt,nx,nz,tag,ex(2),ez(2),n_domains,i,fztag,fznz
+  integer :: nelem(2),ezflt,nx,nz,tag,ex(2),ez(2),n_domains,i,fztag
   logical :: FaultX
 
-  NAMELIST / MESH_CART /  xlim,zlim,nelem,FaultX,ezflt,fztag,fznz
+  NAMELIST / MESH_CART /  xlim,zlim,nelem,FaultX,ezflt,fztag
   NAMELIST / MESH_CART_DOMAIN / tag,ex,ez
 
   init_double = huge(init_double)
@@ -102,7 +137,6 @@ subroutine CART_read(mesh,iin)
   FaultX = .false.
   ezflt = 0
   fztag = 0
-  fznz = 1
   
   rewind(iin)
   read(iin,MESH_CART,END=100)
@@ -118,12 +152,11 @@ subroutine CART_read(mesh,iin)
   if (ezflt== -1) ezflt = nz/2
   if (ezflt <-1) call IO_abort('CART_read: ezflt must be >= -1')
   if (fztag<0) call IO_abort('MESH_LAYERS_read: fztag must be positive')
-  if (fznz<1) call IO_abort('MESH_LAYERS_read: fznz must be strictly positive')
 
   if (echo_input) then
     write(iout,200) xlim, zlim, nelem
     if (ezflt>0) write(iout,210) ezflt
-    if (fztag>0) write(iout,230) fztag,fznz
+    if (fztag>0) write(iout,230) fztag
   endif
 
   mesh%xmin = xlim(1)
@@ -134,7 +167,6 @@ subroutine CART_read(mesh,iin)
   mesh%nz   = nz
   mesh%ezflt = ezflt
   mesh%fztag = fztag
-  mesh%fznz = fznz
 
  ! Count the domains
   rewind(iin)
@@ -195,8 +227,7 @@ subroutine CART_read(mesh,iin)
       'Fault on top of this element row  . . . (ezflt) = ',I0)
 
 230 format(5x, &
-      'Tag for elements in fault zone  . . . . (fztag) = ',I0,/5x, &
-      'Vertical nb of elements in fault zone . .(fznz) = ',I0)
+      'Tag for elements in fault zone  . . . . (fztag) = ',I0)
 
 end subroutine CART_read
 
@@ -216,7 +247,7 @@ subroutine CART_build(mesh,grid)
   type(fem_grid_type), intent(inout) :: grid
 
   double precision, allocatable :: x(:),z(:)
-  integer :: nxp,nzp,i,j,j1,j2,ilast,ifirst,idom
+  integer :: nxp,nzp,i,j,ilast,ifirst,idom
 
   nxp = mesh%nx+1 
   if (mesh%ezflt>0) then 
@@ -266,15 +297,17 @@ subroutine CART_build(mesh,grid)
     enddo
   enddo
  ! tag the elements near the fault
- ! If ezflt=0 fault is at bottom
   if (mesh%fztag>0) then
-    j1 = max(mesh%ezflt+1-mesh%fznz,1)
-    j2 = min(mesh%ezflt+mesh%fznz,mesh%nz)
-    do j=j1,j2
+    if (mesh%ezflt>0) then
       do i=1,mesh%nx
-        grid%tag( sub2ind(i,j,mesh%nx) ) = mesh%fztag
+        grid%tag( sub2ind(i,mesh%ezflt,mesh%nx) ) = mesh%fztag
+        grid%tag( sub2ind(i,mesh%ezflt+1,mesh%nx) ) = mesh%fztag
       enddo
-    enddo
+    else !NOTE: assumes fault is at bottom
+      do i=1,mesh%nx
+        grid%tag( sub2ind(i,1,mesh%nx) ) = mesh%fztag
+      enddo
+    endif
   endif
   if (any(grid%tag == 0)) call IO_abort('CART_build: Domain tags not entirely set')
 

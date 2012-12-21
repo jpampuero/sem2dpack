@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.6 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_damage
 !
 ! Damage rheology following the formulation by Vladimir Lyakhovsky
@@ -469,13 +506,6 @@ contains
 
   two_mue = 2d0*rm-rg*xi
 
- !-- absolute stress tensor
-  s(1) = rl*i1 - rg*si2 + two_mue*e(1)
-  s(2) = rl*i1 - rg*si2 + two_mue*e(2)
-  s(3) = two_mue*e(3)
-
-!return !DEBUG: include this line to turn OFF convexity checks, at your own risk
-
  !-- check if the damage is above the critical value (loss of convexity)
  ! 2d plane strain:
   p = -(4d0*rm+2d0*rl-3d0*rg*xi) 
@@ -487,6 +517,11 @@ contains
   if (d <= 0d0) call IO_abort('mat_damage:elastic: discriminant < 0')
   if ( p/2d0+sqrt(d) >= 0d0 ) call IO_abort('MAT_DMG: damage exceeded critical value (1st type)')
   if ( two_mue <= 0d0 ) call IO_abort('MAT_DMG: damage exceeded critical value (2nd type)')
+
+ !-- absolute stress tensor
+  s(1) = rl*i1 - rg*si2 + two_mue*e(1)
+  s(2) = rl*i1 - rg*si2 + two_mue*e(2)
+  s(3) = two_mue*e(3)
 
   end subroutine compute_stress
 

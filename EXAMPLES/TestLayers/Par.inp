@@ -46,4 +46,3 @@
 #--------- Plots settings ----------------------
 &SNAP_DEF itd = 500, fields='V'/
 &SNAP_PS  vectors =F, color=T, interpol= T / 
-#&SNAP_PS  vectors =T, background=T, color=T, interpol= T, mesh=T / 

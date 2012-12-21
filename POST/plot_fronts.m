@@ -3,7 +3,7 @@
 % SYNTAX	[Trup,Tpz] = plot_fronts(V,Veps,D,Dc,X,DT)
 %
 % INPUTS	V(:,:)	space-time slip velocity data
-%		Veps	slip velocity threshold to define rupture front
+%		Veps	slip velocty threshold to define rupture front
 %		D(:,:)	space-time slip data
 %		Dc	slip threshold to define the tail of process zone
 %		X(:)	positions of slip and velocity data

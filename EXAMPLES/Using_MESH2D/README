@@ -1,6 +1,6 @@
 EXAMPLES/Using_MESH2D
 
-In this example an earthquake on a reverse fault is modeled with 
+In this example an earthquake  on a reverse fault is modeled with 
 a dynamic fault boundary condition. The crustal velocity model
 has a low velocity layer near the surface. The fault has a kink.
 Seismograms are recorded at the surface, along a line of receivers with

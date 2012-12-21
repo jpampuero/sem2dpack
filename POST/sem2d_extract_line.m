@@ -65,14 +65,12 @@ end
 % x of element "center" node nearest to xz_target
 kc = floor(g.ngll/2);
 xc_nearest = x1_nearest + xel(kc);
-% WARNING what happens if the line is at the edge of the mesh?
 
 % find elements that contain the target line position
 ic = g.ibool(kc,kc,:);	% element center nodes
 xc = g.coord(ic,ndim);
 zc = g.coord(ic,tdim);
 elist = find( abs(xc-xc_nearest)<XTOL );
-% WARNING if the line is in between two elements, this only takes elements on one side
 
 % sort element list by position
 [tmp,esor] = sort(zc(elist));  

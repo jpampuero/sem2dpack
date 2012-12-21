@@ -20,3 +20,4 @@ for k=1:length(NEL),
   out(n+[1:np],2) = PTS(k,2)*shape1 + PTS(k+1,2)*shape2;
   n = n+np;
 end
+

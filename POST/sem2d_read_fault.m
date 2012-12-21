@@ -33,11 +33,6 @@
 %
 function data = sem2d_read_fault(name)
 
-% length of the tag at the begining and end of a binary record
-% in number of single precision words (4*bytes)
-LENTAG = 2; % gfortran older versions
-LENTAG = 1;
-
 % assumes header file name is FltXX_sem2d.hdr
 if ~exist('name','var')
   list = dir('Flt*.hdr');
@@ -70,10 +65,10 @@ end
 % Read fault data in a big matrix
 dat  = strcat(name,'_sem2d.dat');
 fid=fopen(dat); 
-raw = fread(fid,[data.nx+2*LENTAG,inf],'single') ; 
+raw = fread(fid,[data.nx+2,inf],'single') ; 
 fclose(fid);
 %raw = reshape(raw(2:data.nx+1,:),[data.nx ndat data.nt]);
-raw = reshape(raw(LENTAG+1:LENTAG+data.nx,:),data.nx,ndat,[]);
+raw = reshape(raw(2:data.nx+1,:),data.nx,ndat,[]);
 
 % Reformat each field [nx,nt]
 data.d  = squeeze(raw(:,1,:)); 

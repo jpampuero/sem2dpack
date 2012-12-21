@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.6 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dynflt_rsf
 
 ! BC_DYNFLT_RSF: rate and state dependent friction for dynamic faults
@@ -18,7 +55,6 @@ module bc_dynflt_rsf
     integer :: kind
     double precision, dimension(:), pointer :: dc, mus, a, b, Vstar, theta, &
                                                Tc, coeft
-    double precision :: dt
     type(rsf_input_type) :: input
   end type rsf_type
 
@@ -130,11 +166,9 @@ contains
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
  !WARNING: theta initialization should be more general for Dieterich-Ruina rsf
-!          Also needs option for input by user
   rsf%theta = 0d0 
   rsf%Tc = rsf%dc / rsf%Vstar
   rsf%coeft = exp(-dt/rsf%Tc)
-  rsf%dt = dt
 
   end subroutine rsf_init
 
@@ -148,14 +182,12 @@ contains
 
   select case(f%kind)
     case(1); mu = f%mus +f%a*v/(v+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
-    case(2,3); mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
+    case(2,3); mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Dc/f%Vstar) 
   end select
 
   end function rsf_mu
 
 !---------------------------------------------------------------------
-! friction coefficient without the direct effect 
-! (i.e. without the term that depends explicitly on slip velocity V)
   function rsf_mu_no_direct(f) result(mu)
 
   type(rsf_type), intent(in) :: f
@@ -163,7 +195,7 @@ contains
 
   select case(f%kind)
     case(1); mu = f%mus - f%b*f%theta/(f%theta+f%Dc) 
-    case(2,3); mu = f%mus + f%b*log(f%theta*f%Vstar/f%Dc) 
+    case(2,3); mu = f%mus + f%b*log(f%theta*f%Dc/f%Vstar) 
   end select
 
   end function rsf_mu_no_direct
@@ -193,8 +225,7 @@ contains
   end subroutine rsf_solver
 
 !---------------------------------------------------------------------
-! Update state variable (theta) assuming slip velocity (v) is known
-
+! Update state variable
   function rsf_update_theta(theta,v,f) result(theta_new)
 
   double precision, dimension(:), intent(in) :: v,theta
@@ -209,34 +240,25 @@ contains
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
 
     case(2) 
-     ! Kaneko et al (2008) eq 19
-     ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
-      theta_new = f%Dc/abs(v)
-      theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
+      call IO_abort('rsf_update_theta: case 2 not implemented yet')
+
     case(3) 
-     ! Kaneko et al (2008) eq 20
-     ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
-      theta_new = f%Dc/abs(v)
-      theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
+      call IO_abort('rsf_update_theta: case 3 not implemented yet')
   end select
 
   end function rsf_update_theta
 
 
 !---------------------------------------------------------------------
-! Update slip velocity assuming theta is known
-! The constraints are
-!   (abs(tau)-strength)*v = 0
-!   abs(tau)-strength <= 0
-!   sign(tau) = sign(v)
-! where
-!   strength = -sigma*( mu(theta) +a*v/(1+v) )
-!   tau = tau_stick-Z*v
-!
+! Update slip velocity
+! On input tau = tau_stick
 ! Inherited from the SBIEM code BIMAT-PCSI
+!
+! strength = -sigma*( mu(theta) +a*v/(1+v) )
+! tau = tau_stick-Z*v
+!
 ! WARNING: the SBIEM code assumed v>0
-!          We should allow here for any sign of v
-!          Exploit the fact that sign(tau)=sign(tau_stick) (because mu>0)
+!          We should check here the sign of v
 
   function rsf_update_V(tau_stick,sigma,f,Z) result(v)
    
@@ -258,12 +280,9 @@ contains
  
     case(2) 
       call IO_abort('rsf_solve: case 2 not implemented yet')
-     !DEVEL: should call Newton-Raphson solver
 
     case(3) 
       call IO_abort('rsf_solve: case 3 not implemented yet')
-     !DEVEL: should call Newton-Raphson solver
-
   end select
 
   end function rsf_update_V
