@@ -1,10 +1,10 @@
-% 2D Amplification Ratio from SEM2DPACK data
+% 2D Amplification Ratio from SPECFEM data
 % compared to 1D estimation
 % -> contour plots
 % H. Rendon and J.P. Ampuero - Sept. 2001
 
 home; clear;
-disp('This script plots 2D spectra from SEM2DPACK and compares to 1D estimation');
+disp('This script plots 2D spectra from SPECFEM and compares to 1D estimation');
 disp('You must modify some parameters in the source file');
 
 
@@ -12,10 +12,10 @@ disp('You must modify some parameters in the source file');
 % YOU MUST SET THE FOLLOWING PARAMETERS :
 
 % Data Paths
-% datapath = '/home/rocabado/PalosGrandes/Mod-P/P-60N/'  ;          % -> results from SEM2DPACK
+% datapath = '/home/rocabado/PalosGrandes/Mod-P/P-60N/'  ;          % -> results from SPECFEM
 % sedimentfile ='/home/rocabado/PalosGrandes/Mod-P/PNS4-Depth.txt';   % -> sediment (X,Z)
 
-datapath = '/home/rocabado/PNS02/Mod-P/P-60N/'  ;          % -> results from SEM2DPACK
+datapath = '/home/rocabado/PNS02/Mod-P/P-60N/'  ;          % -> results from SPECFEM
 sedimentfile ='/home/rocabado/PNS02/Mod-P/ns02d.dat';     % -> sediment (X,Z)
 
 % Normalize spectra by rock response or not ?  ('Y' or 'N')

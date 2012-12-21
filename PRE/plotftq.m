@@ -1,11 +1,10 @@
-% PLOTFTQ plots a Q4 mesh from FTQ data
+%  plotftq(ftqdata)  
 %
-% SYNTAX	plotftq(ftqdata)  
+%  PURPOSE	Plots a Q4 mesh from FTQ data
 %
-% INPUT		ftqdata	an FTQ structure, as defined in READFTQ
-%        	mode	plot mode, can be either of:
-%			  1 = plots only the mesh (default)
-%      			  2 = colors each element according to its domain tag
+%  INPUT	ftqdata	an FTQ structure, as defined in READFTQ
+%        	mode	(1) plots only the mesh (default)
+%      				(2) colors each element according to its domain tag
 %
 %  Jean-Paul Ampuero jampuero@princeton.edu  May 15 2003
 

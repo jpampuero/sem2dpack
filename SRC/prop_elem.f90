@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12d -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module prop_elem
 ! Material property of a spectral element
 ! Two possible databases:
@@ -7,22 +47,15 @@ module prop_elem
   implicit none
   private
 
-  type hete_type
-    double precision, pointer :: v(:,:) => null()
-  end type hete_type
-
-! "prop_elem_type" contains one material property for one spectral element
-! If the property is constant [homo] then storage size = 1, 
-! else [hete] storage size = ngll*ngll 
+! Structure "prop_elem_type" contains one (material) property 
+! for one spectral element
+! If constant property then storage = one float [homo], 
+! else storage = ngll*ngll 
 !
-! NOTE: To minimize memory usage, "hete" is a "hete_type" pointer,
-!       which requires only 8 bytes (4 actual + 4 alignment) when hete%v is not allocated.
-!       If instead we make "hete" a pointer to a rank 2 double precision 
-!       array it takes 6*8 bytes.
   type prop_elem_type
     private
     double precision :: homo = 0d0
-    type(hete_type), pointer :: hete => null()
+    double precision, pointer :: hete(:,:) => null()
   end type prop_elem_type
   
   interface PROP_get
@@ -33,7 +66,7 @@ module prop_elem
     module procedure PROP_set_cd1, PROP_set_cd2, PROP_set_val1, PROP_set_val2
   end interface PROP_set
 
-  public :: prop_elem_type, PROP_get, PROP_set, PROP_isNull, PROP_size
+  public :: prop_elem_type, PROP_get, PROP_set, PROP_isNull
 
 contains
 
@@ -88,10 +121,7 @@ contains
   double precision, intent(in) :: val
 
   prop%homo = val
-  if (associated(prop%hete)) then
-    deallocate(prop%hete%v)
-    deallocate(prop%hete)
-  endif
+  if (associated(prop%hete)) deallocate(prop%hete)
 
   end function PROP_set_val1
 
@@ -102,13 +132,9 @@ contains
   double precision, intent(in) :: val(:,:)
 
   prop%homo = 0d0
-  if (associated(prop%hete)) then
-    deallocate(prop%hete%v)
-  else
-    allocate(prop%hete)
-  endif
-  allocate(prop%hete%v(size(val,1),size(val,2)))
-  prop%hete%v = val
+  if (associated(prop%hete)) deallocate(prop%hete)
+  allocate(prop%hete(size(val,1),size(val,2)))
+  prop%hete = val
 
   end function PROP_set_val2
 
@@ -117,7 +143,7 @@ contains
 
   type(prop_elem_type), intent(in) :: prop
 
-  PROP_isNull = ( prop%homo==0d0 .and. .not.associated(prop%hete) )
+  PROP_isNull = ( prop%homo==0d0 .and. associated(prop%hete) )
   
   end function PROP_isNull
 
@@ -130,7 +156,7 @@ contains
   double precision :: eval(n,n)
 
   if (associated(prop%hete)) then
-    eval = prop%hete%v
+    eval = prop%hete
   else
     eval = prop%homo
   endif
@@ -161,7 +187,7 @@ contains
   double precision :: eval
 
   if (associated(prop%hete)) then
-    eval = prop%hete%v(i,j)
+    eval = prop%hete(i,j)
   else
     eval = prop%homo
   endif
@@ -183,21 +209,5 @@ contains
   enddo
 
   end function PROP_get_ij_2
-
-!=====================================================================
-! memory size (in double precision words) of allocated internal storage
-  integer function PROP_size(prop)
-
-  type(prop_elem_type), intent(in) :: prop
-
-! not counted in: size( transfer(prop,(/0d0/)) ) 
-
-  if (associated(prop%hete)) then
-    PROP_size = size( transfer(prop%hete,(/0d0/))) + size(prop%hete%v)
-  else
-    PROP_size = 0
-  endif
-
-  end function PROP_size
 
 end module prop_elem

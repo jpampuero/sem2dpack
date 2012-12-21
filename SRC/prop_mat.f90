@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12d -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module prop_mat
 
   use distribution_cd, only : cd_type
@@ -10,54 +50,84 @@ module prop_mat
  !! MAX_NKIND must be > number of material types implemented
   integer, parameter :: MAX_NKIND = 10 
   integer, save :: MAT_nkind=0
-  integer, parameter :: PROP_NAME_LEN = 8  ! max length of property names
-                                            ! currently should be >= 6
+
 
   type prop_input_link_type
-    character(PROP_NAME_LEN) :: name=''
+    character(10) :: name=''
     type(cd_type) :: data
     type(prop_input_link_type), pointer :: next => null()
   end type prop_input_link_type
 
-  ! kind = flags a material attribute (material type or other)
-  !        many flags can be ON simultaneously
+  ! kind = flags the type of material (many can be ON simultaneously)
   ! list = linked list of material properties
   type matpro_input_type
-    private
     logical, dimension(MAX_NKIND) :: kind = .false.
     type(prop_input_link_type), pointer :: list => null()
   end type matpro_input_type
 
+
   type prop_elem_link_type
-    character(PROP_NAME_LEN) :: name=''                !devel: PROP_NAME_LEN*1 bytes
-    type(prop_elem_type) :: data                       !devel: (1 +1+6)*8 bytes
-    type(prop_elem_link_type), pointer :: next=>null() !devel: 1*8 bytes
+    character(10) :: name=''
+    type(prop_elem_type) :: data
+    type(prop_elem_link_type), pointer :: next=>null()
   end type prop_elem_link_type
 
   type matpro_elem_type
-    private
+    integer :: ngll
     type(matpro_input_type), pointer :: input => null()
     type(prop_elem_link_type), pointer :: list => null()
   end type matpro_elem_type
+
+
+ ! working arrays for each element
+ !! Add here all the stuff that is needed often by the solver
+ !! Usually these are material properties (stored or pointer here 
+ !! for faster access than lookup in the linked list of material properties),
+ !! products of material properties and quadrature weights,
+ !! state variables, etc
+  type matwrk_elem_type
+
+   !-- elastic
+    double precision, pointer :: a(:,:,:) => null()
+    double precision, pointer :: H(:,:)=>null(), Ht(:,:)=>null()
+
+   !-- kelvin-voigt
+    double precision, pointer :: eta(:,:) => null()
+
+   !-- plasticity
+    double precision, pointer, dimension(:,:,:) :: ep => null()
+    double precision, pointer, dimension(:,:) :: &
+      mu => null(), lambda => null(), weights => null(), &
+      dxi_dx => null(), dxi_dy => null(), deta_dx => null(), deta_dy => null()
+    double precision, pointer, dimension(:) :: e0=>null(), s0=>null()
+
+   !-- damage
+    double precision, pointer, dimension(:,:) :: alpha=>null(), alpha_dot=>null()
+    double precision :: xi_0=0d0,gamma_r=0d0,beta=0d0,Cd=0d0,Cv=0d0
+    
+  end type matwrk_elem_type
+
 
   interface MAT_isKind
     module procedure MAT_isKind_input, MAT_isKind_elem
   end interface MAT_isKind
 
+  interface MAT_isProp
+    module procedure MAT_isProp_input, MAT_isProp_elem
+  end interface MAT_isProp
+
   interface MAT_setProp
     module procedure MAT_setProp_input, MAT_setProp_elem_from_values &
-                   , MAT_setProp_elem_from_value, MAT_setProp_elem_from_input &
-                   , MAT_setProp_elem_ptr_input
+                   , MAT_setProp_elem_from_value, MAT_setProp_elem_from_input
   end interface MAT_setProp
 
   interface MAT_getProp
     module procedure MAT_getProp_e, MAT_getProp_ij, MAT_getProp_11
   end interface MAT_getProp
 
-  public :: matpro_input_type, matpro_elem_type &
+  public :: matpro_input_type, matpro_elem_type, matwrk_elem_type  &
           , MAT_isKind, MAT_setKind &
-          , MAT_getProp, MAT_setProp &
-          , MAT_isProp_input, MAT_isProp_elem
+          , MAT_isProp, MAT_getProp, MAT_setProp
 
 contains
 
@@ -139,12 +209,12 @@ contains
 
 !=======================================================================
 !
-  logical function MAT_isProp_input(name,m)
+  logical function MAT_isProp_input(name,input)
 
   character(*), intent(in) :: name
-  type(matpro_elem_type), intent(in) :: m
+  type(matpro_input_type), intent(in) :: input
 
-  MAT_isProp_input = associated( MAT_getProp_input(name,m%input) )
+  MAT_isProp_input = associated( MAT_getProp_input(name,input) )
 
   end function MAT_isProp_input
 
@@ -165,20 +235,6 @@ contains
 
   end function MAT_getProp_input
 
-  subroutine  MAT_getProp_input_bis(name,input,L)
-
-  character(*), intent(in) :: name
-  type(matpro_input_type), intent(in) :: input
-  type(prop_input_link_type), pointer :: L
-
-  L => input%list
-  do while(associated(L))
-    if (L%name == name) return
-    L => L%next
-  enddo
-
-  end subroutine MAT_getProp_input_bis
-  
 !=======================================================================
 !
   subroutine MAT_setProp_input(input,property_name,value,distribution_name,iin,txt)
@@ -195,15 +251,12 @@ contains
 
   type(prop_input_link_type), pointer :: L
 
-  if (len(property_name)>PROP_NAME_LEN) &
-    call IO_abort('MAT_setProp_input: property_name is too long')
-
   L => MAT_getProp_input(property_name,input)
 
   if (.not.associated(L)) then
     L => MAT_newProp_input(input)
   elseif (echo_input) then
-    write(iout,*) 'WARNING: MAT_setProp_input: overwrite'
+    write(iout,*) 'WARNING: MAT_setProp: overwrite'
   endif
 
   L%name = property_name
@@ -237,27 +290,6 @@ contains
   
   end function MAT_newProp_elem
 
-  subroutine MAT_newProp_elem_bis(elem,L)
-
-  type(matpro_elem_type), intent(inout), target :: elem
-  type(prop_elem_link_type), pointer :: L
-
-  if (.not.associated(elem%list)) then
-  ! create list head
-    allocate(elem%list)
-    L => elem%list
-  else
-  ! add a link to the tail of the list
-    L => elem%list
-    do while(associated(L%next))
-      L => L%next
-    enddo
-    allocate(L%next) 
-    L => L%next
-  endif
-  
-  end subroutine MAT_newProp_elem_bis
-
 !=======================================================================
 !
   logical function MAT_isProp_elem(name,elem)
@@ -270,7 +302,6 @@ contains
   end function MAT_isProp_elem
 
 !=======================================================================
-! Gets a property queried by its name
 !
   function MAT_getProp_elem(name,elem) result(L)
 
@@ -287,142 +318,88 @@ contains
 
   end function MAT_getProp_elem
 
-  subroutine MAT_getProp_elem_bis(name,elem,L)
-
-  character(*), intent(in) :: name
-  type(matpro_elem_type), intent(in) :: elem
-  type(prop_elem_link_type), pointer :: L
-
-  L => elem%list
-  do while(associated(L))
-    if (L%name == name) return
-    L => L%next
-  enddo
-
-  end subroutine MAT_getProp_elem_bis
-
 !=======================================================================
 !
-  subroutine MAT_setProp_elem_ptr_input(elem,input)
-
-  type(matpro_elem_type), intent(inout) :: elem
-  type(matpro_input_type), intent(in), target :: input
-
-  elem%input => input
-
-  end subroutine MAT_setProp_elem_ptr_input
-
-!=======================================================================
-!
-  subroutine MAT_setProp_elem_from_input(elem,property_name,ecoord,memcount)
+  subroutine MAT_setProp_elem_from_input(elem,property_name,ecoord)
 
   use echo, only : echo_init, iout
 
   type(matpro_elem_type), intent(inout) :: elem
   character(*), intent(in) :: property_name
   double precision, intent(in) :: ecoord(:,:,:)
-  integer, intent(inout) :: memcount
    
   type(prop_elem_link_type), pointer :: L
   type(prop_input_link_type), pointer :: L_input
 
-  if (len(property_name)>PROP_NAME_LEN) &
-    call IO_abort('MAT_setProp_elem_from_input: property_name is too long')
-
-  nullify(L)
-  nullify(L_input)
-
-!  L => MAT_getProp_elem(property_name,elem)
-  call MAT_getProp_elem_bis(property_name,elem,L)
+  L => MAT_getProp_elem(property_name,elem)
 
   if (.not.associated(L)) then
-!    L => MAT_newProp_elem(elem)
-    call MAT_newProp_elem_bis(elem,L)
+    L => MAT_newProp_elem(elem)
     L%name = property_name
-    memcount = memcount + size( transfer(L,(/0d0/)) ) 
-  else 
-    if (echo_init) write(iout,*) 'WARNING: MAT_setProp_elem_from_input: overwrite'
-    memcount = memcount - PROP_size(L%data)
+  elseif (echo_init) then
+    write(iout,*) 'WARNING: MAT_setProp: overwrite'
   endif
 
   if (.not. associated(elem%input)) call IO_abort('MAT_setProp_elem: undefined element input')
-!  L_input => MAT_getProp_input(property_name,elem%input)
-  call MAT_getProp_input_bis(property_name,elem%input,L_input)
+  L_input => MAT_getProp_input(property_name,elem%input)
   if (.not. associated(L_input)) call IO_abort('MAT_setProp_elem: undefined input property')
   L%data = PROP_set(L_input%data,ecoord)
-  memcount = memcount + PROP_size(L%data)
 
   end subroutine MAT_setProp_elem_from_input
 
 !-----------------------------------------------------------------------
 !
-  subroutine MAT_setProp_elem_from_values(elem,property_name,val,memcount)
+  subroutine MAT_setProp_elem_from_values(elem,property_name,val)
 
   use echo, only : echo_init, iout
 
   type(matpro_elem_type), intent(inout) :: elem
   character(*), intent(in) :: property_name
   double precision, intent(in) :: val(:,:)
-  integer, intent(inout) :: memcount
    
   type(prop_elem_link_type), pointer :: L
-
-  if (len(property_name)>PROP_NAME_LEN) &
-    call IO_abort('MAT_setProp_elem_from_values: property_name is too long')
 
   L => MAT_getProp_elem(property_name,elem)
 
   if (.not.associated(L)) then
     L => MAT_newProp_elem(elem)
     L%name = property_name
-    memcount = memcount + size( transfer(L,(/0d0/)) ) 
-  else
-    if (echo_init) write(iout,*) 'WARNING: MAT_setProp_elem_from_values: overwrite'
-    memcount = memcount - PROP_size(L%data)
+  elseif (echo_init) then
+    write(iout,*) 'WARNING: MAT_setProp: overwrite'
   endif
 
   L%data = PROP_set(val)
-  memcount = memcount + PROP_size(L%data)
 
   end subroutine MAT_setProp_elem_from_values
 
 !-----------------------------------------------------------------------
 !
-  subroutine MAT_setProp_elem_from_value(elem,property_name,val,memcount)
+  subroutine MAT_setProp_elem_from_value(elem,property_name,val)
 
   use echo, only : echo_init, iout
 
   type(matpro_elem_type), intent(inout) :: elem
   character(*), intent(in) :: property_name
   double precision, intent(in) :: val
-  integer, intent(inout) :: memcount
    
   type(prop_elem_link_type), pointer :: L
-
-  if (len(property_name)>PROP_NAME_LEN) &
-    call IO_abort('MAT_setProp_elem_from_value: property_name is too long')
 
   L => MAT_getProp_elem(property_name,elem)
 
   if (.not.associated(L)) then
     L => MAT_newProp_elem(elem)
     L%name = property_name
-    memcount = memcount + size( transfer(L,(/0d0/)) ) 
-  else
-    if (echo_init) write(iout,*) 'WARNING: MAT_setProp_elem_from_value: overwrite'
-    memcount = memcount - PROP_size(L%data)
+  elseif (echo_init) then
+    write(iout,*) 'WARNING: MAT_setProp: overwrite'
   endif
 
   L%data = PROP_set(val)
-  memcount = memcount + PROP_size(L%data)
 
   end subroutine MAT_setProp_elem_from_value
 
 !=======================================================================
+!
   subroutine MAT_getProp_e(val,elem,property_name)
-
-! To DO: add optional ecoord, when prop has not been pre-evaluated
-! we will generate it directly from input structure
 
   type(matpro_elem_type), intent(in) :: elem
   character(*), intent(in) :: property_name

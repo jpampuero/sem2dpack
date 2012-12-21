@@ -1,8 +1,7 @@
-% SAMPLE_SEIS example of visualization of seismogram output from SEM2DPACK
-% Assumes a 2D P-SV simulation (ndof=2)
+% Example, assuming 2D P-SV
 
 % Read seismogram outputs from SEM2DPACK
-data = sem2d_read_seis();
+data = read_seis();
 
 % Plot all x-component traces together, offset by distance to first station
 figure(1)

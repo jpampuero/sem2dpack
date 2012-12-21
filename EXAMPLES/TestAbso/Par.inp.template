@@ -2,8 +2,9 @@
 # Test for absorbing boundary conditions
 
 #----- Some general parameters ----------------
-&GENERAL iexec=1, ngll=9, fmax=75d0, ndof= _NDOF_ ,
-  title = 'Testing absorbing boundaries', verbose='0001' , ItInfo = 400/
+&ECHO title = 'Testing absorbing boundaries', verbose='0001'
+    , ItInfo = 400, ItSnapshots = 1000 /
+&GENERAL iexec=1, ngll=9, fmax=75d0, ndof= _NDOF_ /
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN' /
@@ -12,7 +13,7 @@
 &MESH_CART xlim=-1.5d3,4.5d3 ,zlim=_ZBOTTOM_,2d3 , nelem=120,_ZNEL_ /
 
 #---- Elastic material parameters --------------
-&MATERIAL tag=1, kind='ELAST' /
+&MATERIAL tag=1, isElastic=T /
 &MAT_ELASTIC rho=2500.d0, cp=5000.d0, cs=2887.d0 /
 
 #----- Boundary conditions ---------------------
@@ -21,16 +22,16 @@
 #&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
 
 &BC_DEF  tag = 1 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'D', stacey=F /
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'R', stacey=F /
 
 &BC_DEF  tag = 3 , kind = 'ABSORB' /  
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'U', stacey=F /
 
 &BC_DEF  tag = 4 , kind = 'ABSORB' /
-&BC_ABSORB  stacey=F /
+&BC_ABSORB side = 'L', stacey=F /
 
 #---- Time scheme settings ----------------------
 # TT = 1.5d0 for PSV
@@ -48,6 +49,6 @@ mechanism= 'FORCE' /
 &REC_LINE number = 91 , first = 0.d3,-1.d3, last = 4.5d3,-1.d3, isamp=1 / 
 
 #--------- Plots settings ----------------------
-&SNAP_DEF itd = 1000, ps=F, bin=F /
-#fields='V' /
-#&SNAP_PS vectors =F, CpModel=.true., interpol = F ,ScaleField = 0.1d0 /
+&PLOTS postscript=F, bin=F /
+#&PLOTS fields='V' /
+#&PLOTS_POSTSCRIPT  vectors =F, CpModel=.true., interpol = F ,ScaleField = 0.1d0 /

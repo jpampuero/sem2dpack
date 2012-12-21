@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12d -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module plot_gen
 
   use plot_visual3
@@ -8,16 +48,15 @@ module plot_gen
   implicit none
   private
 
-  integer, parameter :: nb_fields = 7
+  integer, parameter :: nb_fields = 5
   logical, save :: selected_fields(nb_fields)
-  character(nb_fields), parameter :: field_names='DVAESdc'
+  character(nb_fields), parameter :: field_names='DVAES'
 
   integer, parameter :: nb_comps = 4
   logical, save :: selected_comps(nb_comps)
   character(nb_comps), parameter :: comp_names='xyza'
 
-  integer, save :: ITD,IT1
-  logical, save :: plot_snap,visual3,avs,ps,bin,gmt
+  logical, save :: visual3,avs,postscript,bin,gmt
 
   public :: read_plot_gen,PLOT_FIELD, PLOT_init
 
@@ -27,34 +66,29 @@ contains
 !
 ! BEGIN INPUT BLOCK
 !
-! NAME   : SNAP_DEF
-! GROUP  : SNAPSHOT_OUTPUTS
-! PURPOSE: Set preferences for exporting snapshots
-! SYNTAX : &SNAP_DEF it1, itd, fields, components, bin, visual3, avs, ps, gmt /
-!          Followed by a &SNAP_PS block if ps=T.
+! NAME   : PLOTS
+! PURPOSE: Selects a format to export snapshots
+! SYNTAX : &PLOTS fields,components, bin,visual3,avs,postscript,gmt /
 !
-! ARG: it1      [int] [0]   Time step of first snapshot output
-! ARG: itd      [int] [100] Number of timesteps between snapshots
-! ARG: fields   [char*] ['V'] fields to export in snapshots (the prefix of the 
-!                output file names is given in parenthesis):
+! ARG: fields   [char*] ['V'] fields to export in snapshots
+!                 (begining of output file names given in parenthesis)
 !                 'D'     displacements (dx,dy,dz,da)
 !                 'V'     velocity (vx,vy,vz,va)
 !                 'A'     acceleration (ax,ay,az,aa)
 !                 'E'     strain (e11,e22,e12,e23,e13)
 !                 'S'     stress (s11,s22,s12,s33,e13,e23)
-!                 'd'     divergence rate (dvx/dx + dvz/dz)
-!                 'c'     curl rate (dvx/dz - dvz/dx)
-! ARG: components [char*] ['ya'] components for PostScript outputs:
-!                 in P-SV: 'x','z' and/or 'a' (amplitude). 'y' is ignored 
-!                 in SH:   'y' only. Other values are ignored. 
-! ARG: ps       [log] [T] PostScript (see &SNAP_PS input block)
+! ARG: components [char*] ['ya'] components for PostScript outputs
+!                       'x','y','z' and/or 'a' (amplitude) 
+!                       (in SH only 'y' is considered)
+! ARG: postscript [log] [T] PostScript
 ! ARG: gmt      [log] [F] output triangulation file grid_sem2d.gmt
 !                 to be used in "pscontour -T" of the General Mapping Tool (GMT)
-! ARG: avs      [log] [F] AVS (only for D,V and A fields)
-! ARG: visual3  [log] [F] Visual3 (only for D,V and A fields)
+! ARG: avs      [log] [F] AVS
+! ARG: visual3  [log] [F] Visual3
 ! ARG: bin      [log] [T] binary
 !               
-! NOTE   : E and S fields are exported only as binary.
+! NOTE   : If you choose PostScript you may need also a $POSTSCRIPT input block.
+!          Other formats apply only to 'DVA' fields, 'ES' are exported as binary.
 !
 ! END INPUT BLOCK
 
@@ -68,20 +102,18 @@ contains
   character(nb_comps) :: components
   integer :: i
 
-  NAMELIST / SNAP_DEF / visual3,avs,gmt,ps,bin,fields,components,ITD,IT1
+  NAMELIST / PLOTS / visual3,avs,gmt,postscript,bin,fields,components
 
-  ITD        = 100
-  IT1        = 0
   visual3    = .false.
   avs        = .false.
   gmt        = .false.
-  ps         = .true.
+  postscript = .true.
   bin        = .true.
   fields     = 'V'
   components = 'ya'
   
   rewind(iin)
-  read(iin,SNAP_DEF,END=100) 
+  read(iin,PLOTS,END=100) 
 100 continue
 
   do i=1,nb_fields
@@ -97,26 +129,19 @@ contains
     selected_comps(2)=.true.
     selected_comps(3)=.false.
     selected_comps(4)=.false.
-    selected_fields(6:7) = .false. ! no div/curl for SH
   else
     selected_comps(2)=.false.
   endif
 
-  plot_snap = (visual3 .or. avs .or. ps .or. bin) &
-            .and. any(selected_comps) .and. any(selected_fields)
-
-  if (echo_input) write(iout,200) IT1,ITD, &
-                                  ps,gmt,avs,visual3,bin, &
+  if (echo_input) write(iout,200) postscript,gmt,avs,visual3,bin, &
                                   selected_fields(:),selected_comps(:)
 
-  if (ps) call PLOT_PS_read(iin)
+  if (postscript) call POST_PS_read(iin)
 
   return
 
   200 format(//1x,'S n a p s h o t   O u t p u t s',/1x,31('='),//5x,&
-  'Timestep of first snapshot output  . . . . . . (it1) = ',I0/ 5x, &
-  'Number of timesteps between snapshots. . . . . (itd) = ',I0/ 5x, &
-  'Save results in PS file or not . . . . . . . . .(ps) = ',L1/5x, &
+  'Save results in PS file or not . . . . .(postscript) = ',L1/5x, &
   'Save grid triangulation for GMT. . . . . . . . (gmt) = ',L1/5x, &
   'Save results in AVS file or not. . . . . . . . (avs) = ',L1/5x, &
   'Save results in Visual3 file or not. . . . (visual3) = ',L1/5x, &
@@ -127,8 +152,6 @@ contains
   '  Acceleration . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Strain . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Stress . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
-  '  Divergence . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
-  '  Curl . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   'Selected components for PostScript snapshots :',/5x, &
   '  X  . . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Y  . . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
@@ -140,39 +163,25 @@ contains
 
 !=======================================================================
 
-  subroutine PLOT_FIELD(pb,it,stitle,iout)
+  subroutine PLOT_FIELD(pb,tag,it,stitle)
 
   use problem_class
-  use stdio, only : IO_rw_field, IO_new_unit
-  use fields_class, only : FIELD_get_elem
-  use mat_gen, only : MAT_strain, MAT_stress_dv, MAT_write, MAT_divcurl
-  use time_evol, only : TIME_getTime
+  use stdio, only : IO_rw_field
+  use mat_elastic, only : ELAST_strain_stress
 
   type(problem_type), intent(in) :: pb
   integer, intent(in) :: it
-  character(*), intent(in) :: stitle
-  integer, intent(in), optional :: iout
+  character(*), intent(in) :: stitle,tag
 
   double precision, pointer :: f(:,:)
-  double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: d,v
-  double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof+1) :: stress,strain
-  double precision, dimension(pb%grid%ngll,pb%grid%ngll,2) :: divcurl
-  integer :: iunit(20)
-  character(10) :: tag
-  character(30) :: fnames(20)
+  double precision, allocatable :: ssf(:,:,:,:)
+  character(30) :: fnames(10)
   character(50) :: ps_file_name
   character :: fchar
-  integer :: ndof,ngll,i,e,nssf,k,k0_stress,k_div,k_curl,iol
+  integer :: i,nssf,k
   integer :: comp_indx(nb_comps)
 
-  if (.not.plot_snap) return
-  if (mod(it-IT1,ITD) > 0 .or. it<IT1) return
-
-  write(tag,'(i3.3)') (it-IT1)/ITD
-
   comp_indx = (/ 1,1,2,0 /)
-
-  if (present(iout)) write(iout,300) it
 
   do i = 1,3
 
@@ -198,12 +207,12 @@ contains
       write(fnames(2),'(A,"z_",A)') fchar,trim(tag)
     endif
 
-    if (ps) then
+    if (postscript) then
       do k=1,nb_comps
       if (selected_comps(k)) then
         write(ps_file_name,'( A,A,"_",A,"_sem2d.ps" )') fchar,comp_names(k:k),trim(tag)
         call PLOT_PS(file=trim(ps_file_name), vfield=f,comp=comp_indx(k) &
-                  ,it_in=it,time_in=TIME_getTime(pb%time) &
+                  ,it_in=it,time_in=pb%time%time &
                   ,grid=pb%grid,mat=pb%matpro,stitle=stitle &
                   ,src=pb%src,rec=pb%rec)
       endif
@@ -215,109 +224,47 @@ contains
 
   enddo
 
- !-- other snapshots in binary output files
- !   strain, stress, div, curl
-
-  nssf = 0  ! number of snapshot fields
-  k0_stress = 0
-  k_div = 0
-  k_curl = 0
+  nssf = 0
 
   if (pb%fields%ndof==1) then
 
     if (selected_fields(4)) then
-      fnames(1) = "e13"
-      fnames(2) = "e23"
       nssf=2
+      write(fnames(1),'("e13_",A)') trim(tag) 
+      write(fnames(2),'("e23_",A)') trim(tag) 
     endif
     if (selected_fields(5)) then
-      k0_stress = nssf
-      fnames(k0_stress+1) = "s13"
-      fnames(k0_stress+2) = "s23"
+      write(fnames(nssf+1),'("s13_",A)') trim(tag) 
+      write(fnames(nssf+2),'("s23_",A)') trim(tag) 
       nssf=nssf+2
     endif
 
   else
 
     if (selected_fields(4)) then
-      fnames(1) = "e11"
-      fnames(2) = "e22"
-      fnames(3) = "e12"
       nssf=3
+      write(fnames(1),'("e11_",A)') trim(tag) 
+      write(fnames(2),'("e22_",A)') trim(tag) 
+      write(fnames(3),'("e12_",A)') trim(tag) 
     endif
     if (selected_fields(5)) then
-      k0_stress = nssf
-      fnames(k0_stress+1) = "s11"
-      fnames(k0_stress+2) = "s22"
-      fnames(k0_stress+3) = "s12"
-      nssf=nssf+3
-    endif
-    if (selected_fields(6)) then
-      k_div = nssf+1
-      fnames(k_div) = "div"
-      nssf=nssf+1
-    endif
-    if (selected_fields(7)) then
-      k_curl = nssf+1
-      fnames(k_curl) = "curl"
-      nssf=nssf+1
+      write(fnames(nssf+1),'("s11_",A)') trim(tag) 
+      write(fnames(nssf+2),'("s22_",A)') trim(tag) 
+      write(fnames(nssf+3),'("s33_",A)') trim(tag) 
+      write(fnames(nssf+4),'("s12_",A)') trim(tag) 
+      nssf=nssf+4
     endif
 
   endif
 
-  if (nssf>0 .and. bin) then
-
-    ndof = pb%fields%ndof
-    ngll = pb%grid%ngll
-
-    inquire( IOLENGTH=iol ) real(d(:,:,1))
-    do k=1,nssf
-      iunit(k) = IO_new_unit()
-      open(unit=iunit(k),file=trim(fnames(k))//'_'//trim(tag)//'_sem2d.dat' &
-          ,status='replace',access='direct',recl=iol)
-    enddo
-
-    do e=1,pb%grid%nelem
-
-      d = FIELD_get_elem(pb%fields%displ,pb%grid%ibool(:,:,e))
-      v = FIELD_get_elem(pb%fields%veloc,pb%grid%ibool(:,:,e))
-
-      if (selected_fields(4)) then
-        strain = MAT_strain(d,pb%matwrk(e),pb%grid,e,ngll,ndof)
-        do k=1,ndof+1
-          write(iunit(k),rec=e) real(strain(:,:,k))
-        enddo
-      endif
-      
-      if (selected_fields(5)) then
-        call MAT_stress_dv(stress,d,v,pb%matwrk(e),pb%matpro(e),pb%grid,e,ngll,ndof)
-        do k=1,ndof+1
-          write(iunit(k0_stress+k),rec=e) real(stress(:,:,k))
-        enddo
-      endif
-
-      if (selected_fields(6) .or. selected_fields(7)) then
-        divcurl = MAT_divcurl(v,pb%matwrk(e),pb%grid,e,ngll,ndof)
-        !divcurl = MAT_divcurl(d,pb%matwrk(e),pb%grid,e,ngll,ndof)
-        if (selected_fields(6)) write(iunit(k_div),rec=e) real(divcurl(:,:,1))
-        if (selected_fields(7)) write(iunit(k_curl),rec=e) real(divcurl(:,:,2))
-      endif
-
-    enddo
-
-    do k=1,nssf
-      close(iunit(k))
-    enddo
-
+  if (nssf>0) then
+    allocate(ssf(pb%grid%ngll,pb%grid%ngll,pb%grid%nelem,nssf))
+    call ELAST_strain_stress(pb%matpro,pb%grid,pb%fields%displ, &
+                             selected_fields(4),selected_fields(5),ssf)
+    call IO_rw_field(ssf,fnames,'w')
+    deallocate(ssf)
   endif
   
-  call MAT_write(pb%matwrk,pb%matpro,tag)
-
-  if (present(iout)) write(iout,*)
-
-  return 
-300 format(/"Snapshot at timestep = ",I0)
-
   end subroutine PLOT_FIELD
   
 !=======================================================================
@@ -327,6 +274,7 @@ contains
 
   type (sem_grid_type), intent(inout) :: grid
 
+  if (postscript) call POST_PS_init(grid)
   if (gmt) call PLOT_GMT_init(grid%ibool)
   
   end subroutine PLOT_init
