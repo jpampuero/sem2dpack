@@ -1,0 +1,64 @@
+# Parameter file for SEM2DPACK 2.0 
+
+#----- General settings ----------------
+&ECHO title = 'Damage test 1', verbose='1111'
+    , ItInfo = 200, ItSnapshots = 20000 /
+&GENERAL iexec=1, ngll=5, fmax=25d0 , ndof=2 /
+
+#----- Mesh generation ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-100d0,100d0 ,zlim=0.d3,2.d3 , nelem=4,40 /
+
+#----- Materials --------------
+&MATERIAL tag=1, isDamage=T, isKelvinVoigt=T /
+&MAT_DAMAGE rho=2400.d0, cp=3800.d0, cs=2000.d0, 
+            beta=0.d0, R=0.4d0, Cd=5d0, phi=30d0, alpha=0.d0 ,
+            e0 = -2d-3,-2d-3,-2d-3, 0.2d-3  /
+#            beta=0., R=0., Cd=0d0, phi=30d0, alpha=0.d0 ,
+
+# quality factor Q(f) = 1/(eta*2*pi*f)
+&MAT_KV eta=3.2d-4 , ETAxDT=F / 
+
+# if instead you need to test an elastic medium:
+#&MATERIAL tag=1, isElastic=T /
+#&MAT_ELASTIC rho=2400.d0, cp=3800.d0, cs=2000.d0 /
+
+#----- Boundary conditions ---------------------
+# Boundary tags: 1=bottom, 2=right, 3=top, 4=left
+
+# bottom boundary is fixed 
+&BC_DEF  tag = 1 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='D' /
+
+# top boundary: time-dependent vertical load
+&BC_DEF  tag = 3 , kind = 'DIRNEU' /  
+#&BC_DIRNEU h= 'D' , v='N', vstf='RICKER' /
+#&STF_RICKER  f0= 5.d0, onset = 0.4d0, ampli = 100d0 / # amplitude in Pascal
+&BC_DIRNEU h= 'D' , v='N', vstf='HARMONIC' /
+&STF_HARMONIC f0= 5.d0, ampli = 100d0 / # amplitude in Pascal
+
+# use this instead if you apply a point source:
+#&BC_DIRNEU h= 'D' , v='N' /
+
+# left and right boundaries are free to move vertically
+# comment this out if you want the default: free stress
+&BC_DEF  tag = 2 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='N' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='N' /
+
+#----- Time scheme ----------------------
+&TIME TotalTime=10d0, courant=0.5d0, kind='leapfrog'/
+
+#----- Sources ----------------------------------
+# for a point force source:
+#&SRC_DEF stf= 'RICKER', coord= 0.d0,1.d3, mechanism= 'FORCE' /
+#&STF_RICKER  f0= 5.d0, onset = 0.4d0, ampli = 1.d-6 /
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 21 , first = 0d3,0d3, last = 0d3,2d3, irepr='Z' / 
+
+#----- Plots ----------------------
+&PLOTS fields='V', components='a' /
+&PLOTS_POSTSCRIPT  vectors =F, color=T, interpol= F / 
+#,ScaleField = 1.d-2 /

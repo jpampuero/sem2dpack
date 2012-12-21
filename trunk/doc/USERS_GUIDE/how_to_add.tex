@@ -1,0 +1,54 @@
+\chapter{Adding features to SEM2D (notes for advanced users)}
+\label{Cha:add}
+
+Sometimes you will need to add new capabilities to the
+SEM2DPACK solver, by modifying the program.
+The following notes are intended to guide you through this process.
+We will not give here a comprehensive description of the code architecture,
+only enough details to get you started in performing safely
+the most usual and evident modifications.
+
+\section{Overview of the code architecture}
+
+{\it [ ... in progresss ...]}
+
+This code uses a mixture of procedural (imperative) and object-oriented paradigms.
+Historically, it evolved from a purely procedural code.
+
+Extensive use of modularity.
+
+Object Oriented Programming (OOP) features (principles) applied in this code:
+encapsulation, classes, %or abstract objects), 
+static polymorphism. 
+%inheritance (in mesh generation modules?, "has-a" construct but not "is-a"), 
+These are not applied everywhere in the code, for different reasons:
+reusage of legacy code, performance, 
+%ex: implementing the non anticipation principle (Zimmerman et al 1992, Duboi-Pelerin etal 1992) has large overhead
+difficulty related to the limits of Fortra 90, 
+or sections of code yet to be updated. 
+% Missing in F90: dynamic polymorphism, full inheritance, templates. 
+
+Added cost of structures containing pointer components: 
+the possibility of pointer aliasing prevents more agressive compiler optimizations
+and adds overhead for safety checks.
+% Zimmerman et al 1992: FEM OO
+
+\section{Accessible areas of the code}
+
+Some areas of the code have been written in such a way that a moderately 
+experienced Fortran 95 programmer,
+with a limited understanding of the code architecture,
+can introduce new features without breaking the whole system.
+This is achieved through modularity, encapsulation and templates.
+The modifications that are currently accessible are:
+\begin{itemize}
+  \item boundary conditions, see \texttt{bc\_gen.f90}
+  \item material rheology, see \texttt{mat\_gen.f90}
+%  \item friction laws
+  \item source time functions, see \texttt{stf\_gen.f90}
+  \item spatial distributions, see \texttt{distribution\_general.f90}
+%   \item output fields
+\end{itemize}
+The source files listed above contain step-by-step instructions,
+just follow the comments starting by \texttt{!!}.
+

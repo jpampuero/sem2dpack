@@ -1,0 +1,278 @@
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S E M 2 D P A C K : start
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+                                                   
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:41
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ 
+***********************************************
+*            I n p u t   p h a s e            *
+***********************************************
+ 
+
+
+ G e n e r a l   P a r a m e t e r s
+ ===================================
+
+     Execution mode . . . . . . . . . . . . . . . (iexec) = solve     
+     Number of nodes per edge . . . . . . . . . . .(ngll) = 6
+     Number of d.o.f per node . . . . . . . . . . .(ndof) = 1
+     Highest frequency to be resolved . . . . . . .(fmax) =    1.250E+00
+     Print progress information during 
+                 input phase  . . . . . . . .(verbose(1)) = T
+                 initialization phase . . . .(verbose(2)) = T
+                 checking phase . . . . . . .(verbose(3)) = T
+                 solver phase . . . . . . . .(verbose(4)) = T
+     Frequency for solver progress information  .(itInfo) = 1000
+
+
+
+ M e s h   G e n e r a t i o n
+ =============================
+
+     Method  . . . . . . . . . . . . . . . .(method) = CARTESIAN 
+     Minimum X . . . . . . . . . . . . . . (xlim(1)) =  0.000E+00
+     Maximum X . . . . . . . . . . . . . . (xlim(2)) =  3.000E+01
+     Minimum Z . . . . . . . . . . . . . . (zlim(1)) =  0.000E+00
+     Maximum Z . . . . . . . . . . . . . . (zlim(2)) =  3.000E+01
+     Number of elements along X. . . . . .(nelem(1)) = 60
+     Number of elements along Z. . . . . .(nelem(2)) = 60
+
+
+ T i m e   i n t e g r a t i o n
+ ===============================
+
+     Scheme. . . . . . . . . . . . . .(kind) = leapfrog  
+     Number of time steps. . . . . (NbSteps) = will be set later
+     Time step increment . . . . . . . .(Dt) = will be set later
+     Courant number. . . . . . . . (Courant) = 0.30
+     Total simulation duration . (TotalTime) =   35.000E+00
+
+
+ M a t e r i a l   P r o p e r t i e s
+ =====================================
+
+     Number of materials . . . . . . . . . . . = 1
+
+     Material index. . . . . . . . . . . (tag) = 1
+     Material type . . . . . . . . . . .(kind) = Elastic
+     P-wave velocity . . . . . . . . . . .(cp) =   1.732E+00
+     S-wave velocity . . . . . . . . . . .(cs) =   1.000E+00
+     Mass density. . . . . . . . . . . . (rho) =   1.000E+00
+     Poisson's ratio . . . . . . . . . . . . . = 250.021E-03
+     First Lame parameter Lambda . . . . . . . =   1.000E+00
+     Second Lame parameter Mu. . . . . . . . . =   1.000E+00
+     Bulk modulus K. . . . . . . . . . . . . . =   1.667E+00
+     Young's modulus E . . . . . . . . . . . . =   2.500E+00
+
+
+ B o u n d a r y   C o n d i t i o n s
+ =====================================
+
+
+     Boundary tag. . . . . . . . . . . . (tag) = 2
+     Boundary condition. . . . . . . . .(kind) = ABSORB
+     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
+     Allow incident wave . . . . . .(let_wave) = T
+
+     Boundary tag. . . . . . . . . . . . (tag) = 3
+     Boundary condition. . . . . . . . .(kind) = ABSORB
+     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
+     Allow incident wave . . . . . .(let_wave) = T
+
+
+ S o u r c e s
+ =============
+
+     X-position (meters). . . . .(coord(1)) =    0.000E+00
+     Y-position (meters). . . . .(coord(2)) =    0.000E+00
+     Source time function . . . . . . . . . = Ricker
+     Fundamental frequency (Hz) . . . .(f0) = 500.000E-03
+     Time delay (s) . . . . . . . . (onset) =   3.000E+00
+     Multiplying factor . . . . . . (ampli) = 250.000E-03
+     Source Type. . . . . . . . . . . . . . = Collocated Force
+     If P-SV: counterclockwise angle / up . = 0.00
+
+
+ R e c e i v e r s
+ =================
+
+     Number of receivers . . . . . . . . . . . . (number) = 7
+     First receiver X location . . . . . . . . (first(1)) =    0.000E+00
+     First receiver Z location . . . . . . . . (first(2)) =    0.000E+00
+     Last receiver X location. . . . . . . . . .(last(1)) =   30.000E+00
+     Last receiver Z location. . . . . . . . . .(last(2)) =    0.000E+00
+
+     Relocate to the nearest GLL node. . . . . . (AtNode) = T
+     Subsampling for seismograms recording . . . .(isamp) = 1
+     Field recorded. . . . . . . . . . . . . . . .(field) = D
+     Axis of the seismogram plot . . . . . . . . .(irepr) = D
+
+
+ S n a p s h o t   O u t p u t s
+ ===============================
+
+     Timestep of first snapshot output  . . . . . . (it1) = 0
+     Number of timesteps between snapshots. . . . . (itd) = 100000
+     Save results in PS file or not . . . . . . . . .(ps) = F
+     Save grid triangulation for GMT. . . . . . . . (gmt) = F
+     Save results in AVS file or not. . . . . . . . (avs) = F
+     Save results in Visual3 file or not. . . . (visual3) = F
+     Save results in binary file or not . . . . . . (bin) = F
+     Selected fields :
+       Displacement . . . . . . . . . . . . . . . . . . . = F
+       Velocity . . . . . . . . . . . . . . . . . . . . . = T
+       Acceleration . . . . . . . . . . . . . . . . . . . = F
+       Strain . . . . . . . . . . . . . . . . . . . . . . = F
+       Stress . . . . . . . . . . . . . . . . . . . . . . = F
+       Divergence . . . . . . . . . . . . . . . . . . . . = F
+       Curl . . . . . . . . . . . . . . . . . . . . . . . = F
+     Selected components for PostScript snapshots :
+       X  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Y  . . . . . . . . . . . . . . . . . . . . . . . . = T
+       Z  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Amplitude  . . . . . . . . . . . . . . . . . . . . = F
+ 
+***********************************************
+*   I n i t i a l i z a t i o n   p h a s e   *
+***********************************************
+ 
+ 
+     Defining the FEM mesh ...... [OK]
+     Saving node coordinates in file MeshNodesCoord_sem2d.tab ...... [OK]
+     Saving element connectivity in file ElmtNodes_sem2d.tab ...... [OK]
+ 
+ S p e c t r a l   e l e m e n t s   g r i d
+ ===========================================
+ 
+     Numbering GLL points ...... [OK]
+     Total number of elements. . . . . . . . = 3600
+     Total number of GLL points. . . . . . . = 90601
+ 
+     Saving element/node table in binary file ibool_sem2d.dat ...... [OK]
+     Defining nodes coordinates ...... [OK]
+ 
+     Saving the grid coordinates (coord) in a text file ...... [OK]
+     Saving the grid coordinates (coord) in a binary file ...... [OK]
+ 
+ M a t e r i a l   p r o p e r t i e s
+ =====================================
+ 
+     Translating input model ...... [OK]
+     Exporting model ...... [OK]
+ 
+ M e s h   p r o p e r t i e s
+ =============================
+ 
+     Checking mesh ...... [OK]
+    Max mesh size =  142.616E-03
+    Min mesh size =   58.736E-03
+    Ratio max/min =    2.428E+00
+ 
+    RESOLUTION: nodes per min wavelength =    8.000E+00
+                for maximum frequency   =    1.250E+00 Hz
+                    minimum wavelength  =    1.600E+00 m
+ 
+     Dump PostScript Resolution_sem2d.ps ...... [OK]
+     Dump PostScript Stability_sem2d.ps ...... [OK]
+ 
+ T i m e   s o l v e r
+ =====================
+ 
+    Time step (secs)      =   17.621E-03
+    Number of time steps  = 1987
+    Total duration (secs) =   35.013E+00
+    Courant number        =  300.000E-03
+ 
+    STABILITY:  CFL number               =  300.000E-03
+ 
+     Defining material work arrays ...... [OK]
+     Initializing kinematic fields ...... [OK]
+       Max displ =    0.000E+00
+       Max veloc =    0.000E+00
+ 
+     Building the mass matrix ...... [OK]
+     Defining boundary conditions ...... [OK]
+     Initializing receivers ...
+
+ R e c e i v e r s
+ =================
+
+ Receivers have been relocated to the nearest GLL node
+
+ Receiver  x-requested  z-requested   x-obtained   z-obtained   distance
+
+        1    0.000E+00    0.000E+00    0.000E+00    0.000E+00    0.000E+00
+        2    5.000E+00    0.000E+00    5.000E+00    0.000E+00    0.000E+00
+        3   10.000E+00    0.000E+00   10.000E+00    0.000E+00    0.000E+00
+        4   15.000E+00    0.000E+00   15.000E+00    0.000E+00    0.000E+00
+        5   20.000E+00    0.000E+00   20.000E+00    0.000E+00    0.000E+00
+        6   25.000E+00    0.000E+00   25.000E+00    0.000E+00    0.000E+00
+        7   30.000E+00    0.000E+00   30.000E+00    0.000E+00    0.000E+00
+
+  Maximum distance between asked and real =   0.000E+00
+ 
+  Sampling rate (Hz)        =   56.751E+00
+  Sampling timestep (secs)  =   17.621E-03
+  Total number of samples   = 1988
+  Number of receivers       = 7
+ 
+... [OK]
+     Initializing sources ...
+
+ S o u r c e s
+ =============
+
+ Sources have been relocated to the nearest GLL node
+
+   Source  x-requested  z-requested   x-obtained   z-obtained     distance
+
+        1    0.000E+00    0.000E+00    0.000E+00    0.000E+00    0.000E+00
+
+  Maximum distance between requested and real =   0.000E+00
+... [OK]
+ 
+***********************************************
+*           S o l v e r   p h a s e           *
+***********************************************
+ 
+Timestep #       0  t =   0.000E+00  vmax =   0.000E+00  dmax =   0.000E+00
+
+---  CPU TIME ESTIMATES (in seconds) :
+  CPU time for initialization . . 610.908E-03
+  CPU time per timestep . . . . .   6.399E-03
+  Total solver CPU time . . . . .  12.715E+00
+                   (mins) . . . . 211.914E-03
+                   (hours). . . .   3.532E-03
+
+Timestep #    1000  t =  17.621E+00  vmax =  91.661E-03  dmax =  28.653E-03
+
+
+---  CPU TIME INFORMATION (in seconds) :
+  CPU time for initialization . . 610.908E-03
+  CPU time per timestep . . . . .   6.267E-03
+  Total solver CPU time . . . . .  12.453E+00
+                   (mins) . . . . 207.552E-03
+                   (hours). . . .   3.459E-03
+
+ Storing seismograms (SEP format) ...
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S E M 2 D P A C K :  end
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Test SH                                           
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:55
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------

@@ -1,0 +1,91 @@
+# SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+#                            and earthquake source dynamics
+# 
+# Copyright (C) 2003 Jean-Paul Ampuero
+# All Rights Reserved
+# 
+# Jean-Paul Ampuero
+# 
+# ETH Zurich (Swiss Federal Institute of Technology)
+# Institute of Geophysics
+# Seismology and Geodynamics
+# ETH Hönggerberg (HPP)
+# CH-8093 Zürich
+# Switzerland
+# 
+# ampuero@erdw.ethz.ch
+# +41 1 633 2197 (office)
+# +41 1 633 1065 (fax)
+# 
+# http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+# 
+# 
+# This software is freely available for scientific research purposes. 
+# If you use this software in writing scientific papers include proper 
+# attributions to its author, Jean-Paul Ampuero.
+# 
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+# 
+bc_abso.o: echo.o elastic.o fields.o memory_info.o spec_grid.o src_gen.o \
+	stdio.o
+bc_DT0TN0.o: echo.o spec_grid.o
+bc_DTTTN0.o: distribution_general.o echo.o spec_grid.o stdio.o
+bc_gen.o: bc_DT0TN0.o bc_DTTTN0.o bc_abso.o bc_lsf.o bc_periodic.o bc_swff.o \
+	echo.o elastic.o fields.o spec_grid.o src_gen.o stdio.o time.o
+bc_lsf.o: echo.o spec_grid.o stdio.o
+bc_periodic.o: echo.o spec_grid.o stdio.o
+bc_swff.o: distribution_general.o echo.o spec_grid.o stdio.o time.o
+butterworth_filter.o: stdio.o
+distribution_gaussian.o: stdio.o
+distribution_general.o: distribution_gaussian.o distribution_gradient.o \
+	distribution_linear.o distribution_order0.o distribution_pwconr.o \
+	distribution_spline.o stdio.o
+distribution_gradient.o: stdio.o utils.o
+distribution_linear.o: stdio.o utils.o
+distribution_order0.o: stdio.o
+distribution_pwconr.o: stdio.o
+distribution_spline.o: stdio.o
+echo.o: stdio.o
+elastic.o: distribution_general.o echo.o memory_info.o spec_grid.o stdio.o
+fields.o: echo.o memory_info.o stdio.o
+init.o: bc_gen.o echo.o elastic.o fields.o memory_info.o mesh_gen.o \
+	plot_postscript.o problem_class.o receivers.o spec_grid.o src_gen.o \
+	stdio.o time.o
+input.o: bc_gen.o echo.o elastic.o mesh_gen.o plot_gen.o problem_class.o \
+	receivers.o src_gen.o stdio.o time.o
+main.o: bc_gen.o echo.o fields.o init.o input.o plot_gen.o problem_class.o \
+	receivers.o solver.o
+memory_info.o: stdio.o
+mesh_cartesian.o: spec_grid.o stdio.o
+mesh_emc2.o: generic_list.o spec_grid.o stdio.o
+mesh_gen.o: mesh_cartesian.o mesh_emc2.o spec_grid.o stdio.o
+plot_avs.o: fields.o spec_grid.o stdio.o
+plot_gen.o: echo.o elastic.o plot_avs.o plot_postscript.o plot_visual3.o \
+	problem_class.o stdio.o
+plot_postscript.o: echo.o elastic.o fields.o receivers.o spec_grid.o \
+	src_gen.o stdio.o
+plot_visual3.o: elastic.o fields.o spec_grid.o
+problem_class.o: bc_gen.o elastic.o fields.o mesh_gen.o receivers.o \
+	spec_grid.o src_gen.o time.o
+receivers.o: echo.o fields.o memory_info.o spec_grid.o stdio.o time.o
+ricker_functions.o: echo.o stdio.o
+solver.o: bc_gen.o elastic.o problem_class.o src_gen.o
+spec_grid.o: echo.o generic_list.o gll.o memory_info.o stdio.o utils.o
+src_explo.o: echo.o spec_grid.o
+src_force.o: echo.o stdio.o
+src_gen.o: butterworth_filter.o echo.o elastic.o fields.o ricker_functions.o \
+	spec_grid.o src_explo.o src_force.o src_wave.o stdio.o
+src_wave.o: echo.o elastic.o fields.o ricker_functions.o spec_grid.o stdio.o
+time.o: echo.o stdio.o

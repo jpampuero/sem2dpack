@@ -1,0 +1,65 @@
+# Dynamic fault with slip weakening friction
+# between two different materials (bimaterial fault)
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=3, fmax=20.d0 , ndof=2 ,
+  title = 'Bimaterial fault with slip weakening friction', verbose='1111', ItInfo = 500/
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+
+#&MESH_CART xlim=-300d0,300d0, zlim=-150d0,150d0, nelem=512,256, ezflt=-1 /
+#&MESH_CART_DOMAIN tag=1, ex= 1,512, ez=1,126 /
+#&MESH_CART_DOMAIN tag=2, ex= 1,512, ez=127,128 /
+#&MESH_CART_DOMAIN tag=3, ex= 1,512, ez=129,130 /
+#&MESH_CART_DOMAIN tag=4, ex= 1,512, ez=131,256 /
+
+&MESH_CART xlim=-300d0,300d0, zlim=-75d0,75d0, nelem=512,128, ezflt=-1 /
+&MESH_CART_DOMAIN tag=1, ex= 1,512, ez=1,54 /
+&MESH_CART_DOMAIN tag=2, ex= 1,512, ez=55,56 /
+&MESH_CART_DOMAIN tag=3, ex= 1,512, ez=57,58 /
+&MESH_CART_DOMAIN tag=4, ex= 1,512, ez=59,128 /
+
+#---- Material parameters --------------
+
+# lower half
+&MATERIAL tag=1, kind='ELAST'  /
+#&MATERIAL tag=2, kind='ELAST'  /
+&MATERIAL tag=2, kind='ELAST','KV'  /
+&MAT_ELASTIC rho=2.745739267606057d3, cp=5.354808276679941d3, cs=3091.6d0 /
+&MAT_KV eta=0.1d0 /
+
+# upper half
+&MATERIAL tag=3, kind='ELAST','KV'  /
+#&MATERIAL tag=3, kind='ELAST'  /
+&MATERIAL tag=4, kind='ELAST'  /
+&MAT_ELASTIC rho=2.730833867490239d3, cp=4.537973115830458d3, cs=2620d0 /
+&MAT_KV eta=0.1d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+#&BC_DEF  tag = 4 , kind = 'ABSORB' /  
+
+# set periodic boundaries to ease comparison to SBIEM
+&BC_DEF  tags = 2,4 , kind = 'PERIOD' /
+
+&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
+&BC_DYNFLT Tn=-130.d6,TtH='PWCONR' /
+&DIST_PWCONR num=2/ # Initial shear stress
+  4d0
+91.001d6  82.81d6
+&BC_DYNFLT_SWF Dc=0.744d-3, MuS=0.7d0, MuD=0.6d0/
+&BC_DYNFLT_NOR kind=2, T=0.35d-3 / 
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=0.1d0, courant = 0.55d0, kind='leapfrog' /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields ='V',components='xz',bin=T,ps=F /
+&SNAP_PS vectors =F, interpol = T, DisplayPts=6, ScaleField=2d0   /

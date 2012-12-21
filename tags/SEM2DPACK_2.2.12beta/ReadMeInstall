@@ -1,0 +1,16 @@
+INSTALL INSTRUCTIONS
+
+1. Uncompress and expand the SEM2DPACK package:
+	tar xvfz sem2dpack.tgz
+2. Go to the source directory: 
+	cd SEM2DPACK/SRC
+3. Edit the Makefile according to your FORTRAN 90 compiler.
+4. Compile: 
+	make
+5. Go to the SEM2DPACK/PRE directory, edit the Makefile, then compile.
+
+On normal compilation you end up with executable files,
+among which sem2dsolve, in your /home/myhome/bin/.
+
+If you encounter problems with some (convenient but non essential) FORTRAN 95 
+features of the code please contact me.

@@ -1,0 +1,215 @@
+Notation: *+ fixed bug
+	  ++ new feature
+          o+ optimization
+	   + minor modifications
+
+Tracker IDs at SourceForge.net:
+BR xxxxxxx : Bug Reports 
+FR xxxxxxx : Feature Requests 
+SR xxxxxxx : Support Requests
+
+Wed Nov 26 18:38:29 PST 2008 -- v 2.3.4
+  + Brune's source time function (STF_BRUNE)
+  + energy outputs: change of elastic energy, kinetic energy, energy dissipated by plasticity
+    (expert parameter COMPUTE_ENERGIES in constant.f90)
+  + divergence and curl of velocity added to snapshot outputs (fields='d' or 'c' in SNAP_DEF)
+  + export displacements and velocities of each side of the fault 
+    (new parameter osides in BC_DYNFLT)
+  + updated and added more post-processing tools: spec2D_cplot, arias_intensity, 
+    response_spectrum, sem2d_extract_line, sem2d_extract_points, plot_model
+ *+ STF_TAB now assumes values beyond input time range are same as initial or final times
+ *+ fixed interpolation problem in DIST_HETE1 
+ *+ fixed plotting of velocity model as background in SNAP_PS
+
+Tue Aug  5 18:03:42 PDT 2008 -- v 2.3.3
+ ++ Maxwell visco-plasticity (new parameter Tv in MAT_PLAST)
+ ++ Non planar faults meshes (new parameter ezflt in MESH_LAYER)
+  + Horizontal fault at arbitrary vertical position 
+    (new parameter ezflt in MESH_CARTESIAN, supersedes FaultX)
+  + DIST_LINEAR can now read data from Par.inp
+ *+ Fixed a bug in initialization of Newmark parameters, by separating
+    Newmark and HHT-alpha schemes in two different input blocks, 
+    TIME_NEWMARK and TIME_HHTA respectively
+ *+ Fixed syntax of REC_LINE: 'number' is no longer required when using 'file'
+ 
+Fri May 16 16:20:02 PDT 2008 -- v2.3.2
+ 
+ ++ velocity and state dependent friction law,
+    as in Ampuero and Ben-Zion (GJI, 2008)
+    See EXAMPLES/Velocity_weakening
+ *+ time-weakening (BC_DYNFLT_TWF) was only enabled with slip-weakening
+    (BC_DYNFLT_SWF), now it can stand alone too
+ *+ fixed memory report for very large simulations
+ 
+Wed Apr  9 20:58:29 CEST 2008 -- v2.3.1
+
+ ++ time weakening friction at prescribed rupture speed,
+    possibly cobined with other friction laws for initiation
+    (see BC_DYNFLT_TWF)
+ o+ refactoring to reduce memory overhead
+  + encapsulation of material modules
+  + improved CPU time and memory usage estimates 
+  + avoid stack overflow in unformatted direct access writes
+ *+ fixed a memory leak during cleanup of linked lists
+
+Thu Mar  6 18:11:49 JST 2008 -- v2.3.0
+
+ ++ continuum damage (see MAT_DMG)
+ ++ Coulomb plasticity (see MAT_PLAST)
+ ++ normal stress response regularization for bimaterial faults 
+    (see BC_DYNFLT_NORMAL block and EXAMPLES/Bimaterial_fault)
+ ++ major refactoring, more commented code and guidelines for programmers in documentation
+    allow easier implementation of new materials, source time functions,
+    distributions and boundary conditions
+ ++ Dirichlet and Neumann boundary conditions (see BC_DIRNEU block, supersedes BC_DT0TN0)
+ ++ export triangulation file for GMT's "pscontour -T" (see PLOTS block)
+ ++ monochromatic source time function (see STF_HARMONIC)
+ ++ linear slip fault also for SH waves (see BC_LSF)
+ ++ more and better documented Matlab utilities for plotting outputs, 
+    including a GUI for snapshot views (see POST/*.m)
+  + improved documentation
+  + the syntax of the following input blocks has changed: 
+    MATERIAL, SNAP_DEF (renamed PLOTS), SNAP_PS (renamed PLOTS_POSTSCRIPT), 
+    DIST_GAUSSIAN, BC_ABSO, BC_DYNFLT (renamed BC_SWFFLT), GENERAL and SRC_DEF. 
+    (ECHO block was removed) 
+  + KELVIN_VOIGT block renamed, new name is MAT_KV
+  + ELASTIC block renamed, new name is MAT_ELAST
+ *+ fixed writing of file MeshNodesCoord_sem2d.tab
+ *+ fixed reference point in wave sources with incidence from above
+ *+ fixed postscript plotting with interpolation
+    SR 1746891
+ o+ more memory optimizations for box grids with homogeneous materials
+ o+ optimized matrix products
+ 
+
+Wed Jun  6 17:32:34 CEST 2007 -- v2.2.11
+
+ *+ fixed obliquely incident plane waves (see SRC_WAVE input block)
+    FR 1676280
+ ++ moment tensor sources (see new SRC_DOUBLE_COUPLE and SRC_MOMENT input blocks)
+ ++ source time function interpolated (spline) from a user supplied file
+  + allow source locations at interelement nodes
+  + SRC_RICKER input block name changed to STF_RICKER
+  + argument "Periodic" deleted from BC_XXX blocks (now handled internally)
+  + interpolation of scalar snapshot plots
+  + POST/movie.csh now crops the figure only upon request (-crop option)
+
+Fri Jun  1 00:21:22 CEST 2007 -- v2.2.10
+ ++ built-in mesh generation for layered medium
+    possibly with surface and sub-surface topography
+    See MESH_LAYERED input block
+    See also PRE/set_mesh_layers.m, EXAMPLES/TestLayers and 
+    EXAMPLES/TestLayers_2
+ ++ scripts POST/read_seis.m and POST/plot_seis.m to read
+    and plot seismogram outputs on Matlab
+ ++ script for automated tests EXAMPLES/run_tests.csh
+ *+ fixed intent(in) bug and handling of Q9 elements
+    in fem_grid.f90 (FE_SetConnectivity)
+ *+ fixed array allocation bug in spline_dist.f90
+ o+ optimization settings in module constants.f90
+    should be modified by user before compilation
+  + file format changed in DIST_SPLINE, DIST_LINEAR, 
+    DIST_GRADIENT, REC_LINE and SRC_DEF :
+    the first line (which used to contain the number of data lines)
+    is not needed anymore
+
+Wed Apr  4 10:21:55 CEST 2007 -- v2.2.9
+ *+ fixed reading of HETE_DIST1 input block
+    and more robust interpolation at the edges
+    BR 1692766
+ ++ template for user-supplied source time function (src_user.f90)
+    See SRC_USER input block
+    FR 1691682
+  + new example "LambsProblem", as in Mercerat et al. (2006)
+    SR 1681080
+
+Mon Mar 12 05:06:31 CET 2007 -- v2.2.8
+ ++ receivers can be located at arbitrary positions, read from a file, 
+    not necesarily at computational nodes. See the REC_LINE block
+    FR 1639079
+ ++ multiple sources, with location and delay-time read from a file.
+    See SRC_DEF block
+    FR 1675299
+
+Thu Feb  8 16:52:09 CET 2007 -- v2.2.7
+ ++ materials can have heterogeneous distributions using DIST_XXXXX blocks
+    (see EXAMPLE/InaBox)
+    SR 1631862
+ ++ new DIST_HETE1 interpolates linearly from a regular grid (see EXAMPLE/InaBox)
+ *+ fixed bug when writing "Stability_sem2d.tab"
+  + added a FAQ to the user's guide
+    SR 1653849 1648483
+
+Thu Jan 18 16:21:36 CET 2007 -- v2.2.6
+  + Kelvin-Voigt viscosity: fixed wrong format in initialization outputs
+  + PRE/ViewMeshQuality.m: modified, see user's guide section 2.4
+  + EXAMPLES/TestFlt1D/ : corrected Par.inp
+
+Wed Nov  1 22:45:39 CET 2006 -- v2.2.5
+ ++ symplectic time-stepping algorithms, PFR and PEFRL (4th order)
+ o+ Reverse Cuthill-McKee element reordering
+  + PostScript snapshots for each component in P-SV
+ *+ abort if undefined boundary tag
+ *+ first sample in seismograms is t=0
+ *+ added Kelvin-Voigt to Newmark solver
+
+Wed Jan 18 10:51:01 CET 2006 -- v2.2.4a
+ *+ Kelvin-Voigt routines fixed for g95 compiler
+
+Mon Aug 22 22:55:56 CEST 2005 -- v2.2.4
+ ++ SH waves (anti-plane, scalar wave equation), see "ndof=1" in &GENERAL 
+ ++ leapfrog (staggered centered-difference) is now the default time scheme
+    It is faster, uses less memory and allows accurate explicit treatment
+    of dynamic fault boundaries (see "kind" in &TIME)
+ ++ Kelvin-Voigt material, only with leapfrog (see &KELVIN_VOIGT)
+ ++ bc_abso: new implementation, absorbing boundaries are now second order in dt
+ *+ faults: mapping to the fault coordinate system was handled incorrectly
+    (this bug might have corrupted curved faults in P-SV)
+ *+ time scheme: consistent check for stability in dissipative schemes
+ o+ faster initialization (changed the node numbering algorithm)
+ o+ optimization: up to 50% performance gain by declaring NGLL as parameter 
+    in core subroutines (ELAST_KD). Before compiling, the user must edit elastic.f90
+    setting OPT_NGLL to a frequent value.
+ o+ memory optimization: jacobian and local weights not stored
+  + faults: input initial tractions renamed + new input initial stress 
+  + outputs: PostScript snapshots of color scalar fields 
+    (set "vector=F, color=T" in PLOT_POSTSCRIPT) 
+  + post: sem2d_view.m for Matlab
+  + post: "Snapshot_*.ps" renamed to "x_*.ps" where x=d,v or a.
+
+Mon Feb  7 23:38:44 CET 2005 -- v2.2.3
+  + outputs: binary formats, see "bin" option in PLOTS
+             field selector "fields"
+             stress and strain outputs
+  + pre- and post-process: tools for visualization under gnuplot and Matlab,
+	for conversion of output to ascii (see PRE/ and POST/)
+  + post: movie.csh runs now with animate (ImageMagick) instead of xanim
+        and gifsicle instead of gifmerge
+  + doc: more about the method, mesh verification, output formats 
+ *+ bc_swfflt: NSAMP in output header file was inaccurate
+ *+ mesh_cartesian, mesh_emc2 and init: bugs higlighted by g95 compiler (G.Wimpey)
+
+lun Aug 9 20:15:09 EDT 2004 -- v2.2.2
+ *+ Intel fixed their bug in the "transfer" intrinsic,
+    the code now works with Intel compiler ifort, version 8.0.046_pe047.1
+ *+ fixed bug in the numbering algorithm
+  + fixed POST/movie.csh
+
+jeu nov 13 20:02:09 EST 2003 -- v2.2.1
+ *+ emc2, cracks and faults: bug fixed in the handling of crack tip nodes.
+    As a new convention, crack tip nodes must be assigned a special tag: -1.
+
+mar oct 28 17:08:10 EST 2003 -- v2.2
+ ++ boundary conditions: new kind BC_SWFFLT, slip weakening fault
+ *+ boundary conditions: bug fixed in the numbering subroutine
+  + seismograms: fixed the scripts (don't need ShowSeis_sem2d.csh anymore)
+  + time scheme: parameterized dissipation in explicit Newmark-alpha
+ o+ solver: optimized for memory
+  + distributions: new kind PWCONR 
+
+jeu oct 23 15:13:48 EDT 2003 -- v2.1beta
+ ++ new boundary condition: linear slip fault (BC_LISFLT input block)
+  + "Periodic" flag in BC_ABSORB
+  + doc: explanation of seismograms data format
+
+lun oct 13 19:58:59 EDT 2003 -- v2.0 

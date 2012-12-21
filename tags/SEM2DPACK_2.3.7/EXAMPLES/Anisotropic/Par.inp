@@ -1,0 +1,58 @@
+# Parameter file for SEM2DPACK
+# Anisotropic test from figure 7 of Komatitsch, Barnes and Tromp (Geophysics, 2000)
+
+#----- Some general parameters ----------------
+&GENERAL iexec=0, ngll=6, fmax=400.d3 , ndof=2 ,
+  title = 'Anisotropic test', verbose='1111' , ItInfo = 200/ 
+
+#----- Build the mesh ---------------------------
+
+# a box:
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-.325d0,.325d0 ,zlim=-.325d0,.325d0 , nelem=130,130 /
+
+#---- Elastic material parameters --------------
+
+# define domains, limits (ex,ez) given as element indices
+# ex=1 : left
+# ez=1 : bottom
+&MESH_CART_DOMAIN tag=1, ex= 1,65, ez=1,130 /
+&MESH_CART_DOMAIN tag=2, ex= 66,130, ez=1,130 /
+
+# define material properties:
+
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=7100d0, c11=16.5e10, c13=5.0e10, c33=6.2e10, c55=3.96e10 /
+
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=7100d0, cp=4820.729884542206d0, cs=2361.665680982894d0 /
+
+#----- Boundary conditions ---------------------
+
+# if none given: free boundary
+
+# for periodic boundaries:
+#&BC_DEF  tags =1,3 ,kind = 'PERIOD' /
+#&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+
+# for absorbing boundaries:
+#&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_DEF  tag = 2 , kind = 'ABSORB' /
+#&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+#&BC_DEF  tag = 4 , kind = 'ABSORB' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=1.d-4, dt= 5d-8 /
+
+#---- Sources ----------------------------------
+&SRC_DEF stf= 'RICKER' ,coord= -0.02d0,0.d0, mechanism= 'FORCE' /
+&STF_RICKER  f0= 170.d3, onset = 6.d-6, ampli = 1.d13 /
+&SRC_FORCE angle = 180d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE field='D', number = 49 , first = -12.d-2,-8.d-2, last = 12.d-2,-8.d-2, isamp=1 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=200, fields='D' /
+&SNAP_PS vectors =F, color=T, interpol= F / 
+#,ScaleField = 1.d-2 /

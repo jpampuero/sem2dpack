@@ -1,0 +1,266 @@
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S P E C F E M : start
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ SCEC Test#1 for slip weakening fault              
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 07 - 08 - 2009                                 T i m e  : 02:48:45
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+
+
+ E c h o   C o n t r o l   c a r d
+ ==================================
+
+     Echo during input phase. . . . . . . . . . . (Verbose(1)) = T
+     Echo during init phase . . . . . . . . . . . (Verbose(2)) = T
+     Echo during check phase. . . . . . . . . . . (Verbose(3)) = T
+     Echo during run phase. . . . . . . . . . . . (Verbose(4)) = T
+     Display frequency  . . . . . . . . . . . . .(ItSnapshots) = 25000
+     First display. . . . . . . . . . . . . . . .(ItSnapshot1) = 0
+     Basic info output frequency. . . . . . . . . . . (ItInfo) = 100
+
+
+
+ G e n e r a l   P a r a m e t e r s   C o n t r o l   c a r d
+ ==================================
+
+     Execution mode . . . . . . . . . . . . . . . (iexec) =1
+             ==  0     data check only                     
+             ==  1     resolution                          
+     Number of nodes per edge . . . . . . . . . . .(ngll) = 5
+     Highest frequency to be resolved . . . . . . .(fmax) =    3.000E+00
+
+
+ I t e r a t i o n   i n f o s 
+ =============================
+
+     The number of steps will be set later
+     The timestep will be set later
+     Courant number. . . . . . . . (Courant) = 0.55
+     Total simulation duration . (TotalTime) =   16.000E+00
+
+
+
+ N e w m a r k   p a r a m e t e r s 
+ ===================================
+
+     First integration parameter . . . .(alpha) = 1.000
+     Second integration parameter. . . . (beta) = 0.000
+     Third time integration parameter . (gamma) = 0.500
+     Number of corrector iterations . . (niter) = 1
+
+
+ M a t e r i a l   s e t s :   2 D  e l a s t i c i t y
+ ======================================================
+
+     Number of material sets . . . . . . . . . =    1
+
+
+     ------------------------
+     Material set number . . . . . . . . . . . =    1
+     -- Isotropic material --
+     P-wave velocity. . . . . . . . . . . (cp) = 6.00000000E+03
+     S-wave velocity. . . . . . . . . . . (cs) = 3.46400000E+03
+     Mass density. . . . . . . . . . . (denst) = 2.67000000E+03
+     Poisson's ratio . . . . . . . . . (poiss) = 2.50021999E-01
+     First Lame parameter Lambda. . . . (alam) = 3.20437594E+10
+     Second Lame parameter Mu. . . . . . (amu) = 3.20381203E+10
+     Bulk modulus K . . . . . . . . . . (Kvol) = 5.34025062E+10
+     Young's modulus E . . . . . . . . (young) = 8.00967104E+10
+
+
+ B o u n d a r y   C o n d i t i o n s   C o n t r o l   c a r d
+ ================================================================
+
+
+    Boundary Tag  = 1
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tag  = 2
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tag  = 3
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tag  = 4
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tags = 5 and 6
+     Type   = Slip weakening fault
+       Critical slip         =      0.400
+       Static friction       = PWCONR    
+       Dynamic friction      =      0.525
+       Initial normal stress = **********
+       Initial shear stress  = PWCONR    
+       Periodic fault        = F
+       First output time     =    0.000E+00
+       Output time stride    =    0.000E+00
+       First output node     = 1
+       Last output node      = 2147483647
+       Output node stride    = 1
+ NOTE: FirstOutput and DtOutput may be modified later
+ NOTE: DtOutput will be reset to the global timestep
+       Final values can be found in FltXX_sem2d.hdr
+ NOTE: Last output node, IxOut(2), will be reset later
+
+
+ P l o t   C o n t r o l   c a r d
+ ==================================
+
+     Save results in PS file or not . . . . .(postscript) = T
+     Save results in AVS file or not. . . . . . . . (avs) = F
+     Save results in Visual3 file or not. . . . (visual3) = F
+     Save results in binary file or not . . . . . . (bin) = T
+     Selected field (fields) :
+       Displacement . . . . . . . . . . . . . . . . . . . = F
+     Velocity . . . . . . . . . . . . . . . . . . . . . = T
+     Acceleration . . . . . . . . . . . . . . . . . . . = F
+     Strain . . . . . . . . . . . . . . . . . . . . . . = F
+     Stress . . . . . . . . . . . . . . . . . . . . . . = F
+
+
+ P o s t S c r i p t   C o n t r o l   c a r d
+ ==================================
+
+     Plot mesh . . . . . . . . . . . . . . . . . . (mesh) = F
+     Numbered mesh . . . . . . . . . . . . . . .(numbers) = F
+     Plot model  . . . . . . . . . . . . . . (cpmodel) = F
+     Subsampling for velocity model display  . (isubsamp) = 2
+     Color display . . . . . . . . . . . . . . . .(color) = F
+     Plot boundaries . . . . . . . . . . . . (boundaries) = T
+     Plot symbols  . . . . . . . . . . . . . . (symbols) = T
+     Plot vector fields  . . . . . . . . . . . .(vectors) = T
+     Percentage of cut for vector plots. . . . .(cutvect) = 1.00
+     Max size of arrows. . . . . . . . . . . . .(sizemax) = 1.00
+     Angle of vector arrows. . . . . . . . . . . .(ArrowHeadAngle) = 20.00
+     X-Scaling . . . . . . . . . . . . . . . . . (scalex) = 1.00
+     Z-Scaling . . . . . . . . . . . . . . . . . (scalez) = 1.00
+     A-Scaling . . . . . . . . . . . . . . .(ScaleField) = 0.00
+     Head to body ratio for arrows . . . . . . .(ArrowHBRatio) = 0.40
+     X origin. . . . . . . . . . . . . . . . . . (PageX0) = 2.20
+     Z origin. . . . . . . . . . . . . . . . . . (PageZ0) = 2.20
+     US letter format or French A4 . . . . . . (usletter) = T
+     Interpolate vector field  . . . . . . . . (interpol) = F
+     Points per edge for interpolation . . . . (DisplayPts) = 3
+     Defining the FEM mesh ...... [OK]
+
+
+ G L L   g r i d
+ ===============
+
+     Listing edges ...... [OK]
+     Numbering interior points ...... [OK]
+ 
+     Nodes of the global mesh  . . . . = 180642
+     Interior points . . . . . . . . . = 100800
+     Edge points (without corners) . . = 68280
+     Corner points . . . . . . . . . . = 11562
+ 
+     Saving node index table (ibool) in a binary file ...... [OK]
+     Defining shape functions ...... [OK]
+     Defining jacobian and weights ...... [OK]
+     Defining nodes coordinates ...... [OK]
+ 
+     Saving the grid coordinates (coord) in a text file... ...... [OK]
+     Saving the grid coordinates (coord) in a binary file... ...... [OK]
+     Defining boundaries ...... [OK]
+     Translating input velocity model ...... [OK]
+     Defining elasticity work arrays ...... [OK]
+     Exporting model ...... [OK]
+     Checking mesh ...... [OK]
+ 
+===================================================
+=          Time solver settings                   =
+===================================================
+ 
+    Time step (secs)      =    7.914E-03
+    Number of time steps  = 2021
+    Total duration (secs) =   15.995E+00
+    Courant number        =  550.000E-03
+ 
+ 
+===================================================
+=          Mesh properties checkboard             =
+===================================================
+ 
+    Max mesh size =  163.663E+00
+    Min mesh size =   86.337E+00
+    Ratio max/min =    1.896E+00
+ 
+    STABILITY:  CFL number               =  550.000E-03
+ 
+    RESOLUTION: nodes per min wavelength =    9.237E+00
+ 
+Dump PostScript Resolution_sem2d.ps ...... [OK]
+Dump PostScript Stability_sem2d.ps ...... [OK]
+     Defining and inverting the mass matrix ...... [OK]
+     Defining physical properties of boundaries ...... [OK]
+     Initializing kinematic fields ...... [OK]
+       Max displ =    0.000E+00
+       Max veloc =    0.000E+00
+     Exporting initial boundary data ...... [OK]
+
+ =========================================
+ =  T i m e   e v o l u t i o n  l o o p  =
+ =========================================
+
+
+---  CPU TIME ESTIMATES (in seconds) :
+  CPU time for initialization . .  22.085E+00
+  CPU time per timestep . . . . . 208.967E-03
+  Total solver CPU time . . . . . 422.323E+00
+                   (mins) . . . .   7.039E+00
+                   (hours). . . . 117.312E-03
+
+Timestep 1  t =    7.9E-03  dmax =    0.000E+00
+Timestep 101  t =  799.3E-03  dmax =  689.394E-03
+Timestep 201  t =    1.6E+00  dmax =    1.224E+00
+Timestep 301  t =    2.4E+00  dmax =    1.611E+00
+Timestep 401  t =    3.2E+00  dmax =    1.969E+00
+Timestep 501  t =    4.0E+00  dmax =    2.312E+00
+Timestep 601  t =    4.8E+00  dmax =    2.653E+00
+Timestep 701  t =    5.5E+00  dmax =    2.986E+00
+Timestep 801  t =    6.3E+00  dmax =    3.313E+00
+Timestep 901  t =    7.1E+00  dmax =    3.639E+00
+Timestep 1001  t =    7.9E+00  dmax =    3.903E+00
+Timestep 1101  t =    8.7E+00  dmax =    3.938E+00
+Timestep 1201  t =    9.5E+00  dmax =    4.013E+00
+Timestep 1301  t =   10.3E+00  dmax =    4.152E+00
+Timestep 1401  t =   11.1E+00  dmax =    4.152E+00
+Timestep 1501  t =   11.9E+00  dmax =    4.152E+00
+Timestep 1601  t =   12.7E+00  dmax =    4.152E+00
+Timestep 1701  t =   13.5E+00  dmax =    4.152E+00
+Timestep 1801  t =   14.3E+00  dmax =    4.152E+00
+Timestep 1901  t =   15.0E+00  dmax =    4.152E+00
+Timestep 2001  t =   15.8E+00  dmax =    4.152E+00
+
+
+---  CPU TIME INFORMATION (in seconds) :
+  CPU time for initialization . .  22.085E+00
+  CPU time per timestep . . . . . 238.518E-03
+  Total solver CPU time . . . . . 482.046E+00
+                   (mins) . . . .   8.034E+00
+                   (hours). . . . 133.902E-03
+
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S P E C F E M :  end
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ SCEC Test#1 for slip weakening fault              
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 07 - 08 - 2009                                 T i m e  : 02:57:39
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------

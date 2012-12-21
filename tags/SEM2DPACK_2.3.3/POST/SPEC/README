@@ -1,0 +1,28 @@
+Matlab scripts for spectral plots 
+J.P. Ampuero and H. Rendon (sept.2001)
+V. Rocabado (april 2002)
+
+spec_cmp.m :  Plots power spectrum from SEM2DPACK simulations
+------------  and overplots 1D estimation using depth of sediment
+              (contour plot)
+
+spec1D_cplot.m :  Plots 1D estimation using depth of sediment (contour plot)
+----------------
+
+spec2D_cplot.m :  Plots power spectrum from SEM2DPACK simulation (contour plot)
+----------------
+
+spec1D.m :  Routine used by spec1D_cplot.m and by spec_cmp.m for
+----------  1D spectral estimation using sediment depth data
+
+ampli1D.m : 1D spectral estimation for a single fixed depth
+-----------
+
+rock_ampli.m : half-space amplification for a given incidence angle
+--------------
+
+ampli1D_rock.m : half-space amplification for different angles
+---------------- with plots (test version)
+
+get_sediment.m : linear interpolation depth-Z
+----------------

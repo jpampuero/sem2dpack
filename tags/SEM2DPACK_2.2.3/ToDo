@@ -1,0 +1,44 @@
+BUGS:
++ conflict between bc_abso and analytical incident field when the boundary
+  is not really receiving the incident wave (see EXAMPLES/LinearSlipLaw)
+  => add a flag to the BC_ABSO input block
+
+SOLVER FUNCTIONALITIES:
++ PML/other absorbing layers
+? switch bc_abso to more classical implementation 
+  => only possible with first order paraxial (see SEM_matlab)
++ sub-cycling for coupling in two scales simulation 
++ domain decomposition database, for MPI test and multidomain coupling
+? non-conformal mesh with mortar elements
+? triangles
++ broad band source: Berlage, user supplied
++ noise sources
++ moment tensor sources
++ Choice plot/save_data
+
+PACKAGE:
++ add compiler_variable to Makefile
+? Self-documentation: evaluate a2ps stylesheet, texinfo, f90doc
+? avoid unnecessary recompilation of modules (www.theochem.uwa.edu.au/fortran/recompile)
+
+DOC:
++ emc2: quadrangulate domains for structured regions
+
+SRC OPTIMIZATION/CLEANING:
++ allow single precision
++ Optimize memory: clean or never store arrays not used by solver (xjaci,weights)
+? partition interior/skeleton nodes (spec_grid.init_numbering) -> assembly
+? more element oriented approach...  may degrade performance
+  => try first with the internal-forces
+
+OUTPUTS/POST:
++ move postscript out of the code, output only raw data and 
+  post-processing scripts
++ color snapshots of scalar fields --> movies
++ 1D response: Fabian Bonilla's contrib
++ Nakamura's H/V method (script)
++ update the 1.x tools (movies, 1D model response)
++ try DISLIN or other f90 graphics libs
++ fix model colors in PostScript snapshots /interpol/subsampling
++ seismograms: input sampling rate instead of number of timesteps (interpolate?)
++ matlab scripts ...

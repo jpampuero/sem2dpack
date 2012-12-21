@@ -1,0 +1,23 @@
+%Startified velocity model for Roma Norte, Mexico D.F.
+%Provided by Oscar Ishizawa.
+%1: couche
+%2: Masse volumique kg/m^3 
+%3: c_p (m/s)  
+%4: c_s (m/s)   
+%5: Coefficient d'amortissement eta  
+%6: H (m)
+Couche_1    1200  1447    91  0.04  5  
+Couche_2    1100  1447    30  0.04  8  
+Couche_3    1100  1233    55  0.04  14  
+Couche_4    1200  1267    80  0.04  8  
+Couche_5    1400  1442   202  0.04  8 
+Couche_6    1400  1472   131  0.04  8 
+Couche_7    1500  1786   404  0.02  5 
+Couche_8    1500  1588   253  0.02  10 
+Couche_9    1700  1746   434  0.02  38 
+Couche_10   1700  1965   666  0.02  20 
+Couche_11   1700  1771   434  0.02  8 
+Couche_12   1900  1935   929  0.02  10 
+Couche_13   1800  1776   505  0.02  22 
+Couche_14   1800  2084   677  0.02  14 
+Substratum  1400  2522  1132  0.02  inf

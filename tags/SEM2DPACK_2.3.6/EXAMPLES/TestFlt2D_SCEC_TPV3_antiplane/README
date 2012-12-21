@@ -1,0 +1,15 @@
+EXAMPLES/TestFlt2D_SCEC_TPV3_antiplane
+
+This example is a 2D antiplane (mode III) version of the
+SCEC TPV3 benchmark problem: a dynamic rupture problem 
+on a vertical cross-section across a vertical strike-slip fault 
+governed by linear slip-weakening friction.
+The model parameters are described in Day et al. (JGR 2005).
+
+The mesh was obtained by running PRE/mesh2d/mesh2D_ex0.m 
+with the default values. The default element size is h=500m.
+Setting ngll=6 in Par.inp, sets the average node spacing on 
+the fault to dx = h/(ngll-1) = 100m.
+
+A Kelvin-Voigt viscous layer around the fault plane helps
+preventing spurious high-frequency oscillations.

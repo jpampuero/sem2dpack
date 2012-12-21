@@ -1,0 +1,53 @@
+# Parameter file for SEM2DPACK_2.0
+
+#----- Some general parameters ----------------
+&ECHO Title = 'Example 2: using EMC2, Palos Grandes NS' ,
+      Verbose='1111', ItInfo = 200, ItSnapshots = 3500 /
+&GENERAL Iexec =0 , Ngll = 9 , fmax = 3.0 /
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  Method = 'EMC2' /
+&MESH_EMC2 File= 'NS03qb.ftq'  /
+
+#---- Elastic material parameters --------------
+
+&MATERIAL Tag=1, Mode='ISOTR' /
+1800.d0 850.d0 450.d0
+
+&MATERIAL Tag=2, Mode='ISOTR' /
+2100.d0 1800.d0 750.d0
+
+&MATERIAL Tag=3, Mode='ISOTR' /
+2400.d0 2300.d0 950.d0
+
+&MATERIAL Tag=4, Mode='ISOTR' /
+2500.d0 5000.d0 2900.d0
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /
+&BC_ABSORB Side='D',Stacey=F /
+
+&BC_DEF  Tag = 3, Kind = 'ABSORB' /  
+&BC_ABSORB Side='L',Stacey=F /
+
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+&BC_ABSORB Side='R',Stacey=F /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=8.d0, Courant = 0.5d0 /
+&TIME_NEWMARK alpha=1.d0, beta=0.d0, gamma=0.5d0 /
+
+#---- Sources ----------------------------------
+&SRC_DEF  TimeFunction='RICKER', Mechanism='FORCE', Coord= -1160000.d0,-2000.d0 /
+&SRC_RICKER  f0 = 1.d0 , Onset = 1.0d0 ,Ampli = 1.d12 /  
+# use Ampli=1.d12 for explosion
+#&WAVE Angle = 90. , Phase = 'S' /
+&SRC_FORCE Angle = 90. /
+
+#----- Receivers ---------------------------------
+&REC_LINE Number = 10 , First = -1163068.0d0,1.d3, Last = -1159697.36d0,1.d3,
+          Isamp=130 / 
+
+#--------- Plots settings ----------------------
+&PLOTS_POSTSCRIPT  CpModel=F ,Mesh=F,Vectors=T,Color=T, Interpol = T /

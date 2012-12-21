@@ -1,0 +1,15 @@
+ C EXACT 2D RESPONSE FOR VERTICAL SOURCE
+ C  TMIN         TMAX         NTSTP
+ 0.d0  1.50000000d0  3000
+ C  DELAY        FP           ZS
+ 0.15000d0  10.d0  50.d0
+ C  XREC      ZREC     DXR     DZR      NREC
+ 700.d0 0.d0  500.d0  0.d0 2
+ C  CP           CS           RHO
+ 3200.d0  1847.5d0,  2000.d0
+ C  ITRACE(1)    ITRACE(2)    ITRACE(3)   ITRACE(4)
+    1            1            1           1
+ C  ITRACE(5)    ITRACE(6)    ITRACE(7)   ITRACE(8)
+    1            1            1           1
+ C  OUTPUT(1)    OUTPUT(2)    DISPV       FAC
+    'TAB'      '   '      0     1.d0

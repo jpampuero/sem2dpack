@@ -1,0 +1,58 @@
+# Parameter file for SEM2DPACK 2.0 
+
+#----- Some general parameters ----------------
+&ECHO title = 'Example 1: a box', verbose='1111'
+    , ItInfo = 100, ItSnapshots = 50 /
+&GENERAL iexec=1, ngll=6, fmax=9.d0 /
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-1.d3,1.d3 ,zlim=-1.d3,1.d3 , nelem=10,10 /
+
+#---- Elastic material parameters --------------
+&MATERIAL tag=1, mode='ISOTR' /
+2400.d0 3800.d0 2000.d0
+
+#&MATERIAL tag=1, mode='GRADI' /
+#&DIST_GRADIENT file='flat_1000.topo',grad=0.d0 ,valref=2400.d0 / # rho
+#&DIST_GRADIENT file='flat_1000.topo',grad=0.8d0 ,valref=3800.d0 / # vp
+#&DIST_GRADIENT file='flat_1000.topo',grad=0.4d0 ,valref=2000.d0 / # vs
+
+#----- Boundary conditions ---------------------
+# Assign tags and kinds to boundaries: (comment it if free) 
+#The default kind is FREE SURFACE
+
+#&BC_DEF  tags =1,3 ,kind = 'PERIOD' /
+#&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_ABSORB side = 'D' /
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB side = 'R' /
+
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB side = 'U' /
+
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+&BC_ABSORB side = 'L' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=2.d0, courant = 0.5d0 /
+
+#---- Sources ----------------------------------
+&SRC_DEF TimeFunction= 'RICKER' ,coord= 0.d0,0.d0 
+mechanism= 'FORCE' /
+#        ,mechanism     = 'WAVE' /
+&SRC_RICKER  f0= 3.d0, onset = 0.35d0, ampli = 1.d9 /
+
+&SRC_FORCE angle = 0d0/
+#&SRC_WAVE angle = 90d0 , phase= 'S' /
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 10 , first = -1.d3,1.d3, last = 1.d3,1.d3, isamp=5 / 
+
+#--------- Plots settings ----------------------
+&PLOTS fields='DVES' /
+&POSTSCRIPT  vectors =.true., CpModel=.true., interpol = F   /
+	     #,ScaleField = 1.d0

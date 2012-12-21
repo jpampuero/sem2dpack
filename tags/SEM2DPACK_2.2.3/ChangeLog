@@ -1,0 +1,40 @@
+Notation: *+ fixed bug
+	  ++ important new feature
+	   + less important modifications
+
+Mon Feb  7 23:38:44 CET 2005 -- v2.2.3
+  + outputs: binary formats, see "bin" option in PLOTS
+             field selector "fields"
+             stress and strain outputs
+  + pre- and post-process: tools for visualization under gnuplot and Matlab,
+	for conversion of output to ascii (see PRE/ and POST/)
+  + post: movie.csh runs now with animate (ImageMagick) instead of xanim
+        and gifsicle instead of gifmerge
+  + doc: more about the method, mesh verification, output formats 
+ *+ bc_swfflt: NSAMP in output header file was inaccurate
+ *+ mesh_cartesian, mesh_emc2 and init: bugs higlighted by g95 compiler (G.Wimpey)
+
+lun aoû  9 20:15:09 EDT 2004 -- v2.2.2
+ *+ Intel fixed their bug in the "transfer" intrinsic,
+    the code now works with Intel compiler ifort, version 8.0.046_pe047.1
+ *+ fixed bug in the numbering algorithm
+  + fixed POST/movie.csh
+
+jeu nov 13 20:02:09 EST 2003 -- v2.2.1
+ *+ emc2, cracks and faults: bug fixed in the handling of crack tip nodes.
+    As a new convention, crack tip nodes must be assigned a special tag: -1.
+
+mar oct 28 17:08:10 EST 2003 -- v2.2
+ ++ boundary conditions: new kind BC_SWFFLT, slip weakening fault
+ *+ boundary conditions: bug fixed in the numbering subroutine
+  + seismograms: fixed the scripts (don't need ShowSeis_sem2d.csh anymore)
+  + time scheme: parameterized dissipation in explicit Newmark-alpha
+  + solver: optimized for memory
+  + distributions: new kind PWCONR 
+
+jeu oct 23 15:13:48 EDT 2003 -- v2.1beta
+ ++ new boundary condition: linear slip fault (BC_LISFLT input block)
+  + "Periodic" flag in BC_ABSORB
+  + doc: explanation of seismograms data format
+
+lun oct 13 19:58:59 EDT 2003 -- v2.0 

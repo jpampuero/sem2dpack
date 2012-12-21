@@ -1,0 +1,92 @@
+KNOWN BUGS: 
+     + 
+
+TO CHECK:
+     + damage material interacting with absorbing boundaries
+     + damage with beta>0
+     + elastic hete, aniso with the new material objects
+     + Q9 elements
+     
+SOLVER:
+ Materials:
+     + Drucker-Prager plasticity
+     + more smoothing and interpolation options for heterogeneous velocity models
+     + plasticity with softening and regularization (viscous or non-local)
+     + Rayleigh damping
+     + attenuation Q
+     + attenuation Q with coarse-grained variables
+     + Perfectly Matched Layers
+     + poro-elasticity
+     + non-linear laws as in Shake and other commercial packages
+ Sources:
+     + src_gen: add amplitude to input file for mutiple sources
+     + broad band sources: Gaussian, Morlet, Berlage
+     + allow sources not at node
+     + noise sources
+ Boundary conditions:
+     + bc_abso: handle "side" internally
+     + more friction laws: 
+        . rate-and-state
+        . rate-and-state with strong velocity-weakening
+        . bimaterial regularization
+     + higher order ABC for SH
+     + time-dependent Dirichlet conditions
+     + Dirichlet and Neumann conditions on non vertical/horizontal boundaries
+     + spatially non uniform Dirichlet and Neumann boundary conditions
+ Other:
+     + domain decomposition database, for MPI test and multidomain coupling
+     + domain reduction method with boundary traction data
+     + a few triangles, Fekete or other
+     + sub-cycling for simulations with disparate time-scales 
+     + non-conformal mesh with mortar elements
+     + implicit dynamic solvers (test pre-conditionners, blended mass)
+     + implicit/explicit partitioning near small geometrical features
+     + implicit quasi-static solvers with conjugate gradient 
+     + soil-structure interaction (see QUAD4M, etc)
+     
+MESHER:
+[1]  + kinked and curved faults 
+[2]  + add surrounding strip of elements for PML
+     + automated meshing starting with a triangulation: 
+       Triangle (http://www.cs.cmu.edu/~quake/triangle.html)
+        -->  CQmesh (http://www.dct.ufms.br/~marcelo/cqmesh.html)
+         --> QMPP (http://www.dct.ufms.br/~marcelo/qmpp.html)
+          --> SEM2DPACK 
+     + element quality metrics
+     
+REFACTORING:
+     + 'domain' object
+     + encapsulate echo MSG...OK
+     
+OPTIMIZATION:
+     + improve data locality
+     + more element oriented approach...  may degrade performance
+       => try first with the internal-forces
+     + allow single precision
+     
+INPUTS/OUTPUTS/POST:
+     + GMT scripts for snapshot plots
+     + matlab snapshots with tricontour
+     + seismograms: input sampling rate instead of number of timesteps (interpolate)
+     + interpol/subsampling in all snapshot outputs
+     + gnuplot plotting scripts: pm3d, vectors
+     + 1D response: integrate Fabian Bonilla's contrib
+     + update the 1.x tools (1D model response)
+     + Nakamura's H/V method (script)
+     + engineering outputs: PGA, PGV, response spectra, etc
+     + Graphical User Interface front end
+
+DOCUMENTATION:
+     + add guidelines for advanced users on how-to implement new 
+       materials, outputs, distributions, sources, friction laws, boundary conditions
+     + improve self-documentation script: make latex output, test RoboDoc or similar
+     + emc2: detailed example of quadrangulate domains for structured regions
+     + add a list of papers that use SEM2DPACK
+     + add description of the physics
+     
+PACKAGING:
+     + tests for each main feature
+     + create a SubVersion project
+     + avoid unnecessary recompilation of modules (www.theochem.uwa.edu.au/fortran/recompile)
+     + add compiler_variable to Makefile
+     

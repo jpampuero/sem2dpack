@@ -1,0 +1,57 @@
+# Parameter file for SEM2DPACK 2.2 
+# Test for the Slip Weakening Fault boundary condition
+
+#----- Some general parameters ----------------
+&ECHO title = 'SCEC Test#3 for slip weakening fault', verbose='1011'
+    , ItInfo = 400, ItSnapshots = 100 /
+&GENERAL iexec=0, ngll=6, fmax=3.d0 , ndof=1 /
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+#&MESH_CART xlim=0d3,32.d3, zlim=0d3,50.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.6d3, zlim=0d3,40.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=51,80/
+
+&MESH_CART xlim=0d3,35d3, zlim=0d3,20.d3, nelem=70,40/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, mode='ISOTR' /
+2670.d0 6000.d0 3464.d0
+
+&KELVIN_VOIGT etaH='GAUSSIAN' /
+&DIST_GAUSSIAN length=1d6,282.094, ampli=0.1d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1 , kind = 'SWFFLT' /
+&BC_SWFFLT Dc=0.4d0, MuSHet='PWCONR', MuD=0.525d0,
+           Tn=-120.d6,TtHet='PWCONR', IxOut=1,65,4 /
+&DIST_PWCONR num=2/ # Static friction coefficient
+     15d3
+0.677d0  1d4
+&DIST_PWCONR num=2/ # Initial shear stress
+     1.5d3
+81.6d6 70.d6
+
+#&BC_DEF  tag = 2 , kind = 'DT0TN0' /  
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB side = 'R' /
+ 
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB side = 'U', stacey=T /
+
+&BC_DEF  tag = 4 , kind = 'DT0TN0' /  
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=16.d0, courant = 0.55d0, kind='leapfrog' /  ! T=16
+#&TIME  TotalTime=16.d0, courant = 0.55d0, kind='newmark' /
+#&TIME_NEWMARK rho=0.5d0 /
+&TIME_NEWMARK alpha=1d0, beta=0d0, gamma=0.5d0 /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20 / 
+
+#--------- Plots settings ----------------------
+&PLOTS fields ='V', components='x' /
+&PLOTS_POSTSCRIPT  vectors =F, interpol = T, DisplayPts=6, ScaleField=2d0   /

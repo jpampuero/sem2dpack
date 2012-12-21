@@ -1,0 +1,67 @@
+BUGS: no known bugs
+     
+SOLVER:
+     + bc_abso: handle "side" internally
+     + more friction laws: velocity-weakening, rate-and-state, bimaterial regularization
+     + Rayleigh damping
+     + attenuation Q
+     + higher order ABC for SH
+     + PML/other absorbing layers
+     + more smoothing and interpolation options for heterogeneous velocity models
+     + broad band sources: Gaussian, Morlet, Berlage
+     + usual Dirichlet and Neumann conditions
+     + allow sources not at node
+     + noise sources
+     + domain decomposition database, for MPI test and multidomain coupling
+     + domain reduction method with boundary traction data
+     + a few triangles, Fekete or other
+     + visco-plasticity
+     + damage
+     + poro-elasticity
+     + non-linear laws (as in Shake and other commercial packages)
+     + sub-cycling for simulations with disparate time-scales 
+     + non-conformal mesh with mortar elements
+     + implicit dynamic solvers (test pre-conditionners, blended mass)
+     + implicit/explicit partitioning near small geometrical features
+     + implicit quasi-static solvers: dynamic relaxation or conjugate gradient 
+     
+MESHER:
+[1]  + kinked and curved faults 
+[2]  + add surrounding strip of elements for PML
+     + automated meshing starting with a triangulation: 
+       Triangle (http://www.cs.cmu.edu/~quake/triangle.html)
+        -->  CQmesh (http://www.dct.ufms.br/~marcelo/cqmesh.html)
+         --> QMPP (http://www.dct.ufms.br/~marcelo/qmpp.html)
+          --> SEM2DPACK 
+     + element quality metrics
+     
+REFACTORING:
+[1]  + 'material property' object
+     + 'domain' object
+     
+OPTIMIZATION:
+     + store coefficients elast%a in an element-by-element basis to 
+       minimize memory for rectangular elements, homogeneous regions, etc.
+     + more element oriented approach...  may degrade performance
+       => try first with the internal-forces
+     + allow single precision
+     
+INPUTS/OUTPUTS/POST:
+     + seismograms: input sampling rate instead of number of timesteps (interpolate)
+     + interpol/subsampling in all snapshot outputs
+     + gnuplot plotting scripts: pm3d, vectors
+     + 1D response: integrate Fabian Bonilla's contrib
+     + update the 1.x tools (1D model response)
+     + Nakamura's H/V method (script)
+     + engineering outputs: PGA, PGV, response spectra, etc
+     + Graphical User Interface front end
+
+DOCUMENTATION:
+     + improve self-documentation script: make latex output, test RoboDoc or similar
+     + emc2: detailed example of quadrangulate domains for structured regions
+     
+PACKAGING:
+     + create a SubVersion project
+     + avoid unnecessary recompilation of modules (www.theochem.uwa.edu.au/fortran/recompile)
+     + add compiler_variable to Makefile
+     

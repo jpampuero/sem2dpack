@@ -1,0 +1,56 @@
+#----- Some general parameters ----------------
+&GENERAL Iexec =1 , Ngll = 6 , fmax = 1.5 , ndof=1, 
+      Title = 'Palos Grandes NS meshed with EMC2' ,
+      Verbose='1111', ItInfo = 1000/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  Method = 'EMC2' /
+&MESH_EMC2 File= 'NS03qb.ftq'  /
+
+#---- Elastic material parameters --------------
+
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=1800.d0, cp=850.d0, cs=450.d0/
+
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=2100.d0, cp=1800.d0, cs=650.d0/
+
+&MATERIAL tag=3, kind='ELAST' /
+&MAT_ELASTIC rho=2400.d0, cp=2300.d0, cs=850.d0/
+
+&MATERIAL tag=4, kind='ELAST' /
+&MAT_ELASTIC rho=2600.d0, cp=3800.d0, cs=2200.d0/
+#&MAT_ELASTIC rho=2500.d0, cp=5000.d0, cs=2900.d0/
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /
+&BC_ABSORB Stacey=F /
+
+&BC_DEF  Tag = 3, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=F, let_wave=T /
+
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+&BC_ABSORB Stacey=F /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=25.d0, Courant = 0.55d0, kind='leapfrog' /
+&TIME_NEWMARK beta=0.d0, gamma=0.5d0 /
+
+#---- Sources ----------------------------------
+&SRC_DEF  stf='RICKER', Mechanism='WAVE' Coord= -1160000.d0,-2000.d0 /
+&STF_RICKER  f0 = 1.d0 , Onset = 1.5d0 ,Ampli = 1.d0 /  
+#&SRC_FORCE Angle = 90. /
+&SRC_WAVE Angle = 30. , phase='S' /
+
+#----- Receivers ---------------------------------
+
+# receivers located at the surface by giving a very large vertical position
+# locating them at the nearest computational node (AtNode=.true. is the default)
+&REC_LINE Number = 31 , First = -1163068.0d0,1.d3, Last = -1159697.36d0,1.d3, 
+          Isamp=10 / 
+
+#--------- Snapshots settings ----------------------
+&SNAP_DEF itd=200000, fields='Vdc', components='x' / # itd = 3500
+&SNAP_PS  Mesh=T,Vectors=F,Color=T, Interpol = T, DisplayPts=7, 
+          ScaleField=0.2d0 /

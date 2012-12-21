@@ -1,0 +1,53 @@
+# Parameter file for SEM2DPACK 2.x 
+# Test for absorbing boundary conditions
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=9, fmax=75d0, ndof= _NDOF_ ,
+  title = 'Testing absorbing boundaries', verbose='0001' , ItInfo = 400/
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+# ZBOTTOM = -1d3 or -2d3
+# ZNEL = 10 or 15 
+&MESH_CART xlim=-1.5d3,4.5d3 ,zlim=_ZBOTTOM_,2d3 , nelem=120,_ZNEL_ /
+
+#---- Elastic material parameters --------------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2500.d0, cp=5000.d0, cs=2887.d0 /
+
+#----- Boundary conditions ---------------------
+
+#&BC_DEF  tags =1,3 ,kind = 'PERIOD' /
+#&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F /
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F /
+
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB  stacey=F /
+
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F /
+
+#---- Time scheme settings ----------------------
+# TT = 1.5d0 for PSV
+#    = 2d0   for SH
+&TIME  TotalTime= _TT_ , courant = 0.6d0 /
+
+#---- Sources ----------------------------------
+&SRC_DEF stf= 'RICKER' ,coord= 0.d0,0.d0 
+mechanism= 'FORCE' /
+&SRC_RICKER  f0= 30d0, onset = 0.05d0, ampli = 1.d9 /
+
+&SRC_FORCE angle = 90d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 91 , first = 0.d3,-1.d3, last = 4.5d3,-1.d3, isamp=1 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd = 1000, ps=F, bin=F /
+#fields='V' /
+#&SNAP_PS vectors =F, CpModel=.true., interpol = F ,ScaleField = 0.1d0 /

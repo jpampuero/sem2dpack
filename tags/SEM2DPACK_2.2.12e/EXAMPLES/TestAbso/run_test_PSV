@@ -1,0 +1,9 @@
+sed -e 's/_ZBOTTOM_/-1d3/' -e 's/_ZNEL_/60/' -e 's/_NDOF_/2/' -e 's/_TT_/1.5d0/' Par.inp.template > Par.inp
+sem2dsolve_beta2
+mv Ux_sem2d.dat Ux1_sem2d.dat
+mv Uz_sem2d.dat Uz1_sem2d.dat
+
+sed -e 's/_ZBOTTOM_/-3d3/' -e 's/_ZNEL_/100/' -e 's/_NDOF_/2/' -e 's/_TT_/1.5d0/' Par.inp.template > Par.inp
+sem2dsolve_beta2
+mv Ux_sem2d.dat Ux2_sem2d.dat
+mv Uz_sem2d.dat Uz2_sem2d.dat
