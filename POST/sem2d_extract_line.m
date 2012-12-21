@@ -3,8 +3,8 @@
 %
 % SYNTAX	[XZ,F,xz_out] = sem2d_extract_line(field,grid,xz,hv)
 %
-% INPUT		field 	data field in local storage format, see sem2d_snapshot_read
-%		grid 	spectral element grid structure, see sem2d_read_specgrid 
+% INPUT		grid 	spectral element grid structure, see sem2d_read_specgrid 	
+%		field 	a sem2d field in local storage scheme, see sem2d_snapshot_read
 %		xz	target value of the line position (x-position if vertical, 
 %			z-position if horizontal). The output is the nearest line of nodes.
 %		hv	line orientation: 'h' for horizontal, 'v' for vertical line
@@ -16,7 +16,7 @@
 % EXAMPLES	Plot damage variable along two horizontal lines, right above and right below
 %		a horizontal fault located at x=0:
 %			g=sem2d_read_specgrid;
-%  			d=sem2d_snapshot_read('dmg',10);
+%			f=sem2d_read_fault('Flt05');
 %			[Xu,Fu] = sem2d_extract_line(d.alpha,g,0.0001,'h');
 %			[Xd,Fd] = sem2d_extract_line(d.alpha,g,-0.0001,'h');
 %			plot(Xu,Fu, Xd,Fd)
@@ -65,14 +65,12 @@ end
 % x of element "center" node nearest to xz_target
 kc = floor(g.ngll/2);
 xc_nearest = x1_nearest + xel(kc);
-% WARNING what happens if the line is at the edge of the mesh?
 
 % find elements that contain the target line position
 ic = g.ibool(kc,kc,:);	% element center nodes
 xc = g.coord(ic,ndim);
 zc = g.coord(ic,tdim);
 elist = find( abs(xc-xc_nearest)<XTOL );
-% WARNING if the line is in between two elements, this only takes elements on one side
 
 % sort element list by position
 [tmp,esor] = sort(zc(elist));  

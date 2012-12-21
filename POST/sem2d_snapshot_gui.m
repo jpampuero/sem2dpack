@@ -270,7 +270,7 @@ if isstruct(data.loaded)
   sem2d_snapshot_plot( getfield(data.loaded,data.subfield), data.grid,data.scale);
   fieldtxt = [data.field ' ' data.subfield];
 else
-  sem2d_snapshot_plot(data.loaded, data.grid,data.scale);
+  sem2d_snapshot_plot(data.loaded, data.grid,data.scale)
   fieldtxt = data.field;
 end
 % title

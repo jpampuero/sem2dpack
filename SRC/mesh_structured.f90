@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.5 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mesh_structured
 
   implicit none
@@ -20,9 +57,16 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
 
   integer :: ie,je,i,j,k,nxp
 
- ! Elements are sequentially numbered horizontally from bottom-left to top-right
   if (ngnod==4) then
     nxp = nx+1 
+  elseif (ngnod==9) then
+    nxp = 2*nx+1 
+  else
+    call IO_abort('MESH_STRUCTURED_connect: ngnod must be 4 or 9')
+  endif
+
+ ! Elements are sequentially numbered horizontally from bottom-left to top-right
+  if (ngnod==4) then
     k = 0
     do j=1,nz
     do i=1,nx
@@ -33,28 +77,7 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
       knods(4,k) = sub2ind(i,j+1,nxp)
     enddo
     enddo 
-
-  elseif (ngnod==8) then
-    nxp = 3*nx+1 
-    k = 0
-    do je=1,nz
-    do ie=1,nx
-      k = k + 1
-      i = 3*(ie-1)+1
-      j = je
-      knods(1,k) = sub2ind(i,j,nxp)
-      knods(2,k) = sub2ind(i+3,j,nxp)
-      knods(3,k) = sub2ind(i+3,j+1,nxp)
-      knods(4,k) = sub2ind(i,j+1,nxp)
-      knods(5,k) = sub2ind(i+1,j,nxp)
-      knods(6,k) = sub2ind(i+2,j,nxp)
-      knods(7,k) = sub2ind(i+1,j+1,nxp)
-      knods(8,k) = sub2ind(i+2,j+1,nxp)
-    enddo
-    enddo 
-
-  elseif (ngnod==9) then
-    nxp = 2*nx+1 
+  else
     k = 0
     do je=1,nz
     do ie=1,nx
@@ -72,8 +95,6 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
       knods(9,k) = sub2ind(i+1,j+1,nxp)
     enddo
     enddo 
-  else
-    call IO_abort('MESH_STRUCTURED_connectivity: ngnod must be 4 or 9')
   endif
 
   if (present(ezflt)) then

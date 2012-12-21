@@ -25,8 +25,13 @@
 #----- Boundary conditions ---------------------
 
 &BC_DEF  Tag = 1, Kind = 'ABSORB' /
+&BC_ABSORB Stacey=T /
+
 &BC_DEF  Tag = 2, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=T /
+
 &BC_DEF  Tag = 4, Kind = 'ABSORB' /
+&BC_ABSORB Stacey=T /
 
 # dynamic fault 
 &BC_DEF  tags = 5,6 , kind = 'DYNFLT' /

@@ -9,69 +9,6 @@ FR xxxxxxx : Feature Requests
 SR xxxxxxx : Support Requests
 
 
-Tue Aug  7 15:21:11 PDT 2012 -- v 2.3.8
- ++ mesh2d/read_inp.m reads mesh in ABAQUS' INP format exported by CUBIT 
-    (http://cubit.sandia.gov)
- ++ mesh2d/read_dcm.m reads mesh in DCM format exported by EZ4U
-    (http://www-lacan.upc.es/ez4u.htm)
- ++ preliminary version of kinematic fault sources (new &BC_KINFLT block)
- ++ heterogeneous coefficients for anistropic media 
-    FR 3313940
-  + PRE/critical_timestep.m computes the critical time step for given element
-    size and NGLL
-  + &BC_DTTTN0 removed (superseded by &BC_DIRNEU and &BC_KINFLT)
-  + absorbing boundaries with arbitrary orientation
-    (but only with explicit scheme, no Stacey, not periodic, no incident waves)
-  + warning when a declared material is not used by any element
-  + Gaussian source time function (&STF_GAUSSIAN)
- *+ time-weakening does not override stopping barriers in slip-weakening anymore
- *+ time-weakening does not impede healing of rate-and-state friction anymore
- *+ fixed segmentation fault during initialization of pure time-weakening friction
- *+ fixed handling of tip nodes of single-sided faults
-  
-
-Wed Aug 11 23:40:29 PDT 2010 -- v 2.3.7 
-(released in SourceForge on Aug 3 2012)
- ++ more stable curved elements (Q8h) for faults with smooth normal 
-    (new option ztopH='CSPLINE' in &MESH_LAYER and new &CSPLINE block)
- ++ added cohesion to dynamic faults (parameter 'cohesion' in &BC_DYNFLT)
- ++ new option 'kind' in &BC_DYNFLT_TWF selects the type of time-weakening 
-    space-time distribution. With kind=2 the expansion of the weakening front is 
-    followed by contraction of a healing front, as in Andrews and Ben-Zion (1997, eqs 2-3).
-  + dynamic faults now ignore crack-tip (non-split) nodes
-  + in &DIST_LINEAR and &DIST_SPLINE the input does not need to be ordered anymore
-  + enabled time-weakening in combination with rate-and-state-dependent friction
-  + new parameter 'fznz' in &MESH_CART and &MESH_LAYERED sets the thickness of 
-    the fault zone layer
-  + in &GENERAL, the new default is fmax=1 Hz
-  + added flexibility to mesh2d:
-    mesh2d_merge now allows for non consecutive boundary tags
-    and number of sides different than 4,
-    mesh2d_wedge now allows for curved boundaries and prescribed boundary nodes
- *+ fixed bug with &BC_DIRNEU in SH mode (ndof=1)
- *+ in &BC_DYNFLT_TWF (kind=1) the final time-weakening front is now exactly at V*T
-
-
-Tue Sep  1 15:24:18 PDT 2009 -- v 2.3.6
- ++ mesh generation for faults with smooth normal vector 
-    (new &QSPLINE block and new option ztopH='QSPLINE' in &MESH_LAYER)
- ++ instantaneous healing for slip-weakening friction 
-    (new parameter 'healing' in &BC_DYNFLT_SWF)
-  + optional fault opening instead of tensile normal stress
-    (new parameter 'opening' in &BC_DYNFLT, turned on by default as in earlier versions)
-  + easy tagging of near-fault elements during mesh generation to set a 
-    damping zone (new parameter 'fztag' in &MESH_LAYERED and &MESH_CART)
-  + initial values of fault stresses and friction (Tt,Tn,mu) 
-    exported to file FltXX_init_sem2d.tab
-  + added cohesion-like normal response to dynamic faults
-    (kind=0 in &BC_DYNFLT_NOR)
-  + initial plastic strain is now always zero (removed 'ep' from &MAT_PLASTIC)
- *+ fixed bug with plastic solver in version 2.3.5 (pointed out by Shiqing Xu)
- *+ fixed bug in the computation of elastic energy in plastic materials
- *+ damage stress glut set to zero for plastic and elastic materials
- *+ pointers initialized to null to fix problem with gfortran compiler
- *+ fixed path to file gll_sem2d.tab in POST/sem2d_read_specgrid.m
-
 Mon Feb 16 13:29:15 PST 2009 -- v 2.3.5
  ++ Matlab tools to generate structured meshes (see PRE/mesh2d)
  ++ new mesh database input format (see MESH_MESH2D and EXAMPLES/Using_MESH2D)

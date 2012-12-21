@@ -1,4 +1,4 @@
-% MESH2D_EX1	Mesh for a shallow layer over half-space with dipping fault
+% MESH2D_EXAMPLE1	Mesh for a shallow layer over half-space with dipping fault
 %
 % Shallow low velocity layer, thickness = 5 km
 % The fault intersects the free surface at (0,0)
@@ -22,7 +22,7 @@ L1 = 8e3;
 L2 = 30e3;
 DYNFLT = 1;	% 1 = dynamic fault (split nodes), 0 = fault is welded (no split nodes)
 
-%-- you dont't need to modify anything below this line
+%-- you shouldn't need to modify the remainder
 
 % points on the fault
 p1 = [0 0];

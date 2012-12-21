@@ -60,7 +60,7 @@ fclose(fid);
 g.ibool = reshape(g.ibool,[g.ngll,g.ngll,g.nelem]);
 
 % read GLL information
-fid=fopen([datadir 'gll_sem2d.tab']);
+fid=fopen('gll_sem2d.tab');
 data=fscanf(fid,'%f',[g.ngll,g.ngll+2]);
 fclose(fid);
 g.x=data(:,1);		% GLL nodes in reference segment [-1:1]

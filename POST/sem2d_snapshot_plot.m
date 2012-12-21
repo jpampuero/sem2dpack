@@ -2,7 +2,6 @@
 %
 % SYNTAX	sem2d_snapshot_plot(field,grid,vsat)
 %		wrk = sem2d_snapshot_plot(field,grid,vsat,wrk)
-% 		sem2d_snapshot_plot(field,grid,vsat,[],target_box)
 %
 % INPUT		field	snapshot data, single field 
 %			in element-wise or node-wise format
@@ -15,19 +14,17 @@
 %                                  if hi =  inf, lower bound is set to max(field)
 %		wrk	a work structure, useful for repeated calls 
 %			wrk must be empty on first call (see SEM2D_SNAPSHOT_MOVIE)
-%		target_box(4)	limit plotting to area [xmin xmax ymin ymax]
 %
-function wrk = sem2d_snapshot_plot(field,grid,vsat,wrk,target_box)
+function wrk = sem2d_snapshot_plot(field,grid,vsat,wrk)
 
 set(gca,'DefaultPatchEdgeColor','none');
 ANTIALIAS = 'off';
 
 if ~exist('wrk','var'), wrk=[]; end
-if ~exist('target_box','var'), target_box=[]; end
 
 if isempty(wrk),
   if ndims(field) == 3
-    [wrk.indx,wrk.coord] = initialize(grid.ibool,grid.coord,target_box);
+    [wrk.indx,wrk.coord] = initialize(grid.ibool,grid.coord);
   else
     wrk.indx = initialize(grid.ibool);
   end
@@ -70,13 +67,12 @@ colorbar('vert')
 
 %------------------------------------------------------------------
 % indx = initialize(iglob)
-% [indx,coord_new] = initialize(iglob,coord,target_box)
+% [indx,coord_new] = initialize(iglob,coord)
 %
 % PURPOSE	Initializes grid data for Plot2dSnapshot
 %
 % INPUT		iglob(ngll,ngll,nel) local to global numbering map
 %		coord(npoin,2) 	coordinates of the nodes
-%		target_box(4)	[xmin xmax ymin ymax]
 %
 % OUTPUT	indx(:,4) 	vertices of each GLL cell
 %		coord_new(:,2) 	reshaped coord 
@@ -84,7 +80,7 @@ colorbar('vert')
 % NOTE		coord and coord_new are required only to plot element-wise fields
 %		(stress, strain, material properties)
 %
-function [indx,coord_new] = initialize(iglob,coord,target_box)
+function [indx,coord_new] = initialize(iglob,coord)
 
 [NGLL,NGLL,NEL] = size(iglob);
 indx = zeros(NEL*(NGLL-1)^2, 4);
@@ -120,26 +116,9 @@ else
   end
 
   blocksize = (NGLL-1)^2;
-  if exist('target_box','var') && ~isempty(target_box),
-    kmid = floor(NGLL/2);
-    xmin = target_box(1);
-    xmax = target_box(2);
-    ymin = target_box(3);
-    ymax = target_box(4);
-    ip = 0;
-    for e=1:NEL,
-      midpoint = coord( iglob(kmid,kmid,e) ,1:2); 
-      if ( midpoint(1)<xmin | midpoint(1)>xmax | midpoint(2)<ymin | midpoint(2)>ymax ), continue; end
-      indx(ip+1:ip+blocksize,:) = indx0 + (e-1)*NGLL^2;
-      ip = ip + blocksize;
-    end
-    if ip<size(indx,1), indx = indx(1:ip,4); end
-
-  else
-    for e=1:NEL,
-      ip = (e-1)*blocksize;
-      indx(ip+1:ip+blocksize,:) = indx0 + (e-1)*NGLL^2;
-    end
+  for e=1:NEL,
+    ip = (e-1)*blocksize;
+    indx(ip+1:ip+blocksize,:) = indx0 + (e-1)*NGLL^2;
   end
 
 end

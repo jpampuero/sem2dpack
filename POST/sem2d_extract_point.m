@@ -1,4 +1,4 @@
-% SEM2D_EXTRACT_POINT extracts field value at an arbitrary point, by SEM interpolation
+% SEM2D_EXTRACT_POINTS extracts field value at an arbitrary point, by SEM interpolation
 %
 % SYNTAX	F = sem2d_extract_points(field,g,xz)
 %

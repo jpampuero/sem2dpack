@@ -19,14 +19,14 @@
 %  Data visualization:
 %  
 %   SEM2D_PLOT_GRID 	plots a spectral element grid
-%   SEM2D_SNAPSHOT_PLOT plots snapshot data
+%   SEM2D_SNAPSHOT_PLOT 	plots snapshot data
 %   SEM2D_SNAPSHOT_GUI 	interactively plots snapshot data
-%   SEM2D_SNAPSHOT_MOVIE makes an animation of snapshot data
+%   SEM2D_SNAPSHOT_MOVIE 	makes an animation of snapshot data
 %   PLOT_MODEL 		plots velocity and density model
 %   PLOT_SEIS 		plots multiple seismograms
-%   PLOT_FRONTS 	space-time plot of rupture front and process zone tail
-%   SAMPLE_FAULT 	example of visualization of fault data
-%   SAMPLE_SEIS 	example of visualization of seismogram data
+%   PLOT_FRONTS 		space-time plot of rupture front and process zone tail
+%   SAMPLE_FAULT 		example of visualization of fault data
+%   SAMPLE_SEIS 		example of visualization of seismogram data
 %  
 %  Miscellaneous tools:
 %  

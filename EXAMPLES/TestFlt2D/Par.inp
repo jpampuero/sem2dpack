@@ -11,7 +11,7 @@
 #&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=102,160 /
 #&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=51,80/
 
-#&MESH_CART xlim=0d3,35d3, zlim=-20d3,20.d3, nelem=70,80, ezflt= -1 /
+#&MESH_CART xlim=0d3,35d3, zlim=-20d3,20.d3, nelem=70,80, FaultX=T /
 &MESH_CART xlim=0d3,35d3, zlim=0d3,20.d3, nelem=70,40/
 
 #---- Material parameters --------------
@@ -23,6 +23,7 @@
 #----- Boundary conditions ---------------------
 
 #&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_ABSORB stacey=T /
 
 #&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
 &BC_DEF  tag = 1, kind = 'DYNFLT' /
@@ -36,7 +37,10 @@
 0.677d0  1d4
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB stacey=F /
+ 
 &BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB stacey=T /
 
 &BC_DEF  tag = 4 , kind = 'DIRNEU' /
 &BC_DIRNEU h='N', v='D' /
@@ -55,5 +59,5 @@
 &REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20, AtNode=F / 
 
 #--------- Plots settings ----------------------
-&SNAP_DEF itd=200, fields ='V',bin=F,ps=T /
+&SNAP_DEF itd=200, fields ='VTestFlt2D',bin=F,ps=T /
 &SNAP_PS  vectors =F, interpol = T, DisplayPts=6, ScaleField=2d0   /

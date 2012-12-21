@@ -7,7 +7,8 @@
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN' /
-&MESH_CART xlim=-0.5d0,0.5d0, zlim=-10.d0,10.d0, nelem=4,80, ezflt=-1 /
+&MESH_CART xlim=-0.5d0,0.5d0, zlim=-10.d0,10.d0, nelem=4,80, 
+           FaultX=T /
 
 #---- Elastic material parameters --------------
 &MATERIAL tag=1, kind='ELAST' /

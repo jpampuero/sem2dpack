@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.5 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module plot_postscript
 
   use spec_grid 
@@ -262,7 +299,6 @@ contains
     opt_comp = 0
   endif
 
-  vector_field = .false.
   nodal_field = present(vfield)
   if (nodal_field) then
     maxfield = maxval(abs(vfield))
@@ -466,6 +502,7 @@ contains
 
  600  format(F0.3,' neg CM 0 MR (Time =',EN12.3,' s) show')
  610  format(F0.3,' neg CM 0 MR (Time step = ',I0,') show')
+ 620  format(F0.3,' neg CM 0 MR (Cut =',F0.2,' \%) show')
  640  format(F0.3,' neg CM 0 MR (Max =',EN12.3,') show')
 
   end subroutine plot_legend
@@ -565,7 +602,7 @@ contains
     write(psunit,*) '% elem ',e
     write(psunit,*) 'MK'
 
-    if (ngnod == 4) then ! linear element shape
+    if (ngnod == 4) then ! tracer des droites si elements Q4
    
      ! get the coordinates of the control nodes
       coorg => FE_GetElementCoord(grid%fem,e)
@@ -575,7 +612,7 @@ contains
       write(psunit,601) point_scaled( coorg(:,1) )
       deallocate(coorg)
     
-    else ! curved element shape
+    else ! tracer des courbes si elements Q9
 
      ! get the coordinates of the GLL points
       do j=1,grid%ngll
@@ -685,7 +722,7 @@ contains
   double precision :: point(NDIME),Uinterp(NDIME),factor
   double precision, pointer :: coorg(:,:)
   double precision, allocatable :: vloc(:,:)
-  integer :: e,i,j,k,ipoin
+  integer :: e,i,j,k,l,ipoin
 
   if (maxfield>0d0) then
     write(psunit,*) '%'
