@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_gen
 
 ! MAT_GEN: handles material properties
@@ -84,7 +122,7 @@ contains
 !
 ! ARG: tag      [int] [none]    Number identifying a mesh domain 
 ! ARG: kind     [name(2)] ['ELAST','']  Material types:
-!               'ELAST', 'DMG','PLAST', 'KV' 
+!                               'ELAST', 'DMG','PLAST', 'KV' 
 !
 ! NOTE   : Some combinations of material kinds can be assigned to the same domain.
 !          Any material type can be combined with 'KV', for instance:
@@ -220,10 +258,6 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
 
   allocate(mat_elem(grid%nelem))
 
-  do tag=1,size(mat_input)
-    if (all(grid%tag<tag)) write(iout,*) 'WARNING: material ',tag,' is not assigned to any element'
-  enddo
-
   do e=1,grid%nelem
     tag = grid%tag(e)
     if ( tag > size(mat_input) .or. tag<1 ) &
@@ -314,7 +348,7 @@ end subroutine MAT_init_elem_prop
 !=======================================================================
 subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
-  use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged, SE_elem_coord
+  use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged
   use echo, only : echo_init,iout,fmt1,fmtok
   use stdio, only : IO_abort
   use memory_info
@@ -362,7 +396,6 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       allocate(matwrk(e)%plast)
       call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt)
-      !call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt, SE_elem_coord(grid,e))
 
     elseif (MAT_isDamage(matpro(e))) then
       allocate(matwrk(e)%derint)
@@ -399,7 +432,7 @@ end subroutine MAT_init_work
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
+subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el)
 
   use spec_grid, only : sem_grid_type
 
@@ -412,7 +445,6 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   type(sem_grid_type), intent(in) :: grid
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
-  double precision, intent(out) :: sg(3),sgp(3)   !stress glut
 
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
 
@@ -421,23 +453,19 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
    ! elastic material has a specialized scheme
    ! that does not require intermediate computation of strain and stress
     call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof) 
-  !if (MAT_isCrustalPlane(matpro)) call MAT_CP_add_f(d,matwrk%cp,ngll,ndof) !DEVEL
     E_ep = 0d0
     E_el = 0d0
-    sg = 0d0
-    sgp = 0d0
   else
     e  = MAT_strain(d,matwrk,ngll,ndof)
-! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
-    !e = e + eta*( MAT_strain(v,matwrk,ngll,ndof) - ep_rate )
-    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp)
+    !er = MAT_strain(v,matwrk,ngll,ndof)
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
 end subroutine MAT_Fint
 
 !=======================================================================
- subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
+ subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
@@ -446,30 +474,19 @@ end subroutine MAT_Fint
   type(matpro_elem_type), intent(in) :: matpro
   logical, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
+  double precision, optional, intent(out) :: E_ep
+  double precision, optional, intent(out) :: E_el
 
-  double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
-  double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local
-  integer :: k
-
-  sg_local = 0d0
-  sgp_local = 0d0
+  double precision :: E_ep_local(ngll,ngll)
+  double precision :: E_el_local(ngll,ngll)
 
   if (MAT_isElastic(matpro)) call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
-  if (MAT_isPlastic(matpro)) call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update, &
-                                                   E_ep_local,E_el_local,sgp_local) 
-  if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
-                                                E_ep_local,E_el_local,sg_local,sgp_local)
+  if (MAT_isPlastic(matpro)) call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update,E_ep_local,E_el_local) 
+  if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt,E_ep_local,E_el_local)
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
 
   if (present(E_ep)) E_ep = sum( matwrk%derint%weights * E_ep_local )
   if (present(E_el)) E_el = sum( matwrk%derint%weights * E_el_local )
-  if (present(sg)) then
-    do k =1,3
-      sg(k) = sum( matwrk%derint%weights * sg_local(:,:,k) )
-      sgp(k) = sum( matwrk%derint%weights * sgp_local(:,:,k) )
-    enddo
-  endif
 
 end subroutine MAT_stress
 

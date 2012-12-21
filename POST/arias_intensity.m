@@ -5,7 +5,7 @@
 %
 % INPUT		a(:)	accelerogram signal
 %		dt	sampling timestep
-%		fig	figure number to plot the cumulative Arias intensity as a function of time
+%		fig	figure number to plot Ia(t)
 %
 % OUTPUT	Ia	Arias intensity = pi/(2g)*integral{a^2}
 %		SD	Significant duration = time interval for the cumulative Ia(t)
@@ -19,18 +19,13 @@ Iat = pi/(2*g)*dt*cumsum(a.^2);
 Ia = Iat(end); % Arias intensity
 
 % significant duration
-% method 1, resolution = 1 sample
+t = [0:length(Iat)-1]*dt;
+tmin = interp1(Iat,t,0.05*Ia);
+tmax = interp1(Iat,t,0.95*Ia);
+SD = tmax-tmin;
 %[xmin,imin] = min( abs(Iat-0.05*Ia) );
 %[xmax,imax] = min( abs(Iat-0.95*Ia) );
 %SD = (imax-imin)*dt;
-% method 2, subsample resolution
-t = [0:length(Iat)-1]*dt;
-  % remove constant portions, usually to handle leading zeros
-  [Iat_bis,k]=unique(Iat,'last'); 
-  t_bis = t(k);
-tmin = interp1(Iat_bis,t_bis,0.05*Ia);
-tmax = interp1(Iat_bis,t_bis,0.95*Ia);
-SD = tmax-tmin;
 
 % Husid plot Ia(t)
 if exist('fig','var'),

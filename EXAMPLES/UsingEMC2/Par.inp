@@ -1,7 +1,7 @@
 #----- Some general parameters ----------------
-&GENERAL Iexec =1 , Ngll = 6 , fmax = 1.5 , ndof=1, 
+&GENERAL Iexec =0 , Ngll = 6 , fmax = 1.5 , ndof=2, 
       Title = 'Palos Grandes NS meshed with EMC2' ,
-      Verbose='1111', ItInfo = 1000/ 
+      Verbose='1111', ItInfo = 2000/ 
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  Method = 'EMC2' /
@@ -34,7 +34,7 @@
 &BC_ABSORB Stacey=F /
 
 #---- Time scheme settings ----------------------
-&TIME  TotalTime=25.d0, Courant = 0.55d0, kind='leapfrog' /
+&TIME  TotalTime=25.d0, Courant = 0.55d0, kind='newmark' /
 &TIME_NEWMARK beta=0.d0, gamma=0.5d0 /
 
 #---- Sources ----------------------------------
@@ -51,6 +51,6 @@
           Isamp=10 / 
 
 #--------- Snapshots settings ----------------------
-&SNAP_DEF itd=200000, fields='Vdc', components='x' / # itd = 3500
+&SNAP_DEF itd=2000, fields='Vdc', components='x' / # itd = 3500
 &SNAP_PS  Mesh=T,Vectors=F,Color=T, Interpol = T, DisplayPts=7, 
           ScaleField=0.2d0 /

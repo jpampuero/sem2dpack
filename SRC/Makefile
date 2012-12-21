@@ -1,7 +1,45 @@
+# SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+#                            with emphasis on computational seismology and earthquake source dynamics.
+# 
+# Copyright (C) 2003-2007 Jean-Paul Ampuero
+# All Rights Reserved
+# 
+# Jean-Paul Ampuero
+# 
+# California Institute of Technology
+# Seismological Laboratory
+# 1200 E. California Blvd., MC 252-21 
+# Pasadena, CA 91125-2100, USA
+# 
+# ampuero@gps.caltech.edu
+# Phone: (626) 395-6958
+# Fax  : (626) 564-0715
+# 
+# http://www.seismolab.caltech.edu
+# 
+# 
+# This software is freely available for academic research purposes. 
+# If you use this software in writing scientific papers include proper 
+# attributions to its author, Jean-Paul Ampuero.
+# 
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+# 
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
+EXEC = $(HOME)/bin/sem2dsolve_2.3.4
 
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
@@ -9,12 +47,11 @@ EXEC = $(HOME)/bin/sem2dsolve
 #F90 = g95
 #OPT = 
 #F90 = gfortran
-#OPT = -O3 -Wall
-#OPT = -O3 
+#OPT = 
 
 #-- Intel Fortran --
 F90 = ifort
-OPT = -O3 -ip -ipo -unroll
+OPT = -O3 -ip -ipo -unroll 
 #-no-inline-factor
 #OPT = -O3
 #OPT = -O0 -warn all -C

@@ -12,7 +12,7 @@
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN' /
-&MESH_CART xlim=-0.1d3,0.1d3 ,zlim=-1.d3,1.d3 , nelem=6,60 , ezflt=-1 /
+&MESH_CART xlim=-0.1d3,0.1d3 ,zlim=-1.d3,1.d3 , nelem=6,60 , FaultX=T /
 
 #---- Elastic material parameters --------------
 &MATERIAL tag=1, kind='ELAST' /
@@ -21,8 +21,12 @@
 #----- Boundary conditions ---------------------
 
 &BC_DEF  tag = 1 , kind = 'ABSORB' / 
+&BC_ABSORB stacey=F /
+
 &BC_DEF  tags =4,2 ,kind = 'PERIOD' /
+
 #&BC_DEF  tag = 3 , kind = 'ABSORB' /
+#&BC_ABSORB stacey=F  /
 
 &BC_DEF  tags = 5,6 , kind = 'LISFLT' /
 #&BC_LSF Ctang=8.7d-8 ,Cnorm=0d0  / 

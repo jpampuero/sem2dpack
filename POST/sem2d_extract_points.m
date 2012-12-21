@@ -1,15 +1,5 @@
-% SEM2D_EXTRACT_POINT extracts field value at an arbitrary point, by SEM interpolation
-%
-% SYNTAX	F = sem2d_extract_points(field,g,xz)
-%
-% INPUT		field(:,:,:)	field in local storage
-%		g	grid structure
-%		xz(2)	coordinates of the target point	
-%
-% OUTPUT	F	value of field at point xz
-%			interpolated by SEM basis functions
-%
-function F = sem2d_extract_point(field,g,xz)
+% get field value at an arbitrary point, interpolating if needed
+function F = sem2d_extract_points(field,g,xz)
 
 % find global index of nearest node
 dist2 = (g.coord(:,1)-xz(1)).^2 + (g.coord(:,2)-xz(2)).^2 ;

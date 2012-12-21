@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dynflt_twf
 
 ! BC_DYNFLT_TWF: Time weakening friction for dynamic faults
@@ -12,7 +50,6 @@ module bc_dynflt_twf
 
   type twf_type
     private
-    integer :: kind
     double precision :: X,Z,mus,mud,mu0,L,V,T
   end type twf_type
 
@@ -27,22 +64,15 @@ contains
 ! GROUP  : DYNAMIC_FAULT
 ! PURPOSE: Time weakening friction for dynamic faults 
 !          with prescribed rupture speed.
-! SYNTAX : &BC_DYNFLT_TWF kind, MuS, MuD, Mu0, X, Z, V, L, T /
+! SYNTAX : &BC_DYNFLT_TWF MuS, MuD, X, Z, V, L, T /
 !
-! ARG: kind     [int] [1] Type of time-weakening history:
-!               1 = expansion at constant speed V up to time T
-!               2 = expansion at decreasing speed then contraction
-!                   as in Andrews and Ben-Zion (JGR 1997, eqs 2 and 3)
 ! ARG: MuS      [dble] [0.6d0] Static friction coefficient
 ! ARG: MuD      [dble] [0.5d0] Dynamic friction coefficient
 ! ARG: Mu0      [dble] [0.6d0] Friction coefficient at the hypocenter at time=0
 ! ARG: X,Z      [dble] [0d0] Position of hypocenter
-! ARG: V        [dble] [1d3] Rupture propagation speed (initial speed if kind=2)
-! ARG: L        [dble] [1d0] Size of weakening zone
+! ARG: V        [dble] [1d3] Rupture propagation speed
+! ARG: L        [dble] [1d0] Size of weakening zone 
 ! ARG: T        [dble] [huge] Total duration
-!
-! NOTE   : Time-weakening is usually applied as an artificial nucleation procedure.
-!          The maximum size of the nucleation region is 2*V*T if kind=1, V*T/2 if kind=2
 !
 ! END INPUT BLOCK
 
@@ -55,11 +85,9 @@ contains
   integer, intent(in) :: iin
 
   double precision :: mus,mud,mu0,X,Z,L,V,T
-  integer :: kind
 
-  NAMELIST / BC_DYNFLT_TWF / kind,mus,mud,mu0,X,Z,L,V,T
+  NAMELIST / BC_DYNFLT_TWF / mus,mud,mu0,X,Z,L,V,T
 
-  kind = 1
   mus = 0.6d0
   mud = 0.5d0
   mu0 = 0.6d0
@@ -72,8 +100,6 @@ contains
   read(iin,BC_DYNFLT_TWF,END=100)
 100 continue
 
-  if (kind<1) call IO_abort('BC_SWFF_init: kind must be > 0')
-  if (kind>2) call IO_abort('BC_SWFF_init: kind must be < 3')
   if (mus<0d0) call IO_abort('BC_SWFF_init: MuS must be positive in BC_DYNFLT_TWF input block')
   if (mud<0d0) call IO_abort('BC_SWFF_init: MuD must be positive in BC_DYNFLT_TWF input block')
   if (mu0<0d0) call IO_abort('BC_SWFF_init: Mu0 must be positive in BC_DYNFLT_TWF input block')
@@ -81,7 +107,6 @@ contains
   if (V<=0d0) call IO_abort('BC_SWFF_init: V must be positive in BC_DYNFLT_TWF input block')
   if (T<=0d0) call IO_abort('BC_SWFF_init: T must be positive in BC_DYNFLT_TWF input block')
 
-  tw%kind = kind
   tw%mus = mus
   tw%mud = mud
   tw%mu0 = mu0
@@ -91,11 +116,10 @@ contains
   tw%T = T
   tw%V = V
 
-  if (echo_input) write(iout,200) kind,mus,mud,mu0,X,Z,V,L,T
+  if (echo_input) write(iout,200) mus,mud,mu0,X,Z,V,L,T
 
   return
   200 format(5x,'Friction law  . . . . . . . . . . . . . .  = time weakening', &
-            /5x,'  Type of weakening history . . . . (kind) = ',I0, &
             /5x,'  Static friction coefficient . . . .(MuS) = ',EN13.3, &
             /5x,'  Dynamic friction coefficient  . . .(MuD) = ',EN13.3, &
             /5x,'  Initial friction coefficient  . . .(Mu0) = ',EN13.3, &
@@ -115,45 +139,12 @@ contains
   double precision, intent(in) :: coord(:,:),time
   double precision :: mu(size(coord,2))
 
-  integer :: i
   double precision :: r(size(coord,2)),t
-  double precision, parameter :: VERY_LARGE_VALUE = huge(1d0)
 
- ! compute the position of the front (where mu=mus)
- ! the time shift sets mu=mu0 at the hypocenter
-  if (tw%kind==1) then
-    t = time + (tw%mus-tw%mu0)*tw%L/((tw%mus-tw%mud)*tw%V)
-!    t = min(t,tw%T)  ! version 1 (old): total weakening persists after nucleation
-    if (t> tw%T) t=0d0 ! version 2 (new): reset the time-weakening coefficient to its static value after nucleation is over
-    r = tw%V*t
-  else
-    t = time+ 0.5d0*tw%T*( 1d0-sqrt( 1d0-4d0*(tw%mus-tw%mu0)*tw%L/((tw%mus-tw%mud)*tw%T*tw%V) ) )
-    t = min(t,tw%T)
-    r = tw%V*t*(1d0-t/tw%T) 
-  endif
-  
- ! relative position of fault node with respect to the front
-  r = sqrt( (coord(1,:)-tw%X)*(coord(1,:)-tw%X) + (coord(2,:)-tw%Z)*(coord(2,:)-tw%Z) ) -r
-
- ! friction coefficient
- ! version A (old): mu = mus beyond the nucleation front
- ! mu = tw%mus + (tw%mus-tw%mud)/tw%L *r
- ! mu = max( mu, tw%mud )
- ! mu = min( mu, tw%mus )
-
- ! friction coefficient
- ! version B (new): mu keeps growing linearly beyond the nucleation front up to distance L, 
- !                  then jumps to a huge value
-  do i=1,size(r)
-    if (r(i)< -tw%L) then
-      mu(i) = tw%mud
-    elseif ( r(i) <= tw%L ) then  
-   !NOTE: replace by "if r(i)<=0d0" to strongly enforce the position of the front
-      mu(i) = tw%mus + (tw%mus-tw%mud)/tw%L *r(i)
-    else
-      mu(i) = VERY_LARGE_VALUE
-    endif
-  enddo
+  t = min(time,tw%T)
+  r = sqrt( (coord(1,:)-tw%X)*(coord(1,:)-tw%X) + (coord(2,:)-tw%Z)*(coord(2,:)-tw%Z) )
+  mu = tw%mu0 - (tw%mus-tw%mud)*(tw%V*t-r)/tw%L
+  mu = max( mu, tw%mud )
   
   end function twf_mu
 

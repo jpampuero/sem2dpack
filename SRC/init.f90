@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module init
 
 ! INIT:  i n i t i a l i z a t i o n   p h a s e
@@ -18,6 +56,7 @@ subroutine init_main(pb,InitFile)
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
+  use fem_grid, only : FE_GetNodesPerElement,FE_GetNbNodes
   use bc_gen, only : BC_init
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work
@@ -28,8 +67,8 @@ subroutine init_main(pb,InitFile)
   use fields_class, only : FIELDS_init,FIELDS_read
   use memory_info
   use echo, only : iout,info=>echo_init, fmt1,fmtok
-  use energy, only : energy_init, stress_glut_init
-  use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
+  use energy, only : energy_init
+  use constants, only : COMPUTE_ENERGIES
 
   type(problem_type), intent(inout) :: pb
   character(50), intent(in), optional :: InitFile
@@ -115,9 +154,8 @@ subroutine init_main(pb,InitFile)
   enddo
   enddo
 
- ! macroscopic outputs
+ ! energy outputs
   if (COMPUTE_ENERGIES) call energy_init(pb%energy)
-  if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
 
 end subroutine init_main
 
@@ -148,7 +186,7 @@ end subroutine init_main
 
   double precision, allocatable :: check1(:),check2(:)
   double precision :: ecoord(2,grid%ngll,grid%ngll) &
-                     ,celem(grid%ngll,grid%ngll),csmin,min_cs &
+                     ,celem(grid%ngll,grid%ngll),csmin &
                      ,x0,z0,x1,z1,x2,z2 &
                      ,rdistmax,rdist1,rdist2 &
                      ,rsizemin,rsizemax &
@@ -173,14 +211,12 @@ end subroutine init_main
   rsizemax   = 0d0
   max_c_dx   = 0d0
   rlamdaSmin = huge(rlamdaSmin)
-  min_cs = huge(min_cs)
 
   do e=1,grid%nelem
 
     call SE_inquire(grid,element=e,size_max=rdistmax)
     call MAT_getProp(celem,mat(e),'cs')
     csmin = minval(celem)
-    min_cs = min(csmin,min_cs)
     rlambmin = csmin/rdistmax
     rlamdaSmin = min(rlamdaSmin,rlambmin)
 
@@ -231,7 +267,7 @@ end subroutine init_main
     write(iout,*) 
     write(iout,101) '    RESOLUTION: nodes per min wavelength = ',(ngll-1)*rlamdaSmin/grid%fmax
     write(iout,102) '                for maximum frequency   = ',grid%fmax, ' Hz'
-    write(iout,102) '                    minimum wavelength  = ',min_cs/grid%fmax, ' m'
+    write(iout,102) '                    minimum wavelength  = ',rlamdaSmin/grid%fmax, ' m'
     write(iout,*) 
 
     check1 = check1*(ngll-1)/grid%fmax
@@ -275,6 +311,7 @@ end subroutine init_main
   101 format(A,EN12.3)
   102 format(A,EN12.3,A)
   103 format(A)
+  104 format(A,I0)
 
   end subroutine CHECK_grid
 

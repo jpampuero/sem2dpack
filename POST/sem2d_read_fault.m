@@ -2,9 +2,7 @@
 %
 % SYNTAX	data = sem2d_read_fault(name)
 %
-% INPUT		name	[Flt*] 	prefix of header and data files (name_sem2d.*) 
-%				The default is the first FltXX_sem2d.* found 
-%				in the current directory.
+% INPUT		name	[Flt01] prefix of header and data files (name_sem2d.*) 
 %
 % OUTPUT	data.nx		number of fault nodes
 %		data.nt		number of time samples
@@ -15,9 +13,6 @@
 %		data.st		shear stress
 %		data.sn		normal stress
 %		data.mu		friction coefficient
-%		data.st0	initial value of shear stress
-%		data.sn0	initial value of normal stress
-%		data.mu0	initial value of friction coefficient
 % 
 %		If output on each side of the fault (osides=T):
 %  		data.d1t	displacement on side 1, fault parallel component
@@ -33,47 +28,21 @@
 %
 function data = sem2d_read_fault(name)
 
-% length of the tag at the begining and end of a binary record
-% in number of single precision words (4*bytes)
-LENTAG = 2; % gfortran older versions
-LENTAG = 1;
-
-% assumes header file name is FltXX_sem2d.hdr
-if ~exist('name','var')
-  list = dir('Flt*.hdr');
-  list = {list.name};
-  if isempty(list)
-    name = '';
-  else
-    name=list{1}(1:5);
-  end
-end
+if ~exist('name','var'), name = 'Flt01'; end
 
 % Read parameters from header file
 hdr = strcat(name,'_sem2d.hdr');
-if ~exist(hdr,'file')
-  data=[]; 
-  warning(['File ' hdr ' not found'])
-  return
-end
+if ~exist(hdr,'file'), data=[]; return, end
 [data.nx,ndat,data.nt,data.dt] = textread(hdr,'%n%n%n%n',1,'headerlines',1);
 [data.x,data.z] = textread(hdr,'%f%f','headerlines',4);
-
-% Read initial fault data
-if exist([name '_init_sem2d.tab'],'file')
-  raw = load([name '_init_sem2d.tab']);
-  data.st0 = raw(:,1);
-  data.sn0 = raw(:,2);
-  data.mu0 = raw(:,3);
-end
 
 % Read fault data in a big matrix
 dat  = strcat(name,'_sem2d.dat');
 fid=fopen(dat); 
-raw = fread(fid,[data.nx+2*LENTAG,inf],'single') ; 
+raw = fread(fid,[data.nx+2,inf],'single') ; 
 fclose(fid);
 %raw = reshape(raw(2:data.nx+1,:),[data.nx ndat data.nt]);
-raw = reshape(raw(LENTAG+1:LENTAG+data.nx,:),data.nx,ndat,[]);
+raw = reshape(raw(2:data.nx+1,:),data.nx,ndat,[]);
 
 % Reformat each field [nx,nt]
 data.d  = squeeze(raw(:,1,:)); 

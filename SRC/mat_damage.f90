@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_damage
 !
 ! Damage rheology following the formulation by Vladimir Lyakhovsky
@@ -334,10 +372,10 @@ contains
 ! and (if requested) update damage variable and plastic strain
 !
 ! subroutine MAT_DMG_stress(s,e,m,ngll,update,dt)
-  subroutine MAT_DMG_stress(s,etot,m,ngll,update,dt,E_ep,E_el,sg,sgp)
+  subroutine MAT_DMG_stress(s,etot,m,ngll,update,dt,E_ep,E_el)
 
   use utils, only: positive_part
-  use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
+  use constants, only : COMPUTE_ENERGIES
 
   integer, intent(in) :: ngll
   double precision, intent(in) :: etot(ngll,ngll,3)
@@ -347,8 +385,6 @@ contains
   double precision, optional, intent(in) :: dt
   double precision, intent(out) :: E_ep(ngll,ngll)
   double precision, intent(out) :: E_el(ngll,ngll)
-  double precision, intent(out) :: sg(ngll,ngll,3)
-  double precision, intent(out) :: sgp(ngll,ngll,3)
 
   double precision :: e(ngll,ngll,3)
   double precision, dimension(3) :: eij,sij
@@ -400,6 +436,7 @@ contains
    ! Damage-related viscosity, if alpha_dot > 0
    ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
    ! where tij = deviatoric stress
+ ! trial (elastic) deviatoric stresses
     sm = 0.5d0*(s(:,:,1)+s(:,:,2)) ! mean stress
     dalpha = m%Cv * positive_part(dalpha)
     dep(:,:,1) = (s(:,:,1) - sm)*dalpha
@@ -409,30 +446,14 @@ contains
 
     if (COMPUTE_ENERGIES) then
      ! increment of plastic energy dissipation
-      E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
+      E_ep = sum(s*dep,dim=3)
      ! total elastic energy change
-     ! WARNING: assumes zero initial plastic strain
       i1_0 = m%e0(1) + m%e0(2)
       i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) +2d0*m%e0(3)*m%e0(3)
       E_el = 0.5d0*(rl*i1*i1 - m%lambda*i1_0*i1_0) + ( rm*i2 - m%mu*i2_0 ) - rg*i1*sqrt(i2)
     else
       E_ep = 0d0
       E_el = 0d0
-    endif
-
-    if (COMPUTE_STRESS_GLUT) then
-      rm = 2d0*m%mu
-     ! damage components
-      sg(:,:,1) = s(:,:,1) - (rl+rm)*e(:,:,1) - rl*e(:,:,2)
-      sg(:,:,2) = s(:,:,2) - rl*e(:,:,1) - (rl+rm)*e(:,:,2)
-      sg(:,:,3) = s(:,:,3) - rm*e(:,:,3)
-     ! plastic components
-      sgp(:,:,1) = - rm*m%ep(:,:,1)
-      sgp(:,:,2) = - rm*m%ep(:,:,2)
-      sgp(:,:,3) = - rm*m%ep(:,:,3)
-    else
-      sg = 0d0
-      sgp = 0d0
     endif
 
   endif
@@ -462,31 +483,29 @@ contains
   i2 = e(1)*e(1) +e(2)*e(2) +2d0*e(3)*e(3)
   si2 = sqrt(i2)
   if (si2<1d-10) then
-    xi = 0d0
+    xi =0d0
   else
     xi = i1/si2
   endif
 
   two_mue = 2d0*rm-rg*xi
 
+ !-- check if the damage is above the critical value (loss of convexity)
+  p = -(4d0*rm+2d0*rl-3d0*rg*xi) ! 2d plane strain
+  q = two_mue*two_mue + two_mue*(2d0*rl-rg*xi) + rg*(rl*xi-rg)*(2d0-xi*xi) ! 2d plane strain
+  !p = -(4d0*rm+3d0*rl-3d0*rg*xi) ! 3d
+  !q = two_mue*two_mue + two_mue*(3d0*rl-rg*xi) + rg*(rl*xi-rg)*(3d0-xi*xi) ! 3d
+  d = p*p/4d0 - q
+  if (d <= 0d0) call IO_abort('mat_damage:elastic: discriminant < 0')
+  if ( p/2d0+sqrt(d) >= 0d0 ) &
+    call IO_abort('MAT_DMG: damage exceeded critical value (1st type)')
+  if ( two_mue <= 0d0 ) &
+    call IO_abort('MAT_DMG: damage exceeded critical value (2nd type)')
+
  !-- absolute stress tensor
   s(1) = rl*i1 - rg*si2 + two_mue*e(1)
   s(2) = rl*i1 - rg*si2 + two_mue*e(2)
   s(3) = two_mue*e(3)
-
-!return !DEBUG: include this line to turn OFF convexity checks, at your own risk
-
- !-- check if the damage is above the critical value (loss of convexity)
- ! 2d plane strain:
-  p = -(4d0*rm+2d0*rl-3d0*rg*xi) 
-  q = two_mue*two_mue + two_mue*(2d0*rl-rg*xi) + rg*(rl*xi-rg)*(2d0-xi*xi)
- ! 3d:
-  !p = -(4d0*rm+3d0*rl-3d0*rg*xi)
-  !q = two_mue*two_mue + two_mue*(3d0*rl-rg*xi) + rg*(rl*xi-rg)*(3d0-xi*xi)
-  d = p*p/4d0 - q
-  if (d <= 0d0) call IO_abort('mat_damage:elastic: discriminant < 0')
-  if ( p/2d0+sqrt(d) >= 0d0 ) call IO_abort('MAT_DMG: damage exceeded critical value (1st type)')
-  if ( two_mue <= 0d0 ) call IO_abort('MAT_DMG: damage exceeded critical value (2nd type)')
 
   end subroutine compute_stress
 

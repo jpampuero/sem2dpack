@@ -2,19 +2,19 @@
 # between two different materials (bimaterial fault)
 
 #----- Some general parameters ----------------
-&GENERAL iexec=1, ngll=3, fmax=20.d0 , ndof=2 ,
+&GENERAL iexec=0, ngll=5, fmax=20.d0 , ndof=2 ,
   title = 'Bimaterial fault with slip weakening friction', verbose='1111', ItInfo = 500/
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN'/
 
-#&MESH_CART xlim=-300d0,300d0, zlim=-150d0,150d0, nelem=512,256, ezflt=-1 /
+#&MESH_CART xlim=-300d0,300d0, zlim=-150d0,150d0, nelem=512,256, FaultX=T /
 #&MESH_CART_DOMAIN tag=1, ex= 1,512, ez=1,126 /
 #&MESH_CART_DOMAIN tag=2, ex= 1,512, ez=127,128 /
 #&MESH_CART_DOMAIN tag=3, ex= 1,512, ez=129,130 /
 #&MESH_CART_DOMAIN tag=4, ex= 1,512, ez=131,256 /
 
-&MESH_CART xlim=-300d0,300d0, zlim=-75d0,75d0, nelem=512,128, ezflt=-1 /
+&MESH_CART xlim=-300d0,300d0, zlim=-75d0,75d0, nelem=512,128, FaultX=T /
 &MESH_CART_DOMAIN tag=1, ex= 1,512, ez=1,54 /
 &MESH_CART_DOMAIN tag=2, ex= 1,512, ez=55,56 /
 &MESH_CART_DOMAIN tag=3, ex= 1,512, ez=57,58 /
@@ -39,12 +39,18 @@
 #----- Boundary conditions ---------------------
 
 &BC_DEF  tag = 1 , kind = 'ABSORB' /
-#&BC_DEF  tag = 2 , kind = 'ABSORB' /
-&BC_DEF  tag = 3 , kind = 'ABSORB' /  
-#&BC_DEF  tag = 4 , kind = 'ABSORB' /  
+&BC_ABSORB stacey=T /
 
-# set periodic boundaries to ease comparison to SBIEM
 &BC_DEF  tags = 2,4 , kind = 'PERIOD' /
+
+#&BC_DEF  tag = 2 , kind = 'ABSORB' /
+#&BC_ABSORB stacey=F /
+ 
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB stacey=T /
+
+#&BC_DEF  tag = 4 , kind = 'ABSORB' /  
+#&BC_ABSORB stacey=F /
 
 &BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
 &BC_DYNFLT Tn=-130.d6,TtH='PWCONR' /

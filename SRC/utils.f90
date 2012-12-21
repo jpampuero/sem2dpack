@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.4 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 ! This is a set of basic tools, adapted from different open sources
 module utils
 
@@ -694,12 +732,11 @@ end subroutine hunt
 !  adapted from Numerical Recipes for double precision, Fortran 90
 !  and to speed up table lookup
 
-  SUBROUTINE splint(xa,ya,y2a,n,x,y,dydx)
+  SUBROUTINE splint(xa,ya,y2a,n,x,y)
 
   INTEGER, intent(in) :: n
   double precision, intent(in) :: x,xa(n),y2a(n),ya(n)
   double precision, intent(out) :: y
-  double precision, intent(out), optional :: dydx
 
 !  integer :: k
   integer :: khi
@@ -725,12 +762,8 @@ end subroutine hunt
   h=xa(khi)-xa(klo)
   a=(xa(khi)-x)/h
   b=(x-xa(klo))/h
-  y=a*ya(klo)+b*ya(khi)+((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h*h)/6d0
+  y=a*ya(klo)+b*ya(khi)+((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h**2)/6d0
   
-  if (present(dydx)) then
-    dydx = -ya(klo)/h + ya(khi)/h + (-(2*a*a-1)*y2a(klo)+(2*b*b-1)*y2a(khi))*h/6d0
-  endif
-
   END SUBROUTINE splint
 
 end module utils

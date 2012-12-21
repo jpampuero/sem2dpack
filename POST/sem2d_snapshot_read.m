@@ -16,7 +16,6 @@
 %			divergence	div			--
 %			curl		curl			--
 %			damage		dmg			--
-%			plastic		pla			--
 %
 % 		isnap   snapshot index, given by the numbers of the 
 %			snapshot data file name (*_xxx_sem2d.dat)
@@ -42,7 +41,7 @@ if exist('isnap','var') && ~isempty(isnap)
 else
   fname = sprintf('%s_sem2d.dat',fname);
 end
-if exist('datadir','var') && ~isempty(datadir)
+if exist('datadir','var') 
   if datadir(end) ~= '/', datadir = [datadir '/']; end
 else
   datadir='';
