@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.11 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module fem_grid
 
 !=======================================================================
@@ -25,7 +65,6 @@ module fem_grid
 !=======================================================================
 
   use elem_q4
-  use elem_q8h
   use elem_q9
   use bnd_grid
   use constants
@@ -37,7 +76,7 @@ module fem_grid
     integer, pointer :: elem(:)=>null(), node(:)=>null()
   end type VertexConn_type
 
-!---- Finite element mesh (Q4, Q8h or Q9)
+!---- Finite element mesh (Q4 or Q9)
 !     npoin = total number of control nodes
 !     ngnod = number of control nodes per element (4 or 9)
 !     nelem = total number of elements
@@ -49,7 +88,7 @@ module fem_grid
 !     bnds  = list of domain boundaries
 !     flat  = flag for cartesian grid (allows simplifications)
 !
-! vertex connectivity data: (in Q8h and Q9 also includes internal nodes)
+! vertex connectivity data: (in Q9 also includes internal nodes)
 !     VertexConn(k)%elem(:) = elements sharing node k
 !     VertexConn(k)%node(:) = local index of node k in each element
 !
@@ -86,7 +125,7 @@ module fem_grid
   integer, parameter :: side_U = 3
   integer, parameter :: side_L = 4
 
-  public :: fem_grid_type, VertexConn_type &
+  public :: fem_grid_type &
           , FE_GetShape, FE_GetDerShape, FE_GetElementCoord &
           , FE_GetEdgeNodesTab, FE_GetNodesPerElement, FE_GetNbElements &
           , FE_GetNbBoundaries, FE_GetNbNodes, FE_InquireBoundary &
@@ -122,14 +161,12 @@ subroutine FE_SetConnectivity(grid)
   end type Vertex_Ptr_Type
 
   type(List_Type)     :: Vertex_List(grid%npoin)
-  type(Link_Ptr_Type) :: Link
-  type(Vertex_Ptr_Type) :: Vertex
+  type(Link_Ptr_Type) :: Link, Link2
+  type(Vertex_Ptr_Type) :: Vertex, Vertex2
 
-  integer :: k,e,n,ee,nn,k1,k2,n1,n2
+  integer :: i,j,k,e,n,ii,jj,ee,nn,k1,k2,n1,n2
 
- ! Vertex data:
- ! For each node create a list of elements they belong to
- ! and store their node index local to that element
+ ! vertex data
   do k = 1,grid%npoin
     call LI_Init_List(Vertex_List(k))
   enddo
@@ -143,12 +180,11 @@ subroutine FE_SetConnectivity(grid)
   enddo
   enddo
 
-
   ! convert the vertex linked list into arrays, for easier handling
   allocate(grid%VertexConn(grid%npoin))
   do k = 1,grid%npoin
     n = LI_Get_Len(Vertex_List(k))
-!    if (n==0) cycle  ! center point in Q9 element
+    if (n==0) cycle  ! center point in Q9 element
     allocate(grid%VertexConn(k)%elem(n))
     allocate(grid%VertexConn(k)%node(n))
     n=0
@@ -201,6 +237,7 @@ subroutine FE_SetConnectivity(grid)
   enddo
   enddo
    
+
 end subroutine FE_SetConnectivity
 
 !-----------------------------------------------------------------------
@@ -321,9 +358,7 @@ end subroutine FE_GetVertexConn
 
   if ( ngnod == 4 ) then
     shape = Q4_GetShape(xi,eta)
-  elseif (ngnod == 8) then
-    shape = Q8h_GetShape(xi,eta)
-  elseif (ngnod == 9) then
+  else
     shape = Q9_GetShape(xi,eta)
   endif  
   
@@ -343,9 +378,7 @@ end subroutine FE_GetVertexConn
 
   if ( ngnod == 4 ) then
     dshape = Q4_GetDerShape(xi,eta)
-  elseif (ngnod == 8) then
-    dshape = Q8h_GetDerShape(xi,eta)
-  elseif (ngnod == 9) then
+  else
     dshape = Q9_GetDerShape(xi,eta)
   endif  
 
@@ -425,15 +458,17 @@ end subroutine FE_GetVertexConn
   type(fem_grid_type), intent(in) :: grid
   integer, intent(in) :: e
 
-  double precision :: area,x1,x2,y1,y2
+  double precision :: area,a,b,c,d,p,q
   double precision, pointer :: coorg(:,:)
 
   coorg => FE_GetElementCoord(grid,e)
-  x1 = coorg(1,1)-coorg(1,3);
-  x2 = coorg(2,1)-coorg(2,3);
-  y1 = coorg(1,2)-coorg(1,4);
-  y2 = coorg(2,2)-coorg(2,4);
-  area = 0.5*abs( x1*y2 - x2*y1 )
+  a = (coorg(1,2)-coorg(1,1))**2+(coorg(2,2)-coorg(2,1))**2
+  b = (coorg(1,3)-coorg(1,2))**2+(coorg(2,3)-coorg(2,2))**2
+  c = (coorg(1,4)-coorg(1,3))**2+(coorg(2,4)-coorg(2,3))**2
+  d = (coorg(1,1)-coorg(1,4))**2+(coorg(2,1)-coorg(2,4))**2
+  p = (coorg(1,1)-coorg(1,3))**2+(coorg(2,1)-coorg(2,3))**2
+  q = (coorg(1,2)-coorg(1,4))**2+(coorg(2,2)-coorg(2,4))**2
+  area = 0.25d0*sqrt( 4d0*p*q - (b+d-a-c)**2 )
   deallocate(coorg)
 
   end function FE_GetElementArea
@@ -509,7 +544,6 @@ end subroutine FE_GetVertexConn
 
   integer :: k
 
- !devel: introduce tmp array to avoid stack switch ?
   grid%knods = grid%knods(:,perm)
   grid%tag = grid%tag(perm)
   do k=1,size(grid%bnds)

@@ -1,0 +1,299 @@
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S P E C F E M : start
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Layered medium example 1                          
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 30 - 05 - 2007                                 T i m e  : 15:24:52
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+
+
+ E c h o   S e t t i n g s
+ =========================
+
+     Echo during input phase. . . . . . . . . . . (Verbose(1)) = T
+     Echo during init phase . . . . . . . . . . . (Verbose(2)) = T
+     Echo during check phase. . . . . . . . . . . (Verbose(3)) = T
+     Echo during run phase. . . . . . . . . . . . (Verbose(4)) = T
+     Display frequency  . . . . . . . . . . . . .(ItSnapshots) = 500
+     First display. . . . . . . . . . . . . . . .(ItSnapshot1) = 0
+     Basic info output frequency. . . . . . . . . . . (ItInfo) = 500
+
+
+
+ G e n e r a l   P a r a m e t e r s
+ ===================================
+
+     Execution mode . . . . . . . . . . . . . . . (iexec) = check     
+     Number of nodes per edge . . . . . . . . . . .(ngll) = 9
+     Number of d.o.f per node . . . . . . . . . . .(ndof) = 2
+     Highest frequency to be resolved . . . . . . .(fmax) =  250.000E+00
+
+
+ M e s h   G e n e r a t i o n
+ =============================
+
+     Method. . . . . . . . . . . . . . . . .(method) = LAYERED   
+     Minimum X . . . . . . . . . . . . . . (xlim(1)) = -100.000E+00
+     Maximum X . . . . . . . . . . . . . . (xlim(2)) =  300.000E+00
+     Minimum Z . . . . . . . . . . . . . . . .(zmin) = -250.000E+00
+     Number of elements along X. . . . . . . . .(nx) =    40
+     Number of layers. . . . . . . . . . . .(nlayer) =     2
+
+     Layer number. . . . . . . . . . . . . . . (tag) =     1
+     Number of elements along Z. . . . . . . . .(nz) =    20
+     Z of top surface from 1D distribution . (ztopH) = SPLINE              
+
+     Layer number. . . . . . . . . . . . . . . (tag) =     2
+     Number of elements along Z. . . . . . . . .(nz) =    11
+     Z of top surface from 1D distribution . (ztopH) = LINEAR              
+
+     Number of elements along X. . . . . . . . .(nx) =    31
+     Element type. . . . . . . . . . . . . . . . . . = Q9
+
+
+ T i me   i n t e g r a t i o n
+ ==============================
+
+     Scheme. . . . . . . . . . . . . .(kind) = leapfrog  
+     Number of time steps. . . . . (NbSteps) = 12000
+     Time step increment . . . . . . . .(Dt) =   25.000E-06
+     Total simulation duration . (TotalTime) =  300.000E-03
+
+
+ M a t e r i a l   s e t s :   2 D  e l a s t i c i t y
+ ======================================================
+
+     Number of material sets . . . . . . . . . =    2
+
+
+     ------------------------
+     Material set number . . . . . . . . . . . =    1
+     -- Isotropic material --
+     P-wave velocity. . . . . . . . . . . (cp) =   3.700E+03
+     S-wave velocity. . . . . . . . . . . (cs) =   1.820E+03
+     Mass density. . . . . . . . . . . (denst) = 920.000E+00
+     Poisson's ratio . . . . . . . . . (poiss) = 340.406E-03
+     First Lame parameter Lambda. . . . (alam) =   6.500E+09
+     Second Lame parameter Mu. . . . . . (amu) =   3.047E+09
+     Bulk modulus K . . . . . . . . . . (Kvol) =   8.532E+09
+     Young's modulus E . . . . . . . . (young) =   8.170E+09
+
+
+     ------------------------
+     Material set number . . . . . . . . . . . =    2
+     -- Isotropic material --
+     P-wave velocity. . . . . . . . . . . (cp) =   5.100E+03
+     S-wave velocity. . . . . . . . . . . (cs) =   2.900E+03
+     Mass density. . . . . . . . . . . (denst) =   2.000E+03
+     Poisson's ratio . . . . . . . . . (poiss) = 261.080E-03
+     First Lame parameter Lambda. . . . (alam) =  18.380E+09
+     Second Lame parameter Mu. . . . . . (amu) =  16.820E+09
+     Bulk modulus K . . . . . . . . . . (Kvol) =  29.593E+09
+     Young's modulus E . . . . . . . . (young) =  42.423E+09
+
+
+ B o u n d a r y   C o n d i t i o n s
+ =====================================
+
+
+    Boundary Tag  = 1
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tag  = 2
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+    Boundary Tag  = 4
+      Type = Absorbing boundary Stacey              
+      Periodic =F
+
+
+ S o u r c e  F u n c t i o n s
+ ==============================
+
+     X-position (meters). . . . . . . . . . =    0.000E+00
+     Y-position (meters). . . . . . . . . . = -150.000E+00
+     Function Type. . . . . . . . . . . . . = Ricker
+     Fundamental frequency (Hz) . . . . . . = 100.000E+00
+     Time delay (s) . . . . . . . . . . . . =  11.000E-03
+     Multiplying factor . . . . . . . . . . =   1.000E+00
+     Source Type. . . . . . . . . . . . . . = Collocated Force
+     If P-SV: counterclockwise angle / up . =0.00
+
+
+ R e c e i v e r s
+ =================
+
+     Number of receivers . . . . . . . . . . . . (number) = 21
+     Subsampling for seismograms recording . . . .(isamp) = 40
+     Field recorded. . . . . . . . . . . . . . . .(field) = V
+     Axis of the seismogram plot . . . . . . . . .(irepr) = D
+
+
+ S n a p s h o t   O u t p u t s
+ ===============================
+
+     Save results in PS file or not . . . . .(postscript) = T
+     Save results in AVS file or not. . . . . . . . (avs) = F
+     Save results in Visual3 file or not. . . . (visual3) = F
+     Save results in binary file or not . . . . . . (bin) = T
+     Selected fields :
+       Displacement . . . . . . . . . . . . . . . . . . . = F
+       Velocity . . . . . . . . . . . . . . . . . . . . . = T
+       Acceleration . . . . . . . . . . . . . . . . . . . = F
+       Strain . . . . . . . . . . . . . . . . . . . . . . = F
+       Stress . . . . . . . . . . . . . . . . . . . . . . = F
+     Selected components for PostScript snapshots :
+       X  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Y  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Z  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Amplitude  . . . . . . . . . . . . . . . . . . . . = T
+
+
+ P o s t S c r i p t   O u t p u t s
+ ===================================
+
+     Plot mesh . . . . . . . . . . . . . . . . . . (mesh) = F
+     Numbered mesh . . . . . . . . . . . . . . .(numbers) = F
+     Background fill . . . . . . . . . . . . (background) = none      
+     Subsampling for velocity model display  . (isubsamp) = 3
+     Color display . . . . . . . . . . . . . . . .(color) = T
+     Plot boundaries . . . . . . . . . . . . (boundaries) = T
+     Plot symbols  . . . . . . . . . . . . . . .(symbols) = T
+     Write legends . . . . . . . . . . . . . . . (legend) = T
+     Plot vector fields  . . . . . . . . . . . .(vectors) = F
+     Amplitude-Scaling . . . . . . . . . . . (ScaleField) = 0.00
+     Interpolate vector field  . . . . . . . . (interpol) = T
+     Points per edge for interpolation . . . (DisplayPts) = 3
+     Defining the FEM mesh ...... [OK]
+     Defining the SEM mesh ...
+
+ G L L   g r i d
+ ===============
+
+     Numbering GLL points ...
+     ... [OK]
+ 
+     Nodes of the global mesh  . . . . = 79929
+     Interior points . . . . . . . . . = 60760
+     Edge points (without corners) . . = 17857
+     Corner points . . . . . . . . . . = 1312
+ 
+     Saving node index table (ibool) in a binary file ...... [OK]
+     Defining nodes coordinates ...... [OK]
+ 
+     Saving the grid coordinates (coord) in a text file... ...... [OK]
+     Saving the grid coordinates (coord) in a binary file... ...... [OK]
+... [OK]
+     Translating input velocity model ...... [OK]
+     Defining elasticity work arrays ...... [OK]
+     Exporting model ...... [OK]
+     Checking mesh ...... [OK]
+ 
+===================================================
+=          Mesh properties checkboard             =
+===================================================
+ 
+    Max mesh size =    2.968E+00
+    Min mesh size =  208.008E-03
+    Ratio max/min =   14.271E+00
+ 
+ 
+    RESOLUTION: nodes per min wavelength =    5.578E+00
+ 
+Dump PostScript Resolution_sem2d.ps ...... [OK]
+Dump PostScript Stability_sem2d.ps ...... [OK]
+ 
+===================================================
+=          Time solver settings                   =
+===================================================
+ 
+    Time step (secs)      =   25.000E-06
+    Number of time steps  = 12000
+    Total duration (secs) =  300.000E-03
+    Courant number        =  466.371E-03
+ 
+    STABILITY:  CFL number               =  466.371E-03
+     Initializing kinematic fields ...... [OK]
+       Max displ =    0.000E+00
+       Max veloc =    0.000E+00
+     Building the mass matrix ...... [OK]
+     Defining boundary conditions ...... [OK]
+     Initializing receivers ...
+
+ ===================================================
+ =  R e c e i v e r s  r e a l  p o s i t i o n s  =
+ ===================================================
+
+  Receiver  x-asked    z-asked   x-obtain   z-obtain     dist
+
+       1  100.000E+00  100.000E+00  101.614E+00 -163.084E-03 100.176E+00
+       2  110.000E+00  100.000E+00  110.501E+00  -40.636E-03 100.042E+00
+       3  120.000E+00  100.000E+00  120.000E+00   -3.066E-03 100.003E+00
+       4  130.000E+00  100.000E+00  130.501E+00   43.813E-03  99.957E+00
+       5  140.000E+00  100.000E+00  143.184E+00  296.731E-03  99.754E+00
+       6  150.000E+00  100.000E+00  158.386E+00    1.185E+00  99.170E+00
+       7  160.000E+00  100.000E+00  171.614E+00    2.553E+00  98.137E+00
+       8  170.000E+00  100.000E+00  185.000E+00    4.401E+00  96.769E+00
+       9  180.000E+00  100.000E+00  196.816E+00    6.338E+00  95.160E+00
+      10  190.000E+00  100.000E+00  206.816E+00    8.142E+00  93.384E+00
+      11  200.000E+00  100.000E+00  216.816E+00    9.988E+00  91.569E+00
+      12  210.000E+00  100.000E+00  225.000E+00   11.432E+00  89.829E+00
+      13  220.000E+00  100.000E+00  233.184E+00   12.729E+00  88.261E+00
+      14  230.000E+00  100.000E+00  240.501E+00   13.700E+00  86.937E+00
+      15  240.000E+00  100.000E+00  246.816E+00   14.349E+00  85.922E+00
+      16  250.000E+00  100.000E+00  253.184E+00   14.792E+00  85.267E+00
+      17  260.000E+00  100.000E+00  260.501E+00   15.031E+00  84.971E+00
+      18  270.000E+00  100.000E+00  268.386E+00   15.003E+00  85.013E+00
+      19  280.000E+00  100.000E+00  275.000E+00   14.780E+00  85.366E+00
+      20  290.000E+00  100.000E+00  283.184E+00   14.299E+00  85.971E+00
+      21  300.000E+00  100.000E+00  291.614E+00   13.615E+00  86.791E+00
+
+  Maximum distance between asked and real = 100.176E+00
+ 
+  Sampling rate (Hz)        =    1.000E+03
+  Sampling timestep (secs)  =    1.000E-03
+  Total number of samples   = 301
+  Number of receivers       = 21
+ 
+... [OK]
+     Initializing sources ...... [OK]
+Dump PostScript va_test_sem2d.ps ...... [OK]
+
+ ==========================================
+ =  T i m e   e v o l u t i o n  l o o p  =
+ ==========================================
+
+
+---  CPU TIME ESTIMATES (in seconds) :
+  CPU time for initialization . .   1.424E+00
+  CPU time per timestep . . . . .  60.004E-03
+  Total solver CPU time . . . . . 720.048E+00
+                   (mins) . . . .  12.001E+00
+                   (hours). . . . 200.013E-03
+
+ 
+ **********************************
+ * Aborting, data check mode only *
+ **********************************
+ 
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S P E C F E M :  end
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Layered medium example 1                          
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 30 - 05 - 2007                                 T i m e  : 15:24:54
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------

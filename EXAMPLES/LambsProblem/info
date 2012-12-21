@@ -2,13 +2,13 @@
 
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- Program  S E M 2 D P A C K : start
+ Program  S P E C F E M : start
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
                                                    
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:16
+ D a t e : 06 - 06 - 2007                                 T i m e  : 17:28:43
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
  
@@ -18,6 +18,19 @@
  
 
 
+ E c h o   S e t t i n g s
+ =========================
+
+     Echo during input phase. . . . . . . . . . . (Verbose(1)) = T
+     Echo during init phase . . . . . . . . . . . (Verbose(2)) = T
+     Echo during check phase. . . . . . . . . . . (Verbose(3)) = T
+     Echo during run phase. . . . . . . . . . . . (Verbose(4)) = T
+     Display frequency  . . . . . . . . . . . . .(ItSnapshots) = 5000
+     First display. . . . . . . . . . . . . . . .(ItSnapshot1) = 0
+     Basic info output frequency. . . . . . . . . . . (ItInfo) = 200
+
+
+
  G e n e r a l   P a r a m e t e r s
  ===================================
 
@@ -25,29 +38,23 @@
      Number of nodes per edge . . . . . . . . . . .(ngll) = 9
      Number of d.o.f per node . . . . . . . . . . .(ndof) = 2
      Highest frequency to be resolved . . . . . . .(fmax) =   25.000E+00
-     Print progress information during 
-                 input phase  . . . . . . . .(verbose(1)) = T
-                 initialization phase . . . .(verbose(2)) = T
-                 checking phase . . . . . . .(verbose(3)) = T
-                 solver phase . . . . . . . .(verbose(4)) = T
-     Frequency for solver progress information  .(itInfo) = 200
-
 
 
  M e s h   G e n e r a t i o n
  =============================
 
-     Method  . . . . . . . . . . . . . . . .(method) = CARTESIAN 
+     Method. . . . . . . . . . . . . . . . .(method) = CARTESIAN 
      Minimum X . . . . . . . . . . . . . . (xlim(1)) =  0.000E+00
      Maximum X . . . . . . . . . . . . . . (xlim(2)) =  4.000E+03
      Minimum Z . . . . . . . . . . . . . . (zlim(1)) = -2.000E+03
      Maximum Z . . . . . . . . . . . . . . (zlim(2)) =  0.000E+00
-     Number of elements along X. . . . . .(nelem(1)) = 40
-     Number of elements along Z. . . . . .(nelem(2)) = 20
+     Number of elements along X. . . . . .(nelem(1)) =    40
+     Number of elements along Z. . . . . .(nelem(2)) =    20
+     Cut by horizontal fault . . . . . . . .(faultx) = F
 
 
- T i m e   i n t e g r a t i o n
- ===============================
+ T i me   i n t e g r a t i o n
+ ==============================
 
      Scheme. . . . . . . . . . . . . .(kind) = leapfrog  
      Number of time steps. . . . . (NbSteps) = 3000
@@ -55,21 +62,21 @@
      Total simulation duration . (TotalTime) =    1.500E+00
 
 
- M a t e r i a l   P r o p e r t i e s
- =====================================
+ M a t e r i a l   s e t s :   2 D  e l a s t i c i t y
+ ======================================================
 
-     Number of materials . . . . . . . . . . . = 1
+     Number of material sets . . . . . . . . . =     1
 
-     Material index. . . . . . . . . . . (tag) = 1
-     Material type . . . . . . . . . . .(kind) = Elastic
+     Material number . . . . . . . . . . (tag) =     1
+     Type  . . . . . . . . . . . . . . .(mode) = ISOTR     
      P-wave velocity . . . . . . . . . . .(cp) =   3.200E+03
      S-wave velocity . . . . . . . . . . .(cs) =   1.848E+03
-     Mass density. . . . . . . . . . . . (rho) =   2.000E+03
-     Poisson's ratio . . . . . . . . . . . . . = 250.008E-03
-     First Lame parameter Lambda . . . . . . . =   6.827E+09
-     Second Lame parameter Mu. . . . . . . . . =   6.827E+09
-     Bulk modulus K. . . . . . . . . . . . . . =  11.378E+09
-     Young's modulus E . . . . . . . . . . . . =  17.066E+09
+     Mass density. . . . . . . . . . . (denst) =   2.000E+03
+     Poisson's ratio . . . . . . . . . (poiss) = 250.008E-03
+     First Lame parameter Lambda . . . .(alam) =   6.827E+09
+     Second Lame parameter Mu. . . . . . (amu) =   6.827E+09
+     Bulk modulus K. . . . . . . . . . .(Kvol) =  11.378E+09
+     Young's modulus E. . . . . . . . (young) =  17.066E+09
 
 
  B o u n d a r y   C o n d i t i o n s
@@ -78,18 +85,18 @@
 
      Boundary tag. . . . . . . . . . . . (tag) = 1
      Boundary condition. . . . . . . . .(kind) = ABSORB
-     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
-     Allow incident wave . . . . . .(let_wave) = T
+     Type of absorbing boundary. . . .(stacey) = Stacey              
+     Allow incident wave . . . . . . (let_wave) = T
 
      Boundary tag. . . . . . . . . . . . (tag) = 2
      Boundary condition. . . . . . . . .(kind) = ABSORB
-     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
-     Allow incident wave . . . . . .(let_wave) = T
+     Type of absorbing boundary. . . .(stacey) = Stacey              
+     Allow incident wave . . . . . . (let_wave) = T
 
      Boundary tag. . . . . . . . . . . . (tag) = 4
      Boundary condition. . . . . . . . .(kind) = ABSORB
-     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
-     Allow incident wave . . . . . .(let_wave) = T
+     Type of absorbing boundary. . . .(stacey) = Stacey              
+     Allow incident wave . . . . . . (let_wave) = T
 
 
  S o u r c e s
@@ -97,7 +104,7 @@
 
      X-position (meters). . . . .(coord(1)) =    1.500E+03
      Y-position (meters). . . . .(coord(2)) =  -50.000E+00
-     Source time function . . . . . . . . . = Ricker
+     Source time function . .(TimeFunction) = Ricker
      Fundamental frequency (Hz) . . . .(f0) =  10.000E+00
      Time delay (s) . . . . . . . . (onset) = 150.000E-03
      Multiplying factor . . . . . . (ampli) =   1.000E+00
@@ -109,12 +116,6 @@
  =================
 
      Number of receivers . . . . . . . . . . . . (number) = 2
-     First receiver X location . . . . . . . . (first(1)) =    2.200E+03
-     First receiver Z location . . . . . . . . (first(2)) =    0.000E+00
-     Last receiver X location. . . . . . . . . .(last(1)) =    2.700E+03
-     Last receiver Z location. . . . . . . . . .(last(2)) =    0.000E+00
-
-     Relocate to the nearest GLL node. . . . . . (AtNode) = T
      Subsampling for seismograms recording . . . .(isamp) = 1
      Field recorded. . . . . . . . . . . . . . . .(field) = D
      Axis of the seismogram plot . . . . . . . . .(irepr) = D
@@ -123,10 +124,7 @@
  S n a p s h o t   O u t p u t s
  ===============================
 
-     Timestep of first snapshot output  . . . . . . (it1) = 0
-     Number of timesteps between snapshots. . . . . (itd) = 5000
-     Save results in PS file or not . . . . . . . . .(ps) = T
-     Save grid triangulation for GMT. . . . . . . . (gmt) = F
+     Save results in PS file or not . . . . .(postscript) = T
      Save results in AVS file or not. . . . . . . . (avs) = F
      Save results in Visual3 file or not. . . . (visual3) = F
      Save results in binary file or not . . . . . . (bin) = T
@@ -136,8 +134,6 @@
        Acceleration . . . . . . . . . . . . . . . . . . . = F
        Strain . . . . . . . . . . . . . . . . . . . . . . = F
        Stress . . . . . . . . . . . . . . . . . . . . . . = F
-       Divergence . . . . . . . . . . . . . . . . . . . . = F
-       Curl . . . . . . . . . . . . . . . . . . . . . . . = F
      Selected components for PostScript snapshots :
        X  . . . . . . . . . . . . . . . . . . . . . . . . = F
        Y  . . . . . . . . . . . . . . . . . . . . . . . . = F
@@ -174,7 +170,6 @@
  ===========================================
  
      Numbering GLL points ...... [OK]
-     Total number of elements. . . . . . . . = 800
      Total number of GLL points. . . . . . . = 51681
  
      Saving element/node table in binary file ibool_sem2d.dat ...... [OK]
@@ -186,7 +181,8 @@
  M a t e r i a l   p r o p e r t i e s
  =====================================
  
-     Translating input model ...... [OK]
+     Translating input velocity model ...... [OK]
+     Defining elasticity work arrays ...... [OK]
      Exporting model ...... [OK]
  
  M e s h   p r o p e r t i e s
@@ -198,8 +194,6 @@
     Ratio max/min =    3.622E+00
  
     RESOLUTION: nodes per min wavelength =    5.912E+00
-                for maximum frequency   =   25.000E+00 Hz
-                    minimum wavelength  =  739.000E-03 m
  
      Dump PostScript Resolution_sem2d.ps ...... [OK]
      Dump PostScript Stability_sem2d.ps ...... [OK]
@@ -213,12 +207,9 @@
     Courant number        =  319.227E-03
  
     STABILITY:  CFL number               =  319.227E-03
- 
-     Defining material work arrays ...... [OK]
      Initializing kinematic fields ...... [OK]
        Max displ =    0.000E+00
        Max veloc =    0.000E+00
- 
      Building the mass matrix ...... [OK]
      Defining boundary conditions ...... [OK]
      Initializing receivers ...
@@ -254,6 +245,7 @@
 
   Maximum distance between requested and real =   0.000E+00
 ... [OK]
+Timestep #       0  t =   0.000E+00  vmax =   0.000E+00  dmax =   0.000E+00
 
 Snapshot at timestep = 0
      Dump PostScript va_000_sem2d.ps ...... [OK]
@@ -263,14 +255,13 @@ Snapshot at timestep = 0
 *           S o l v e r   p h a s e           *
 ***********************************************
  
-Timestep #       0  t =   0.000E+00  vmax =   0.000E+00  dmax =   0.000E+00
 
 ---  CPU TIME ESTIMATES (in seconds) :
-  CPU time for initialization . . 455.931E-03
-  CPU time per timestep . . . . .   6.899E-03
-  Total solver CPU time . . . . .  20.697E+00
-                   (mins) . . . . 344.945E-03
-                   (hours). . . .   5.749E-03
+  CPU time for initialization . . 868.053E-03
+  CPU time per timestep . . . . .  40.003E-03
+  Total solver CPU time . . . . . 120.009E+00
+                   (mins) . . . .   2.000E+00
+                   (hours). . . .  33.336E-03
 
 Timestep #     200  t = 100.000E-03  vmax = 886.553E-12  dmax =  13.701E-12
 Timestep #     400  t = 200.000E-03  vmax =   1.643E-09  dmax =  24.377E-12
@@ -279,34 +270,34 @@ Timestep #     800  t = 400.000E-03  vmax =   1.318E-09  dmax =  17.920E-12
 Timestep #    1000  t = 500.000E-03  vmax =   1.405E-09  dmax =  17.545E-12
 Timestep #    1200  t = 600.000E-03  vmax =   1.406E-09  dmax =  18.063E-12
 Timestep #    1400  t = 700.000E-03  vmax =   1.428E-09  dmax =  18.358E-12
-Timestep #    1600  t = 800.000E-03  vmax =   1.448E-09  dmax =  18.332E-12
-Timestep #    1800  t = 900.000E-03  vmax =   1.384E-09  dmax =  18.335E-12
-Timestep #    2000  t =   1.000E+00  vmax =   1.406E-09  dmax =  18.348E-12
+Timestep #    1600  t = 800.000E-03  vmax =   1.448E-09  dmax =  18.333E-12
+Timestep #    1800  t = 900.000E-03  vmax =   1.384E-09  dmax =  18.334E-12
+Timestep #    2000  t =   1.000E+00  vmax =   1.398E-09  dmax =  18.348E-12
 Timestep #    2200  t =   1.100E+00  vmax =   1.444E-09  dmax =  18.633E-12
-Timestep #    2400  t =   1.200E+00  vmax =   1.449E-09  dmax =  18.476E-12
-Timestep #    2600  t =   1.300E+00  vmax =   1.424E-09  dmax =  18.341E-12
+Timestep #    2400  t =   1.200E+00  vmax =   1.449E-09  dmax =  18.477E-12
+Timestep #    2600  t =   1.300E+00  vmax =   1.423E-09  dmax =  18.351E-12
 Timestep #    2800  t =   1.400E+00  vmax =   1.349E-09  dmax =  18.187E-12
-Timestep #    3000  t =   1.500E+00  vmax =   1.446E-09  dmax =  18.416E-12
+Timestep #    3000  t =   1.500E+00  vmax =   1.446E-09  dmax =  18.419E-12
 
 
 ---  CPU TIME INFORMATION (in seconds) :
-  CPU time for initialization . . 455.931E-03
-  CPU time per timestep . . . . .   6.757E-03
-  Total solver CPU time . . . . .  20.270E+00
-                   (mins) . . . . 337.832E-03
-                   (hours). . . .   5.631E-03
+  CPU time for initialization . . 868.053E-03
+  CPU time per timestep . . . . .  41.097E-03
+  Total solver CPU time . . . . . 123.292E+00
+                   (mins) . . . .   2.055E+00
+                   (hours). . . .  34.248E-03
 
- Storing seismograms (SEP format) ...
+ Storing sismos data (SEP format) ...
 
 
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- Program  S E M 2 D P A C K :  end
+ Program  S P E C F E M :  end
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
  Lamb's problem                                    
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------
- D a t e : 09 - 12 - 2009                                 T i m e  : 18:34:38
+ D a t e : 06 - 06 - 2007                                 T i m e  : 17:30:47
  -------------------------------------------------------------------------------
  -------------------------------------------------------------------------------

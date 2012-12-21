@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.11 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module src_wave
 
 ! Incident plane wave
@@ -54,17 +94,15 @@ contains
 ! BEGIN INPUT BLOCK
 !
 ! NAME   : SRC_WAVE
-! GROUP  : SOURCE MECHANISM
+! GROUP  : SRC_MECHANISM
 ! PURPOSE: Incident plane wave through the absorbing boundaries
 ! SYNTAX : &SRC_WAVE angle, phase /
 !
-! ARG: angle    [dble] [0d0]    Incidence angle in degrees within [-180,180]
-!                 counterclockwise from the positive Z (up) direction
-!                 to the wave vector direction:
-!                 Exs: incidence from below if angle in ]-90,90[
-!                      normal incidence from below if angle=0 
-!                      from bottom right if angle=+45 
-!                      from bottom left if angle=-45 
+! ARG: angle    [dble] [0d0]    Incidence angle (arrival direction)
+!                 in degrees counterclockwise from the positive Z (up) direction: 
+!                 Incidence from below: angle in ]-90,90[
+!                 (e.g. 0 is normal incidence from below,
+!                 +45 comes from bottom right, -45 comes from bottom left)
 ! ARG: phase    [char] ['S']    'S' or 'P' (only needed in PSV, ignored in SH)
 !
 ! NOTE   : Incident waves enter through the absorbing boundaries.
@@ -92,7 +130,6 @@ subroutine WAVE_read(src,iin)
   phase = 'S'
 
   read(iin,SRC_WAVE,END=200)
-  angle = modulo(angle+180d0,360d0)-180d0 ! in [-180:180]
   if (echo_input) write(iout,100) angle,phase
 
   if (phase/='P' .and. phase/='S') call IO_abort('WAVE_read: phase must be S or P') 
@@ -125,39 +162,34 @@ end subroutine WAVE_read
 !  enddo
 ! ... but this cannot be done in heterogeneous medium.
 ! 
-subroutine WAVE_init(wave,grid,mat,coord)
+subroutine WAVE_init(wave,grid,elast,coord)
 
   use echo, only: echo_init,iout
   use spec_grid, only : sem_grid_type,SE_node_belongs_to,SE_find_nearest_node
-  use prop_mat, only : matpro_elem_type, MAT_getProp
+  use elastic, only : elast_type,ELAST_inquire
 
   type (src_wave_type), intent(inout) :: wave
   type (sem_grid_type), intent(in)    :: grid
-  type(matpro_elem_type), intent(in)  :: mat(:)
+  type (elast_type)   , intent(in)    :: elast
   double precision    , intent(out)   :: coord(NDIME) ! coord of reference point
 
-  double precision :: angle,c
-  integer :: iglob
-  integer :: i,j,e
+  double precision :: cp,cs,phase,angle,c
+  integer :: ip, iglob
+  integer, pointer, dimension(:) :: i,j,e
 
-  if (wave%angle>=0d0) then
+  coord(2) = minval(grid%coord(2,:))
+  if (wave%angle>0) then
     coord(1) = maxval(grid%coord(1,:))
   else
     coord(1) = minval(grid%coord(1,:))
   endif
-  if (abs(wave%angle)<90d0) then
-    coord(2) = minval(grid%coord(2,:))
-  else
-    coord(2) = maxval(grid%coord(2,:))
-  endif
 
-  call SE_find_nearest_node(wave%coord,grid,iglob,coord)
+  call SE_find_nearest_node(coord,grid,iglob,coord)
+  wave%coord = coord
 
   call SE_node_belongs_to(iglob,e,i,j,grid)
-  call MAT_getProp(wave%cp,mat(e),'cp',i,j)
-  call MAT_getProp(wave%cs,mat(e),'cs',i,j)
-  call MAT_getProp(wave%mu,mat(e),'mu',i,j)
-  call MAT_getProp(wave%lambda,mat(e),'lambda',i,j)
+  call ELAST_inquire(elast,i(1),j(1),e(1),cp=wave%cp,cs=wave%cs,mu=wave%mu,lambda=wave%lambda)
+  deallocate(i,j,e)
 
   angle = PI*wave%angle/180.d0
   wave%k = (/ -sin(angle), cos(angle) /)

@@ -1,4 +1,4 @@
-% SET_MESH_LAYERS sets the parameters of a layered mesh for 2D SH waves
+% SET_MESH_LAYERS sets the parameters a layered mesh for 2D SH waves
 % according to a minimum number of elements per wavelength
 %
 % INPUTS	model	layered media structure with the following components
@@ -52,7 +52,7 @@ else
   fclose(fid);
 end
 
-disp(sprintf('&MATERIAL tag=%u, kind=''ELAST'' /\n &MAT_ELASTIC rho=%f, cp=%f, cs=%f /\n', ...
+disp(sprintf('&MATERIAL tag=%u, mode="ISOTR" /\n  %f %f %f\n', ...
      [p.tag(:),model.rho(:),model.cp(:),model.cs(:)]'))     
 
 %------ plots --------

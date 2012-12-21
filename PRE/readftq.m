@@ -1,10 +1,10 @@
-% READFTQ reads a Q4 mesh (4-node quadrangles) from an FTQ file
+% ftq = readftq(name)
 %
-% SYNTAX	ftq = readftq(name)
+%  PURPOSE	Reads a Q4 mesh (4-node quadrangles) from an FTQ file
 %
-% INPUT		name	prefix of the FTQ file name
+%  INPUT	name	prefix of the FTQ file name
 %
-% OUTPUT	ftq  	structure containing:
+%  OUTPUT	ftq  	structure containing:
 %        	ftq.npgeo		number of nodes
 %        	ftq.nelem		number of elements
 %        	ftq.etags(nelem)	domain tag for each element
@@ -18,9 +18,8 @@
 
 function ftq = readftq(name)
 
-name = deblank(name);
-if isempty(regexp(name,'\.ftq$')), name = strcat(name,'.ftq'); end
-fid = fopen(name);
+ftqfile = strcat(name,'.ftq');
+fid = fopen(ftqfile);
 header = fscanf(fid,'%i',[4 1]);
 ntri = header(3);
 if ntri >0, error( sprintf('There are %n triangles in your mesh!',ntri) ), end

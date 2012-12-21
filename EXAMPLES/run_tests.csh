@@ -21,8 +21,7 @@ foreach name (`ls`)
  # run test 
   rm -f *_sem2d.* test.out
   sem2dsolve > info
-  #matlab -nosplash -nojvm < analyze_test.m > test.out
-  matlab7.9 -nosplash -nojvm < analyze_test.m > test.out
+  matlab -nosplash -nojvm < analyze_test.m > test.out
   grep -sq "Test = 1" test.out  
  # exit code from last command $status==0 means succesful
 
@@ -32,15 +31,6 @@ foreach name (`ls`)
   else
     echo "......... [FAILED]"
   endif
-
-#  grep -q "FLEXlm error" test.out  
-#  if ($status == 0) then
-#  else
-#    echo "status = " $status
-#    echo "Matlab license error !"
-#    cat test.out
-#    exit 1
-#  endif
 
   cd $start
 end

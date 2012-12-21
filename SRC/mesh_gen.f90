@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.11 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mesh_gen
 
 ! MESH_GEN is a driver for the finite element mesh generation.
@@ -8,7 +48,6 @@ module mesh_gen
   use mesh_cartesian
   use mesh_layers
   use mesh_emc2
-  use mesh_mesh2d
   use fem_grid, only : fem_grid_type
 
   implicit none
@@ -20,13 +59,11 @@ module mesh_gen
     type (mesh_cart_type), pointer :: cart
     type (mesh_layers_type), pointer :: layers
     type (fem_grid_type), pointer :: emc2
-    type (fem_grid_type), pointer :: mesh2d
   end type mesh_type
   
   integer, parameter :: tag_cart = 1 &
                        ,tag_layers = 2 &
-                       ,tag_emc2 = 3 &
-                       ,tag_mesh2d = 4
+                       ,tag_emc2 = 3
 
   public :: mesh_type, MESH_read, MESH_build
 
@@ -39,17 +76,17 @@ contains
 ! NAME   : MESH_DEF
 ! PURPOSE: Selects a method to import/generate a mesh.
 ! SYNTAX : &MESH_DEF method /
-!          followed by a &MESH_method input block
 !
-! ARG: method   [name] [none] Meshing method name:
-!               'CARTESIAN', 'LAYERED', 'EMC2', 'MESH2D'
+! ARG: method   [name] [none] 'CARTESIAN', 'LAYERED' or 'EMC2'
+!               The &MESH_DEF input block must be followed by a
+!               &MESH_method input block
 !               
 ! END INPUT BLOCK
 
 subroutine MESH_read(mesh,iin)
 
   use stdio, only : IO_abort
-  use echo, only : iout, echo_input
+  use echo, only : iout
 
   type(mesh_type), intent(out) :: mesh
   integer, intent(in) :: iin
@@ -62,7 +99,7 @@ subroutine MESH_read(mesh,iin)
   rewind(iin)
   read(iin,MESH_DEF,END= 100)
   if (method == ' ') call IO_abort('mesh_read: you must set the "method" ')
-  if (echo_input) write(iout,200) method
+  write(iout,200) method
 
   select case (method) 
     case('CARTESIAN') 
@@ -77,12 +114,8 @@ subroutine MESH_read(mesh,iin)
       mesh%kind = tag_emc2
       allocate(mesh%emc2)
       call EMC2_read(mesh%emc2,iin)
-    case('MESH2D')
-      mesh%kind = tag_mesh2d
-      allocate(mesh%mesh2d)
-      call MESH2D_read(mesh%mesh2d,iin)
     case default
-      call IO_abort('mesh_read: unknown method')
+      call IO_abort('mesh_read: unknown "method" ')
   end select
 
   return
@@ -91,7 +124,7 @@ subroutine MESH_read(mesh,iin)
 
 200 format(//,' M e s h   G e n e r a t i o n', &
       /1x,29('='),//5x, &
-      'Method  . . . . . . . . . . . . . . . .(method) = ',a)
+      'Method. . . . . . . . . . . . . . . . .(method) = ',a)
 
 end subroutine MESH_read
 
@@ -128,8 +161,6 @@ subroutine MESH_build(grid,mesh)
       call MESH_LAYERS_build(mesh%layers,grid)
     case(tag_emc2)
       call EMC2_build(mesh%emc2,grid)
-    case(tag_mesh2d)
-      call MESH2D_build(mesh%mesh2d,grid)
   end select
 
   if (echo_init) then 
@@ -137,7 +168,6 @@ subroutine MESH_build(grid,mesh)
     write(iout,fmt1,advance='no') 'Saving node coordinates in file MeshNodesCoord_sem2d.tab'
   endif
 
-  ounit = IO_new_unit()
   open(ounit,file='MeshNodesCoord_sem2d.tab')
   do i=1,grid%npoin
     write(ounit,*) real(grid%coord(:,i))
@@ -151,14 +181,13 @@ subroutine MESH_build(grid,mesh)
 
   ounit = IO_new_unit()
   open(ounit,file='ElmtNodes_sem2d.tab')
-  write(fmt,'(a,i1,a)') "(", grid%ngnod, "(1x,i6))" 
+  write(fmt,'(a,i1,a)') "(", grid%ngnod, "(x,i6))" 
   do e=1,grid%nelem
     write(ounit,fmt) grid%knods(:,e)
   enddo
   close(ounit)
 
   if (echo_init) write(iout,fmtok)
-
 
 end subroutine MESH_build
 
