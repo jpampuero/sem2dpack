@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module problem_class
 
 ! PROBLEM_CLASS:  
@@ -11,12 +49,11 @@ module problem_class
   use time_evol   , only : timescheme_type
   use sources     , only : source_type
   use receivers   , only : rec_type
-  use energy      , only : energy_type
 
   implicit none
   private
 
-  type problem_type ! a huge structure that stores all the data needed to solve a problem
+  type problem_type
    ! input data for the macro-mesh
     type(mesh_type) :: mesh
    ! data for the spectral element mesh
@@ -29,8 +66,6 @@ module problem_class
     type(matwrk_elem_type), pointer :: matwrk(:)
    ! data for boundary conditions
     type(bc_type), pointer :: bc(:) => null()
-   ! energies over the whole domain
-    type(energy_type) :: energy
    ! physical variables, global pointwise storage
     type(fields_type) :: fields
    ! inverse mass matrix (diagonal)

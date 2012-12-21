@@ -7,10 +7,15 @@
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN'/
 
-&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=100,50, fztag=2/
-#&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=200,100, fztag=2/
-#&MESH_CART xlim=0d3,0.15d3, zlim=0d3,0.075d3, nelem=100,50, fztag=2/
-#&MESH_CART xlim=0d3,0.075d3, zlim=0d3,0.0375d3, nelem=100,50, fztag=2/
+&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=100,50/
+#&MESH_CART xlim=0d3,0.15d3, zlim=0d3,0.075d3, nelem=100,50/
+#&MESH_CART xlim=0d3,0.075d3, zlim=0d3,0.0375d3, nelem=100,50/
+&MESH_CART_DOMAIN tag=1, ex=1,100, ez=3,50 /
+&MESH_CART_DOMAIN tag=2, ex=1,100, ez=1,2 /
+
+#&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=200,100/
+#&MESH_CART_DOMAIN tag=1, ex=1,200, ez=2,100 /
+#&MESH_CART_DOMAIN tag=2, ex=1,200, ez=1,1 /
 
 #---- Material parameters --------------
 &MATERIAL tag=1, kind='ELAST' /
@@ -30,14 +35,17 @@
 &BC_DYNFLT_RSF Dc=7.44d-4, MuS=0.7d0, a=0.001d0, b=0.101d0, Vstar=0.1d0  /
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB stacey=F /
+ 
 &BC_DEF  tag = 3 , kind = 'ABSORB' /  
+&BC_ABSORB stacey=T /
 
 &BC_DEF  tag = 4 , kind = 'DIRNEU' /
 &BC_DIRNEU h='N', v='D' /
 
 #---- Time scheme settings ----------------------
 &TIME  TotalTime=0.10d0, courant = 0.55d0, kind='leapfrog' /
-#&TIME  TotalTime=0.025d0, courant = 0.55d0, kind='leapfrog' /
+&TIME  TotalTime=0.025d0, courant = 0.55d0, kind='leapfrog' /
 #&TIME  TotalTime=0.0125d0, courant = 0.55d0, kind='leapfrog' /
 
 #----- Receivers ---------------------------------

@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module receivers
 
   use stdio, only: IO_abort
@@ -29,26 +67,25 @@ contains
 !
 ! NAME   : REC_LINE
 ! PURPOSE: Defines a line of receivers
-! SYNTAX : If single receiver line: 
-!            &REC_LINE number,first,last,AtNode,isamp,field,irepr /
-!          If receiver locations from file:
-!            &REC_LINE file,AtNode,isamp,field,irepr /
+! SYNTAX : &REC_LINE number,isamp,field,first,last,file,AtNode,irepr /
 !
 ! ARG: number   [int] [0] Number of stations in the line
-! ARG: first    [dble(2)] Receivers can be located along a line,
-!                this is the position (x,z) of the first receiver
-! ARG: last     [dble(2)] Position (x,z) of the last receiver,
-!                other receivers will be located with regular spacing
-!                between First and Last.
-! ARG: file     [name] ['none'] Station positions can instead be read 
-!                from an ASCII file, with 2 columns: X and Z (in meters)
-! ARG: AtNode   [log] [T] Relocate the stations at the nearest GLL node
 ! ARG: isamp    [int] [1] Sampling stride (in number of timesteps). Note that
 !                for stability reasons the timestep can be very small.
 ! ARG: field    [char] ['V'] The field in the seismogram:
 !                               'D'     displacement
 !                               'V'     velocity
 !                               'A'     acceleration
+! ARG: first    [dble(2)] Receivers can be located along a line,
+!                this is the position (x,z) of the first receiver
+! ARG: last     [dble(2)] Position (x,z) of the last receiver,
+!                other receivers will be located with regular spacing
+!                between First and Last.
+! ARG: file     [name] ['none'] Station positions can instead be read 
+!                from an ASCII file, with 2 columns per line:
+!                (1) X position (in m) and
+!                (2) Z position (in m)
+! ARG: AtNode	[log] [T] Relocate the stations at the nearest GLL node
 ! ARG: irepr    [char] ['D'] Abscissa for the seismic multitrace plot:
 !                               'X' Horizontal position
 !                               'Z' Depth
@@ -90,7 +127,7 @@ contains
   read(iin,REC_LINE,END = 200) 
   allocate(rec)
 
-  if (number < 0) call IO_abort('REC_read: "number" must be positive')
+  if (number <= 0) call IO_abort('REC_read: "number" is null or missing')
 
   rec%isamp  = isamp
   rec%SeisField = field
@@ -105,6 +142,8 @@ contains
     case('D'); rec%irepr  = 3
     case default; call IO_abort('REC_read: unknown "irepr" [X,Z,D]')
   end select
+  
+  if (echo_input) write(iout,100) number,isamp,field,irepr
 
   if (file == 'none') then
 
@@ -113,7 +152,6 @@ contains
     if ( any(last == init_double) ) &
       call IO_abort('REC_read: you must set "last" station coordinates')
     rec%nx   = number
-    if (echo_input) write(iout,100) rec%nx,first,last
     allocate(rec%coord(NDIME,rec%nx))
     if (number>1) then
       do i = 1,rec%nx
@@ -125,7 +163,6 @@ contains
 
   else
     rec%nx = IO_file_length(file)
-    if (echo_input) write(iout,110) rec%nx,file
     allocate(rec%coord(NDIME,rec%nx))
     iin2 = IO_new_unit()
     open(iin2,file=file,status='old')
@@ -135,25 +172,11 @@ contains
     close(iin2)
   endif
 
-  if (echo_input) write(iout,120) AtNode,isamp,field,irepr
-
   return
 
   100 format(//1x,'R e c e i v e r s', &
   /1x,17('='),//5x, &
   'Number of receivers . . . . . . . . . . . . (number) = ',I0/5x, &
-  'First receiver X location . . . . . . . . (first(1)) = ',EN12.3/5x, &
-  'First receiver Z location . . . . . . . . (first(2)) = ',EN12.3/5x, &
-  'Last receiver X location. . . . . . . . . .(last(1)) = ',EN12.3/5x, &
-  'Last receiver Z location. . . . . . . . . .(last(2)) = ',EN12.3)
-
-  110 format(//1x,'R e c e i v e r s', &
-  /1x,17('='),//5x, &
-  'Number of receivers . . . . . . . . . . . . (number) = ',I0/5x, &
-  'Receiver locations file name. . . . . . . . . (file) = ',A)
-
-  120 format(/5x, &
-  'Relocate to the nearest GLL node. . . . . . (AtNode) = ',L1/5x, &
   'Subsampling for seismograms recording . . . .(isamp) = ',I0/5x, &
   'Field recorded. . . . . . . . . . . . . . . .(field) = ',A/5x, &
   'Axis of the seismogram plot . . . . . . . . .(irepr) = ',A)
@@ -168,7 +191,7 @@ contains
   subroutine REC_init(rec,grid,time,fields)
 
     use fields_class, only : fields_type
-    use time_evol, only : timescheme_type, TIME_getTimeStep, TIME_getNbTimeSteps
+    use time_evol, only : timescheme_type
     use spec_grid, only : sem_grid_type
     use memory_info
     use echo, only: iout,info=>echo_init
@@ -183,9 +206,9 @@ contains
 
     call REC_posit(rec,grid)
 
-    rec%tsamp = TIME_getTimeStep(time)*rec%isamp
+    rec%tsamp = time%dt*rec%isamp
 
-    rec%nt = TIME_getNbTimeSteps(time)/rec%isamp +1
+    rec%nt = time%nt/rec%isamp +1
     if (rec%nt == 0) call IO_abort('REC_init: zero samples')
       
     allocate(rec%sis(rec%nt,rec%nx,fields%ndof))
@@ -298,7 +321,8 @@ contains
   ' Receiver  x-requested  z-requested   x-obtained   z-obtained   distance'/)
 
  300  format(//1x,'R e c e i v e r s'/1x,17('=')// &
-  ' Receiver  x-requested  z-requested   x-obtained   z-obtained   distance'/)
+  ' Receiver            x            z   element           xi          eta'/)
+ 310   format(2x,i7,1x,EN12.3,1x,EN12.3,1x,i9,1x,EN12.3,EN12.3)
 
   end subroutine REC_posit
 
@@ -314,7 +338,7 @@ contains
   integer, intent(in) :: it
   type(sem_grid_type), intent(in) :: grid
 
-  integer :: itsis,n,i,k,j,e,iglob
+  integer :: itsis,n,i,k,j,iglob
   double precision, allocatable :: vloc(:,:)
 
   if ( mod(it,rec%isamp) /= 0 ) return
@@ -327,11 +351,10 @@ contains
   else
     allocate(vloc(grid%ngll*grid%ngll,size(rec%field,2)))
     do n=1,rec%nx
-      e = rec%einterp(n)
       k=1
       do j=1,grid%ngll
       do i=1,grid%ngll
-        iglob = grid%ibool(i,j,e)
+        iglob = grid%ibool(i,j,rec%einterp(n))
         vloc(k,:) = rec%field(iglob,:)
         k=k+1
       enddo
@@ -363,7 +386,7 @@ contains
   character :: posvar
 
 !---- binary data -------------------------------------------------------
-  write(iout,*) 'Storing seismograms (SEP format) ...'
+  write(iout,*) 'Storing sismos data (SEP format) ...'
   INQUIRE( IOLENGTH=iol ) rec%sis(:,1,1)
   ounit = IO_new_unit()
 

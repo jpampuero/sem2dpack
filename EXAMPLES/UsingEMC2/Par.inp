@@ -34,13 +34,13 @@
 &BC_ABSORB Stacey=F /
 
 #---- Time scheme settings ----------------------
-&TIME  TotalTime=25.d0, Courant = 0.55d0, kind='leapfrog' /
-&TIME_NEWMARK beta=0.d0, gamma=0.5d0 /
+&TIME  TotalTime=25.d0, Courant = 0.55d0 /
+&TIME_NEWMARK alpha=1.d0, beta=0.d0, gamma=0.5d0 /
 
 #---- Sources ----------------------------------
 &SRC_DEF  stf='RICKER', Mechanism='WAVE' Coord= -1160000.d0,-2000.d0 /
 &STF_RICKER  f0 = 1.d0 , Onset = 1.5d0 ,Ampli = 1.d0 /  
-#&SRC_FORCE Angle = 90. /
+&SRC_FORCE Angle = 90. /
 &SRC_WAVE Angle = 30. , phase='S' /
 
 #----- Receivers ---------------------------------
@@ -50,7 +50,7 @@
 &REC_LINE Number = 31 , First = -1163068.0d0,1.d3, Last = -1159697.36d0,1.d3, 
           Isamp=10 / 
 
-#--------- Snapshots settings ----------------------
-&SNAP_DEF itd=200000, fields='Vdc', components='x' / # itd = 3500
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=400000, fields='V', components='x' / # itd = 3500
 &SNAP_PS  Mesh=T,Vectors=F,Color=T, Interpol = T, DisplayPts=7, 
           ScaleField=0.2d0 /

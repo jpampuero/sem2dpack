@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module plot_gen
 
   use plot_visual3
@@ -8,9 +46,9 @@ module plot_gen
   implicit none
   private
 
-  integer, parameter :: nb_fields = 7
+  integer, parameter :: nb_fields = 5
   logical, save :: selected_fields(nb_fields)
-  character(nb_fields), parameter :: field_names='DVAESdc'
+  character(nb_fields), parameter :: field_names='DVAES'
 
   integer, parameter :: nb_comps = 4
   logical, save :: selected_comps(nb_comps)
@@ -31,7 +69,7 @@ contains
 ! GROUP  : SNAPSHOT_OUTPUTS
 ! PURPOSE: Set preferences for exporting snapshots
 ! SYNTAX : &SNAP_DEF it1, itd, fields, components, bin, visual3, avs, ps, gmt /
-!          Followed by a &SNAP_PS block if ps=T.
+!          Followed by a &POSTCRIPT block if ps=T.
 !
 ! ARG: it1      [int] [0]   Time step of first snapshot output
 ! ARG: itd      [int] [100] Number of timesteps between snapshots
@@ -42,8 +80,6 @@ contains
 !                 'A'     acceleration (ax,ay,az,aa)
 !                 'E'     strain (e11,e22,e12,e23,e13)
 !                 'S'     stress (s11,s22,s12,s33,e13,e23)
-!                 'd'     divergence rate (dvx/dx + dvz/dz)
-!                 'c'     curl rate (dvx/dz - dvz/dx)
 ! ARG: components [char*] ['ya'] components for PostScript outputs:
 !                 in P-SV: 'x','z' and/or 'a' (amplitude). 'y' is ignored 
 !                 in SH:   'y' only. Other values are ignored. 
@@ -97,7 +133,6 @@ contains
     selected_comps(2)=.true.
     selected_comps(3)=.false.
     selected_comps(4)=.false.
-    selected_fields(6:7) = .false. ! no div/curl for SH
   else
     selected_comps(2)=.false.
   endif
@@ -127,8 +162,6 @@ contains
   '  Acceleration . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Strain . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Stress . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
-  '  Divergence . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
-  '  Curl . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   'Selected components for PostScript snapshots :',/5x, &
   '  X  . . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
   '  Y  . . . . . . . . . . . . . . . . . . . . . . . . = ',L1/5x, &
@@ -145,8 +178,7 @@ contains
   use problem_class
   use stdio, only : IO_rw_field, IO_new_unit
   use fields_class, only : FIELD_get_elem
-  use mat_gen, only : MAT_strain, MAT_stress_dv, MAT_write, MAT_divcurl
-  use time_evol, only : TIME_getTime
+  use mat_gen, only : MAT_strain, MAT_stress_dv, MAT_write
 
   type(problem_type), intent(in) :: pb
   integer, intent(in) :: it
@@ -156,13 +188,12 @@ contains
   double precision, pointer :: f(:,:)
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: d,v
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof+1) :: stress,strain
-  double precision, dimension(pb%grid%ngll,pb%grid%ngll,2) :: divcurl
-  integer :: iunit(20)
+  integer :: iunit(10)
   character(10) :: tag
-  character(30) :: fnames(20)
+  character(30) :: fnames(10)
   character(50) :: ps_file_name
   character :: fchar
-  integer :: ndof,ngll,i,e,nssf,k,k0_stress,k_div,k_curl,iol
+  integer :: ndof,ngll,i,e,nssf,k,k0,iol
   integer :: comp_indx(nb_comps)
 
   if (.not.plot_snap) return
@@ -203,7 +234,7 @@ contains
       if (selected_comps(k)) then
         write(ps_file_name,'( A,A,"_",A,"_sem2d.ps" )') fchar,comp_names(k:k),trim(tag)
         call PLOT_PS(file=trim(ps_file_name), vfield=f,comp=comp_indx(k) &
-                  ,it_in=it,time_in=TIME_getTime(pb%time) &
+                  ,it_in=it,time_in=pb%time%time &
                   ,grid=pb%grid,mat=pb%matpro,stitle=stitle &
                   ,src=pb%src,rec=pb%rec)
       endif
@@ -215,52 +246,34 @@ contains
 
   enddo
 
- !-- other snapshots in binary output files
- !   strain, stress, div, curl
-
-  nssf = 0  ! number of snapshot fields
-  k0_stress = 0
-  k_div = 0
-  k_curl = 0
+  nssf = 0
 
   if (pb%fields%ndof==1) then
 
     if (selected_fields(4)) then
-      fnames(1) = "e13"
-      fnames(2) = "e23"
       nssf=2
+      write(fnames(1),'("e13_",A)') trim(tag) 
+      write(fnames(2),'("e23_",A)') trim(tag) 
     endif
     if (selected_fields(5)) then
-      k0_stress = nssf
-      fnames(k0_stress+1) = "s13"
-      fnames(k0_stress+2) = "s23"
+      write(fnames(nssf+1),'("s13_",A)') trim(tag) 
+      write(fnames(nssf+2),'("s23_",A)') trim(tag) 
       nssf=nssf+2
     endif
 
   else
 
     if (selected_fields(4)) then
-      fnames(1) = "e11"
-      fnames(2) = "e22"
-      fnames(3) = "e12"
       nssf=3
+      write(fnames(1),'("e11_",A)') trim(tag) 
+      write(fnames(2),'("e22_",A)') trim(tag) 
+      write(fnames(3),'("e12_",A)') trim(tag) 
     endif
     if (selected_fields(5)) then
-      k0_stress = nssf
-      fnames(k0_stress+1) = "s11"
-      fnames(k0_stress+2) = "s22"
-      fnames(k0_stress+3) = "s12"
+      write(fnames(nssf+1),'("s11_",A)') trim(tag) 
+      write(fnames(nssf+2),'("s22_",A)') trim(tag) 
+      write(fnames(nssf+3),'("s12_",A)') trim(tag) 
       nssf=nssf+3
-    endif
-    if (selected_fields(6)) then
-      k_div = nssf+1
-      fnames(k_div) = "div"
-      nssf=nssf+1
-    endif
-    if (selected_fields(7)) then
-      k_curl = nssf+1
-      fnames(k_curl) = "curl"
-      nssf=nssf+1
     endif
 
   endif
@@ -270,37 +283,30 @@ contains
     ndof = pb%fields%ndof
     ngll = pb%grid%ngll
 
+    k0=0
+    if (selected_fields(4)) k0=ndof+1
     inquire( IOLENGTH=iol ) real(d(:,:,1))
     do k=1,nssf
       iunit(k) = IO_new_unit()
-      open(unit=iunit(k),file=trim(fnames(k))//'_'//trim(tag)//'_sem2d.dat' &
-          ,status='replace',access='direct',recl=iol)
+      open(unit=iunit(k),file=trim(fnames(k))//'_sem2d.dat',status='replace',access='direct',recl=iol)
     enddo
 
     do e=1,pb%grid%nelem
 
       d = FIELD_get_elem(pb%fields%displ,pb%grid%ibool(:,:,e))
-      v = FIELD_get_elem(pb%fields%veloc,pb%grid%ibool(:,:,e))
-
       if (selected_fields(4)) then
         strain = MAT_strain(d,pb%matwrk(e),pb%grid,e,ngll,ndof)
         do k=1,ndof+1
           write(iunit(k),rec=e) real(strain(:,:,k))
         enddo
       endif
-      
+
       if (selected_fields(5)) then
+        v = FIELD_get_elem(pb%fields%veloc,pb%grid%ibool(:,:,e))
         call MAT_stress_dv(stress,d,v,pb%matwrk(e),pb%matpro(e),pb%grid,e,ngll,ndof)
         do k=1,ndof+1
-          write(iunit(k0_stress+k),rec=e) real(stress(:,:,k))
+          write(iunit(k0+k),rec=e) real(stress(:,:,k))
         enddo
-      endif
-
-      if (selected_fields(6) .or. selected_fields(7)) then
-        divcurl = MAT_divcurl(v,pb%matwrk(e),pb%grid,e,ngll,ndof)
-        !divcurl = MAT_divcurl(d,pb%matwrk(e),pb%grid,e,ngll,ndof)
-        if (selected_fields(6)) write(iunit(k_div),rec=e) real(divcurl(:,:,1))
-        if (selected_fields(7)) write(iunit(k_curl),rec=e) real(divcurl(:,:,2))
       endif
 
     enddo

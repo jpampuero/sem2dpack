@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_pwconr
 
   implicit none
@@ -24,20 +62,17 @@ module distribution_pwconr
 ! NAME   : DIST_PWCONR
 ! GROUP  : DISTRIBUTIONS_2D
 ! PURPOSE: Piecewise constant radial (2D) distribution.
-!          This distribution defines a set of annular zones, centered
-!          at an arbitrary reference point, and assigns constant values 
-!          within each zone.
 ! SYNTAX : &DIST_PWCONR num, ref /
 !             r(1)  ... ...  r(num-1)
 !          v(1) v(2) ... v(num-1) v(num)
 !
-! ARG: num      [int] [none] Number of annular zones (including inner and exterior)
+! ARG: num      [int] [none] Number of radial zones (including outermost)
 ! ARG: ref      [dble(2)] [(0d0,0d0)] Reference point: center of radial zones
-! ARG: r        [dble(num-1)] [none] External radius of zones:
+! ARG: r        [dble(num-1)] [none] External radius of zones: 
 !                first zone R <= r(1), 
 !                second r(1) < R <= r(2), ...
 !                last r(num-1) < R 
-! ARG: v        [dble(num)] [none] Value inside each zone
+! ARG: v        [dble(num)] [none] Values inside each zone
 !
 ! END INPUT BLOCK
 

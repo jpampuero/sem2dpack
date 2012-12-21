@@ -13,10 +13,7 @@
 %       		acceleration    ax,az                   ay
 %       		strain          e11,e22,e12             e13,e23
 %       		stress          s11,s22,s12 	        s13,s23
-%			divergence	div			--
-%			curl		curl			--
 %			damage		dmg			--
-%			plastic		pla			--
 %
 % 		isnap   snapshot index, given by the numbers of the 
 %			snapshot data file name (*_xxx_sem2d.dat)
@@ -37,12 +34,10 @@
 %
 function field = sem2d_snapshot_read(fname,isnap,datadir)
 
-if exist('isnap','var') && ~isempty(isnap)
+if exist('isnap','var')
   fname = sprintf('%s_%3.3u_sem2d.dat',fname,isnap);
-else
-  fname = sprintf('%s_sem2d.dat',fname);
 end
-if exist('datadir','var') && ~isempty(datadir)
+if exist('datadir','var') 
   if datadir(end) ~= '/', datadir = [datadir '/']; end
 else
   datadir='';
@@ -67,7 +62,6 @@ fname_pre = filename_prefix(fname);
 if ~isempty(strfind(fname_pre,'dmg_'))
  % WARNING : should read dmg_elems.tab 
   ftmp = reshape( field, ngll,ngll,[],nelem );
-  field = [];
   field.alpha = squeeze(ftmp(:,:,1,:)); % damage variable
   field.ep11 = squeeze(ftmp(:,:,2,:));  % plastic strain
   field.ep22 = squeeze(ftmp(:,:,3,:));
@@ -76,7 +70,6 @@ if ~isempty(strfind(fname_pre,'dmg_'))
 elseif ~isempty(strfind(fname_pre,'pla_'))
  % WARNING : should read pla_elems.tab 
   ftmp = reshape( field, ngll,ngll,[],nelem );
-  field = [];
   field.ep11 = squeeze(ftmp(:,:,1,:));  % plastic strain
   field.ep22 = squeeze(ftmp(:,:,2,:));
   field.ep12 = squeeze(ftmp(:,:,3,:));

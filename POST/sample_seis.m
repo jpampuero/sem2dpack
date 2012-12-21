@@ -2,7 +2,7 @@
 % Assumes a 2D P-SV simulation (ndof=2)
 
 % Read seismogram outputs from SEM2DPACK
-data = sem2d_read_seis();
+data = read_seis();
 
 % Plot all x-component traces together, offset by distance to first station
 figure(1)

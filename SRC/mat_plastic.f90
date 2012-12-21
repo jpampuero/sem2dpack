@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_plastic
 ! plane strain Coulomb plasticity following Andrews (2005)
 
@@ -49,17 +87,21 @@ contains
 ! PURPOSE: Set material properties for elasto-plastic material
 !          with Mohr-Coulomb yield criterion
 !          and non-dilatant (null volumetric plastic strain)
-! SYNTAX : &MAT_PLASTIC cp,cs,rho,phi,coh,Tv,e0 /
+! SYNTAX : &MAT_PLASTIC cp,cs,rho,phi,coh,e0,ep /
 !
 ! ARG: cp       [dble][0d0] P wave velocity
 ! ARG: cs       [dble][0d0] S wave velocity
 ! ARG: rho      [dble][0d0] density
 ! ARG: phi      [dble][0d0] internal friction angle
 ! ARG: coh      [dble][0d0] cohesion
-! ARG: Tv       [dble][0d0] visco-plastic relaxation time
-! ARG: e0       [dble(3)][0d0] initial total strain (11, 22 and 12)
+! ARG: e0       [dble(4)][0d0] initial total strain (11, 22 and 12)
+! ARG: ep       [dble(4)][0d0] initial plastic strain (11, 22 and 12)
 !
 ! END INPUT BLOCK
+
+! DEVEL: still testing visco-plasticity (Tv)
+! SYNTAX : &MAT_PLASTIC cp,cs,rho,phi,coh,Tv,e0,ep /
+! ARG: Tv       [dble][0d0] visco-plastic timescale
 
   subroutine MAT_PLAST_read(input,iin)
 
@@ -68,21 +110,22 @@ contains
   type (matpro_input_type), intent(inout) :: input
   integer, intent(in) :: iin
 
-  double precision :: rho,cp,cs,phi,coh,Tv,e0(3)
+  double precision :: rho,cp,cs,phi,coh,Tv,e0(3),ep(3)
 
-  NAMELIST / MAT_PLASTIC / cp,cs,rho,phi,coh,Tv,e0
+  NAMELIST / MAT_PLASTIC / cp,cs,rho,phi,coh,Tv,e0,ep
   
   cp  = 0d0
   cs  = 0d0
   rho = 0d0
   e0  = 0d0
+  ep  = 0d0
   phi = 0d0
   coh = 0d0
   Tv  = 0d0
 
   read(iin, MAT_PLASTIC, END=100)
 
-  write(iout,200) cp,cs,rho,phi,coh,Tv,e0
+  write(iout,200) cp,cs,rho,phi,coh,Tv,e0,ep
 
   call MAT_setKind(input,isPlastic)
   
@@ -97,6 +140,9 @@ contains
   call MAT_setProp(input,'e22_0',e0(2))
   call MAT_setProp(input,'e12_0',e0(3))
 
+  call MAT_setProp(input,'e11_p',ep(1))
+  call MAT_setProp(input,'e22_p',ep(2))
+  call MAT_setProp(input,'e12_p',ep(3))
 
   return
 
@@ -111,7 +157,10 @@ contains
     'Visco-plastic timescale . . . . . . .(Tv) =',EN12.3,/5x, &
     'Initial total strain 11 . . . . . (e0(1)) =',EN12.3,/5x, &
     '                     22 . . . . . (e0(2)) =',EN12.3,/5x, &
-    '                     12 . . . . . (e0(3)) =',EN12.3)
+    '                     12 . . . . . (e0(3)) =',EN12.3,/5x, &
+    'Initial plastic strain 11 . . . . (ep(1)) =',EN12.3,/5x, &
+    '                       22 . . . . (ep(2)) =',EN12.3,/5x, &
+    '                       12 . . . . (ep(3)) =',EN12.3)
 
   end subroutine MAT_PLAST_read
 
@@ -140,6 +189,10 @@ contains
   call MAT_setProp(elem,'e22_0',ecoord,MAT_PLAST_mempro)
   call MAT_setProp(elem,'e12_0',ecoord,MAT_PLAST_mempro)
 
+  call MAT_setProp(elem,'e11_p',ecoord,MAT_PLAST_mempro)
+  call MAT_setProp(elem,'e22_p',ecoord,MAT_PLAST_mempro)
+  call MAT_setProp(elem,'e12_p',ecoord,MAT_PLAST_mempro)
+
   end subroutine MAT_PLAST_init_elem_prop
 
 !=======================================================================
@@ -152,7 +205,7 @@ contains
   integer, intent(in) :: ngll
   double precision, intent(in) :: dt
 
-  double precision :: phi,Tv,lambda,two_mu
+  double precision :: phi,Tv,lambda,two_mu,e_el(3)
 
  ! elastic coefficients
 !  allocate(m%lambda(n,n)) ! NOTE: uniform elastic moduli 
@@ -184,17 +237,20 @@ contains
   call MAT_getProp(m%e0(2),p,'e22_0')
   call MAT_getProp(m%e0(3),p,'e12_0')
 
- ! initial plastic strain = 0
+ ! initial plastic strain
   allocate(m%ep(ngll,ngll,3))
-  m%ep = 0d0
+  call MAT_getProp(m%ep(:,:,1),p,'e11_p')
+  call MAT_getProp(m%ep(:,:,2),p,'e22_p')
+  call MAT_getProp(m%ep(:,:,3),p,'e12_p')
 
  ! initial stress
   allocate(m%s0(3))
+  e_el = m%e0 - m%ep(1,1,:)
   lambda = m%lambda
   two_mu = 2d0*m%mu
-  m%s0(1) = (lambda+two_mu)*m%e0(1) + lambda*m%e0(2)
-  m%s0(2) = lambda*m%e0(1) + (lambda+two_mu)*m%e0(2)
-  m%s0(3) = two_mu*m%e0(3)
+  m%s0(1) = (lambda+two_mu)*e_el(1) + lambda*e_el(2)
+  m%s0(2) = lambda*e_el(1) + (lambda+two_mu)*e_el(2)
+  m%s0(3) = two_mu*e_el(3)
 
   MAT_PLAST_memwrk = MAT_PLAST_memwrk &
                    + size( transfer(m, (/ 0d0 /) )) &
@@ -211,110 +267,76 @@ contains
 ! Constitutive law:
 ! compute relative stresses from given strains
 ! and (if requested) update plastic strain
-  subroutine MAT_PLAST_stress(s,etot,m,ngll,update,E_ep,E_el,sg)
-
-  use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
+  subroutine MAT_PLAST_stress(s,e,m,ngll,update)
 
   integer, intent(in) :: ngll
-  double precision, intent(in) :: etot(ngll,ngll,3)
+  double precision, intent(inout) :: e(ngll,ngll,3)
   double precision, intent(out) :: s(ngll,ngll,3)
   type (matwrk_plast_type), intent(inout) :: m
   logical, intent(in) :: update
-  double precision, intent(out) :: E_ep(ngll,ngll)
-  double precision, intent(out) :: E_el(ngll,ngll)
-  double precision, intent(out) :: sg(ngll,ngll,3)
 
-  double precision :: lambda, two_mu, i1_0, i2_0
-  double precision, dimension(ngll,ngll,3) :: e,sd,sd_tr,dep
-  double precision, dimension(ngll,ngll) :: sm,tau,Y,i1,i2 ,factor
+  double precision :: lambda, two_mu
+  double precision, dimension(ngll,ngll,3) :: sd,sd_tr
+  double precision, dimension(ngll,ngll) :: sm,tau,Y
+  integer :: i,j
 
- ! relative elastic strain
-  e = etot - m%ep
+ ! elastic strain
+  e = e - m%ep
 
+ ! trial (elastic) stresses 
   lambda = m%lambda
   two_mu = 2d0*m%mu
+  s(:,:,1) = (lambda+two_mu)*e(:,:,1) + lambda*e(:,:,2)
+  s(:,:,2) = lambda*e(:,:,1) + (lambda+two_mu)*e(:,:,2)
+  s(:,:,3) = two_mu*e(:,:,3)
 
- ! if requested to update internal variables
-  if (update) then
+ ! continue only if request to update internal variables
+  if (.not. update) return
 
-   ! trial absolute elastic strain (assumes the whole strain increment is elastic)
-    e(:,:,1) = e(:,:,1) + m%e0(1)
-    e(:,:,2) = e(:,:,2) + m%e0(2)
-    e(:,:,3) = e(:,:,3) + m%e0(3)
-  
-   ! trial stress (assumes elastic increment)
-    s(:,:,1) = (lambda+two_mu)*e(:,:,1) + lambda*e(:,:,2)
-    s(:,:,2) = lambda*e(:,:,1) + (lambda+two_mu)*e(:,:,2)
-    s(:,:,3) = two_mu*e(:,:,3)
-  
-   ! maximum shear stress
-    tau = sqrt( 0.25d0*(s(:,:,1)-s(:,:,2))**2 +s(:,:,3)**2 )
-  
-   ! mean stress
-    sm = 0.5d0*( s(:,:,1) + s(:,:,2) )
-  
-   ! Coulomb yield stress
-    Y = m%yield_co - m%yield_mu *sm 
-  
-   ! visco-plastic update of deviatoric stresses
-   ! see Andrews (2005), corrected by Duan and Day (2008)
-   ! This is equivalent to 
-   !   stress_rate = c:total_strain_rate - (stress-yield)/Tv
-   ! (Simo and Hughes, "Computational Inelasticity", 1998, eq 1.7.15)
-   ! Trial (elastic) deviatoric stresses
-    sd_tr(:,:,1)  = s(:,:,1) - sm
-    sd_tr(:,:,2)  = s(:,:,2) - sm
-    sd_tr(:,:,3)  = s(:,:,3)
-   ! Here vp_factor = 1-exp(-dt/Tv)
-    factor = 1d0 - max( 1d0-Y/tau, 0d0) * m%vp_factor
-   ! if Tv=0 (no viscosity) then factor=min(Y/tau,1)
-    sd(:,:,1) = factor * sd_tr(:,:,1)
-    sd(:,:,2) = factor * sd_tr(:,:,2)
-    sd(:,:,3) = factor * sd_tr(:,:,3)
-  
-   ! update plastic strain
-    dep = (sd_tr - sd)/two_mu
-    m%ep = m%ep + dep
-  
-   ! recompose stress (mean + deviatoric)
-    s(:,:,1) = sd(:,:,1) + sm
-    s(:,:,2) = sd(:,:,2) + sm
-    s(:,:,3) = sd(:,:,3)
-  
-    if (COMPUTE_ENERGIES) then
-     ! increment of plastic energy dissipation
-      E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
-     ! total elastic energy change
-      i1_0 = m%e0(1) + m%e0(2)
-      i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) +2d0*m%e0(3)*m%e0(3)
-      e = e - dep ! update absolute elastic strain
-      i1 = e(:,:,1) + e(:,:,2)
-      i2 = e(:,:,1)*e(:,:,1) +e(:,:,2)*e(:,:,2) +2d0*e(:,:,3)*e(:,:,3)
-      E_el = 0.5d0* ( lambda*( i1*i1-i1_0*i1_0 ) + two_mu*(i2-i2_0) )
+ ! total stresses
+  s(:,:,1) = s(:,:,1) + m%s0(1)
+  s(:,:,2) = s(:,:,2) + m%s0(2)
+  s(:,:,3) = s(:,:,3) + m%s0(3)
+
+ ! mean stress
+  sm = 0.5d0*( s(:,:,1) + s(:,:,2) )
+
+ ! trial (elastic) deviatoric stresses
+  sd_tr(:,:,1)  = s(:,:,1) - sm
+  sd_tr(:,:,2)  = s(:,:,2) - sm
+  sd_tr(:,:,3)  = s(:,:,3)
+
+ ! maximum shear stress
+  tau = sqrt( (0.5d0*(sd_tr(:,:,1)-sd_tr(:,:,2)))**2 +sd_tr(:,:,3)**2 )
+
+ ! Coulomb yield stress
+  Y = m%yield_co - m%yield_mu *sm 
+
+ ! test yield and update deviatoric stress
+  do j=1,ngll
+  do i=1,ngll
+    if (tau(i,j)>Y(i,j)) then 
+     ! visco-plastic update of deviatoric stresses
+     ! where vp_factor = 1-exp(-dt/Tvisc)
+      sd(i,j,:) = Y(i,j)/tau(i,j)*m%vp_factor* sd_tr(i,j,:) 
     else
-      E_ep = 0d0
-      E_el = 0d0
+      sd(i,j,:) = sd_tr(i,j,:)
     endif
-  
-    if (COMPUTE_STRESS_GLUT) then
-      ! no lambda terms because ep is deviatoric
-      sg(:,:,1) = - two_mu*m%ep(:,:,1)  
-      sg(:,:,2) = - two_mu*m%ep(:,:,2)
-      sg(:,:,3) = - two_mu*m%ep(:,:,3)
-    else
-      sg = 0d0
-    endif
-  
-   ! relative stress
-    s(:,:,1) = s(:,:,1) - m%s0(1)
-    s(:,:,2) = s(:,:,2) - m%s0(2)
-    s(:,:,3) = s(:,:,3) - m%s0(3)
+  enddo
+  enddo
 
-  else ! if no update, just compute relative stress
-    s(:,:,1) = (lambda+two_mu)*e(:,:,1) + lambda*e(:,:,2)
-    s(:,:,2) = lambda*e(:,:,1) + (lambda+two_mu)*e(:,:,2)
-    s(:,:,3) = two_mu*e(:,:,3)
-  endif
+ ! update plastic strain
+  m%ep = m%ep + (sd_tr - sd)/two_mu
+
+ ! recompose stresses (mean + deviatoric)
+  s(:,:,1) = sd(:,:,1) + sm
+  s(:,:,2) = sd(:,:,2) + sm
+  s(:,:,3) = sd(:,:,3)
+
+ ! relative stresses
+  s(:,:,1) = s(:,:,1) - m%s0(1)
+  s(:,:,2) = s(:,:,2) - m%s0(2)
+  s(:,:,3) = s(:,:,3) - m%s0(3)
 
   end subroutine MAT_PLAST_stress
 

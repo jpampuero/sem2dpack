@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_gaussian
 
   use stdio, only: IO_abort
@@ -29,7 +67,7 @@ module distribution_gaussian
 ! ARG: length           [dble(2)] [1]   Characteristic lengths on each axis.
 ! ARG: offset           [dble] [0]      Background level.    
 ! ARG: ampli            [dble] [1]      Amplitude from background.
-! ARG: order            [int] [1]       Exponent
+! ARG: order            [dble] [1]      Exponent
 !
 ! END INPUT BLOCK
 
@@ -76,10 +114,8 @@ module distribution_gaussian
 
   double precision, intent(out), dimension(:) :: field 
 
-  !field = d%level_0 + d%ampli*exp(- ((coord(1,:)-d%x_0)/d%lx)**(2d0*d%order) &
-  !                                - ((coord(2,:)-d%z_0)/d%lz)**(2d0*d%order) )
-  field = d%level_0 + d%ampli*exp(- ( ((coord(1,:)-d%x_0)/d%lx)**2d0 &
-                                     +((coord(2,:)-d%z_0)/d%lz)**2d0  )**d%order )
+  field = d%level_0 + d%ampli*exp(- ((coord(1,:)-d%x_0)/d%lx)**(2*d%order) &
+                                  - ((coord(2,:)-d%z_0)/d%lz)**(2*d%order) )
  
   end subroutine generate_gaussian_dist
 

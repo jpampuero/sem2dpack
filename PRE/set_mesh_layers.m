@@ -1,4 +1,4 @@
-% SET_MESH_LAYERS sets the parameters of a layered mesh for 2D SH waves
+% SET_MESH_LAYERS sets the parameters a layered mesh for 2D SH waves
 % according to a minimum number of elements per wavelength
 %
 % INPUTS	model	layered media structure with the following components

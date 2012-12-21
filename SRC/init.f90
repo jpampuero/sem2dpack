@@ -1,3 +1,41 @@
+! SEM2DPACK version 2.3.2 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-3429
+! Fax  : (626) 564-0715
+! 
+! http://www.seismolab.caltech.edu
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module init
 
 ! INIT:  i n i t i a l i z a t i o n   p h a s e
@@ -18,18 +56,17 @@ subroutine init_main(pb,InitFile)
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
+  use fem_grid, only : FE_GetNodesPerElement,FE_GetNbNodes
   use bc_gen, only : BC_init
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work
-  use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
+  use time_evol, only : TIME_init
   use plot_gen, only : PLOT_init
   use receivers, only : REC_init,REC_inquire
   use sources, only : SO_init,SO_check
   use fields_class, only : FIELDS_init,FIELDS_read
   use memory_info
   use echo, only : iout,info=>echo_init, fmt1,fmtok
-  use energy, only : energy_init, stress_glut_init
-  use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
 
   type(problem_type), intent(inout) :: pb
   character(50), intent(in), optional :: InitFile
@@ -59,11 +96,11 @@ subroutine init_main(pb,InitFile)
   call TIME_init(pb%time,grid_cfl) ! define time evolution coefficients
 
  ! define work arrays and data
-  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
+  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,pb%time%dt)
 
  ! initialise fields
   if (info) write(iout,fmt1,advance='no') 'Initializing kinematic fields'
-  call FIELDS_init(pb%fields,pb%grid%npoin, TIME_needsAlphaField(pb%time))
+  call FIELDS_init(pb%fields,pb%grid%npoin, pb%time%kind=='newmark')
   if(init_cond) call FIELDS_read(pb%fields,InitFile) ! read from a file
   if (info) then
     write(iout,fmtok)
@@ -78,7 +115,7 @@ subroutine init_main(pb,InitFile)
  ! initialize physical parameters of all boundary conditions
  ! For faults: may reset the initial velocity
   if (info) write(iout,fmt1,advance='no') 'Defining boundary conditions'
-  call BC_init(pb%bc,pb%grid,pb%matpro,pb%rmass,pb%time,pb%src,pb%fields%displ,pb%fields%veloc)
+  call BC_init(pb%bc,pb%grid,pb%matpro,pb%rmass,pb%time,pb%src)
   if (info) write(iout,fmtok)
 
  ! define position of receivers and allocate database
@@ -97,7 +134,7 @@ subroutine init_main(pb,InitFile)
     else
       recsamp=1
     endif
-    call SO_check(pb%src, TIME_getTimeStep(pb%time)*recsamp, TIME_getNbTimeSteps(pb%time)/recsamp)
+    call SO_check(pb%src, pb%time%dt*recsamp, pb%time%nt/recsamp)
     if (info) write(iout,fmtok)
   endif
 
@@ -114,10 +151,6 @@ subroutine init_main(pb,InitFile)
     pb%rmass(i,j) = 1.d0 / pb%rmass(i,j)
   enddo
   enddo
-
- ! macroscopic outputs
-  if (COMPUTE_ENERGIES) call energy_init(pb%energy)
-  if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
 
 end subroutine init_main
 
@@ -148,18 +181,41 @@ end subroutine init_main
 
   double precision, allocatable :: check1(:),check2(:)
   double precision :: ecoord(2,grid%ngll,grid%ngll) &
-                     ,celem(grid%ngll,grid%ngll),csmin,min_cs &
+                     ,celem(grid%ngll,grid%ngll),csmin &
                      ,x0,z0,x1,z1,x2,z2 &
                      ,rdistmax,rdist1,rdist2 &
                      ,rsizemin,rsizemax &
                      ,rlamdaSmin,ratiomax,rlambmin
-  integer :: ngll,e,i,j,c1unit,c2unit
+  integer :: ngll,e,i,j,c1unit,c2unit,cpunit,csunit,rhounit
 
   ngll = grid%ngll
 
   if (echo_check) then
 
     allocate(check1(grid%nelem),check2(grid%nelem))
+    write(iout,fmt1,advance='no') 'Exporting model'
+
+    cpunit = IO_new_unit()
+    open(cpunit,file='Cp_sem2d.tab')
+    csunit = IO_new_unit()
+    open(csunit,file='Cs_sem2d.tab')
+    rhounit = IO_new_unit()
+    open(rhounit,file='Rho_sem2d.tab')
+
+    do e=1,grid%nelem
+      call MAT_getProp(celem,mat(e),'cp')
+      write(cpunit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
+      call MAT_getProp(celem,mat(e),'cs')
+      write(csunit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
+      call MAT_getProp(celem,mat(e),'rho')
+      write(rhounit,100) celem(1,1),celem(ngll,1),celem(ngll,ngll),celem(1,ngll)
+    enddo
+
+    close(cpunit)
+    close(csunit)
+    close(rhounit)
+
+    write(iout,fmtok)
 
     write(iout,*) 
     write(iout,103) ' M e s h   p r o p e r t i e s'
@@ -173,14 +229,12 @@ end subroutine init_main
   rsizemax   = 0d0
   max_c_dx   = 0d0
   rlamdaSmin = huge(rlamdaSmin)
-  min_cs = huge(min_cs)
 
   do e=1,grid%nelem
 
     call SE_inquire(grid,element=e,size_max=rdistmax)
     call MAT_getProp(celem,mat(e),'cs')
     csmin = minval(celem)
-    min_cs = min(csmin,min_cs)
     rlambmin = csmin/rdistmax
     rlamdaSmin = min(rlamdaSmin,rlambmin)
 
@@ -231,7 +285,7 @@ end subroutine init_main
     write(iout,*) 
     write(iout,101) '    RESOLUTION: nodes per min wavelength = ',(ngll-1)*rlamdaSmin/grid%fmax
     write(iout,102) '                for maximum frequency   = ',grid%fmax, ' Hz'
-    write(iout,102) '                    minimum wavelength  = ',min_cs/grid%fmax, ' m'
+    write(iout,102) '                    minimum wavelength  = ',rlamdaSmin/grid%fmax, ' m'
     write(iout,*) 
 
     check1 = check1*(ngll-1)/grid%fmax
@@ -272,9 +326,11 @@ end subroutine init_main
 
   return
  
+  100 format(4(e11.4,1x))
   101 format(A,EN12.3)
   102 format(A,EN12.3,A)
   103 format(A)
+  104 format(A,I0)
 
   end subroutine CHECK_grid
 

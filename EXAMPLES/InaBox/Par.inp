@@ -1,7 +1,7 @@
-# Parameter file for SEM2DPACK
+# Parameter file for SEM2DPACK 2.0 
 
 #----- Some general parameters ----------------
-&GENERAL iexec=0, ngll=5, fmax=25d0 , ndof=2 ,
+&GENERAL iexec=1, ngll=5, fmax=25d0 , ndof=1 ,
   title = 'Example 1: a box', verbose='1111' , ItInfo = 100 /
 
 #----- Build the mesh ---------------------------
