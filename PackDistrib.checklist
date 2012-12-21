@@ -1,0 +1,20 @@
+
+PREPARE PACKAGE:
+  + update CurrentVersion
+  + update ChangeLog with a summary of recent changes in DptLog
+    (add only changes visible to the user)
+    add SourceForge Tracker IDs
+  + update Version, MonthYear and copyright year in doc/USERS_GUIDE/users_guide_sem2dpack.tex
+  + update major version in SRC/plot_postscript.f90
+
+PACK: 
+  + run PackDistrib.csh
+
+MAIN RELEASE AT SOURCEFORGE:
+  + add release
+  + add news
+
+OTHER RELEASE SITES:
+  + my ampuero/software.html
+  + Freecode
+  + QUEST repository

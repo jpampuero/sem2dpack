@@ -1,0 +1,56 @@
+\chapter{Frequently Asked Questions}
+\label{Cha:faq}
+
+\section{SEM2D}
+\label{faq_sem2d}
+
+\subsection*{Segmentation fault}
+
+This problem is often related to a small stack size in your computer settings.
+In your Linux shell do: \texttt{ulimit -s unlimited} under bash
+or \texttt{limit stacksize unlimited} under csh.
+Place this command in your startup files (\texttt{.login}, \texttt{.bashrc} or \texttt{.cshrc}).
+
+\subsection*{Instabilities on very distorted elements}
+
+Very distorted elements (with very small or very large angles) 
+are usual close to wedges of sedimentary basins, fault branching points, etc.
+In general, distorted elements are less stable than square elements:
+spurious motions with exponentially increasing amplitude might appear in their vicinity.
+In most cases these instabilities can be suppressed by reducing the \texttt{Courant} input parameter.
+There is currently no simple recipe to determine the maximum value of this parameter,
+so trial and error is required.
+
+\section{EMC2}
+\label{faq_emc2}
+
+\subsection*{I can't get rid of a few triangles}
+
+Obtaining a quality quad mesh is not always a trivial task. Trial and error and experience
+is needed. This can be by far the most time consuming stage of modeling.
+
+First make sure that the total number of element edges
+along the perimeter of each mesh domain is even. This is a necessary
+topological condition to generate a quad-only mesh. 
+
+When the geometry seems too complicated for quad meshing you
+should consider simplifying the geometry, especially those details that are much smaller
+than the dominant wavelength.
+
+If the above fails or does not apply, you have to help the mesher. 
+The recommended procedure in EMC2 is:
+
+\begin{enumerate}
+\item Divide your original mesh into simple domains,
+in such a way that \emph{most} domains have exactly four sides (possibly curved)
+and the remaining non-four-sided domains are as small as possible.
+\item Generate a structured quad-mesh (a regular grid) inside each four-sided
+domain with the \textsf{(QUADRANGULATE)} tool of the \textsf{PREP\_MESH} mode,
+as described in section 5.2.13 of EMC2's manual
+(note that this is \emph{not} the same as the \textsf{$<$QUADRANGULATE$>$} 
+button in the \textsf{EDIT\_MESH} mode). 
+\item Proceed as usual (triangulation followed by quadrangulation) 
+inside the remaining non-four-sided domains. 
+If these are small enough EMC2 should not have problems doing a
+correct tri-to-quad meshing.
+\end{enumerate}

@@ -1,0 +1,43 @@
+% vertical spacing
+\renewcommand\arraystretch{1.5}% (=1.0 is for standard spacing)
+
+\newenvironment{my_enumerate}{
+\begin{enumerate}
+  \setlength{\itemsep}{1pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}}{\end{enumerate}
+}
+
+\subsection{Sources}
+
+\subsubsection{SRC\_DEF}
+{\it Purpose:} Define the sources.
+
+{\it Syntax:} \texttt{\&SRC\_DEF   TimeFunction,mechanism,coord /}\\
+followed by blocks of the groups SRC\_TIMEFUNCTION and SRC\_MECHANISM 
+
+{\it Arguments:}
+
+\begin{tabular}[t]{lllp{0.5\linewidth}}
+\texttt{TimeFunction} &  name& none& The name of the source time function: 'RICKER', 'TAB' or 'STF\_USER' \\
+\texttt{mechanism} & name & none & The name of the source mechanism: 'FORCE', 'EXPLOSION', 'DOUBLE\_COUPLE', 'MOMENT' or 'WAVE' \\
+\texttt{coord}  & dble & huge & Location of the source (m). \\
+\texttt{file}  & string & 'none' & 
+% \begin{minipage}[t]{\linewidth}
+Station coordinates and delay times can
+be read from an ASCII file, with 3 columns per line:
+\begin{my_enumerate}
+  \item X position (in m),
+  \item Z position (in m) and
+  \item delay (in seconds) 
+\end{my_enumerate}
+that's it.
+%\end{minipage}
+\end{tabular}
+
+{\it Notes:}
+\begin{enumerate}
+  \item bla bla 
+  \item bla bla
+\end{enumerate}
+

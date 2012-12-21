@@ -1,0 +1,48 @@
+# Velocity weakening rupture pulse like in Ampuero and Ben-Zion (2008)
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=6, fmax=3.d0 , ndof=2 ,
+  title = 'Velocity weakening fault', verbose='1011' , ItInfo = 100/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+
+&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=100,50, fztag=2/
+#&MESH_CART xlim=0d3,0.3d3, zlim=0d3,0.15d3, nelem=200,100, fztag=2/
+#&MESH_CART xlim=0d3,0.15d3, zlim=0d3,0.075d3, nelem=100,50, fztag=2/
+#&MESH_CART xlim=0d3,0.075d3, zlim=0d3,0.0375d3, nelem=100,50, fztag=2/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST' /
+&MATERIAL tag=2, kind='ELAST','KV' /
+&MAT_ELASTIC rho=2.738254013691604d3, cp=4.894948787270404d3, cs=2.8261d3 /
+&MAT_KV eta=0.2d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1, kind = 'DYNFLT' /
+#&BC_DYNFLT Tn=-130d6,TtH='PWCONR', friction='SWF' /
+&BC_DYNFLT Tn=-130d6,TtH='PWCONR', friction='RSF' /
+&DIST_PWCONR num=2/ # Initial shear stress
+     7.5d0
+91.001d6 82.81d6
+&BC_DYNFLT_SWF Dc=7.44d-4, MuS=0.7d0, MuD=0.6d0 /
+&BC_DYNFLT_RSF Dc=7.44d-4, MuS=0.7d0, a=0.001d0, b=0.101d0, Vstar=0.1d0  /
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=0.10d0, courant = 0.55d0, kind='leapfrog' /
+#&TIME  TotalTime=0.025d0, courant = 0.55d0, kind='leapfrog' /
+#&TIME  TotalTime=0.0125d0, courant = 0.55d0, kind='leapfrog' /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=300, fields ='V',bin=T,ps=T /
+&SNAP_PS  vectors =F, interpol = T, DisplayPts=6, ScaleField=2d0   /

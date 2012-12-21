@@ -1,0 +1,228 @@
+
+\documentclass[letterpaper,11pt,titlepage,final]{report}
+
+\usepackage{epsfig,pifont,calc,color,pstricks}
+\usepackage{amsmath,latexsym,oldlfont}
+\usepackage{enumerate}
+\usepackage{Chicago}
+\usepackage{url}
+
+%\def\ImPath{/home/ampuero/WAVES/SEM2DPACK_2.x/doc/FIGURES}
+\def\ImPath{../FIGURES}
+\def\Version{2.3.8}
+\def\MonthYear{August 2012}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% A4 wide
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+\usepackage{a4wide}
+%\textwidth 16.7cm
+%\textheight 24.6cm
+%\oddsidemargin -4.5mm
+%\evensidemargin -4.5mm
+%\topmargin -11.5mm
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% US letter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+%\textwidth 17cm
+%\textheight 23.8cm
+%\oddsidemargin -4.5mm
+%\evensidemargin -4.5mm
+%\topmargin -22.5mm
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\usepackage{fancyheadings}
+\usepackage{fancyhdr}
+\pagestyle{fancyplain}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{#1}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection\ #1}}
+\lhead[\fancyplain{}{\bfseries\thepage}]{\fancyplain{}{\bfseries\rightmark}}
+\rhead[\fancyplain{}{\bfseries\leftmark}]{\fancyplain{}{\bfseries\thepage}}
+\cfoot{}
+\renewcommand{\labelitemii}{{\LARGE\bf .}}
+
+% pour voir la bounding box postscript
+%\newcommand{\voirbbox}[1]{{\fboxsep 0pt \fbox{#1}}}
+
+% pour ne pas la voir
+\newcommand{\voirbbox}[1]{{{#1}}}
+
+%
+% define new items (necessite package pifont)
+%
+
+\font\pzdr=pzdr at 12pt
+
+\newenvironment{fancyitemize}[1]
+   {\begin{itemize}
+    \renewcommand{\labelitemi}{{\pzdr #1}}
+    \renewcommand{\labelitemii}{{\pzdr #1}}
+    \renewcommand{\labelitemiii}{{\pzdr #1}}
+   }
+   {\end{itemize}}
+
+%
+% define new enumerate (necessite package pifont et calc)
+%
+
+\newcounter{local}
+
+\newenvironment{enumerateW}
+   {
+     \begin{enumerate}
+     \renewcommand{\labelenumi}{\setcounter{local}{191+\value{enumi}}\ding{\value{local}}}
+     \renewcommand{\labelenumii}{\setcounter{local}{191+\value{enumii}}\ding{\value{local}}}
+     \renewcommand{\labelenumiii}{\setcounter{local}{191+\value{enumiii}}\ding{\value{local}}}
+   }
+   {\end{enumerate}}
+
+\newenvironment{enumerateB}
+   {
+     \begin{enumerate}
+     \renewcommand{\labelenumi}{\setcounter{local}{201+\value{enumi}}\ding{\value{local}}}
+     \renewcommand{\labelenumii}{\setcounter{local}{201+\value{enumii}}\ding{\value{local}}}
+     \renewcommand{\labelenumiii}{\setcounter{local}{201+\value{enumiii}}\ding{\value{local}}}
+   }
+   {\end{enumerate}}
+
+\newcommand{\relief}[1]{{\it\bfseries #1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% FIGURES:
+
+\newcommand{\Img}[2]{
+\begin{minipage}{#2\linewidth}
+\centerline{ \epsfig{file=\ImPath/#1,width=\linewidth}}
+\end{minipage}
+}
+
+\newcommand{\ImgC}[2]{
+\centerline{ \epsfig{file=\ImPath/#1,width=#2\linewidth} }
+}
+
+\newcommand{\ImgL}[2]{
+\begin{minipage}{#2\linewidth}
+\centerline{ \epsfig{file=\ImPath/#1,width=\linewidth,angle=-90}}
+\end{minipage}
+}
+
+\newcommand{\ImgCL}[2]{
+\centerline{ \epsfig{file=\ImPath/#1,width=#2\linewidth,angle=-90} }
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% EQUATIONS:
+\newcommand{\eq}{\begin{equation}}
+\newcommand{\en}{\end{equation}}
+\newcommand{\eqa}{\begin{eqnarray}}
+\newcommand{\ena}{\end{eqnarray}}
+
+%%%%%%%%%%%%%%%%%%%%%%% REFERENCES %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand{\Eqref}[1]{Equation~\ref{Eq:#1}}
+\newcommand{\figref}[1]{Figure~\ref{Fig:#1}}
+\newcommand{\secref}[1]{Section~\ref{Sec:#1}}
+\newcommand{\charef}[1]{Chapter~\ref{Cha:#1}}
+\newcommand{\appref}[1]{Appendix~\ref{App:#1}}
+\newcommand{\tabref}[1]{Table~\ref{Tab:#1}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% SHORTER ITEMIZE
+\newenvironment{sitemize}
+{\begin{list}{--}%
+  {\setlength{\topsep}{0pt}%
+   \setlength{\itemsep}{0pt}%
+   \setlength{\leftmargin}{2em} }}
+{\end{list}}
+
+\newenvironment{senumerate}
+{\begin{enumerate}
+  \setlength{\topsep}{0pt}
+  \setlength{\itemsep}{0pt}
+  \setlength{\parskip}{0pt}
+  \setlength{\parsep}{0pt}}
+{\end{enumerate}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%\includeonly{chap1}
+
+%
+% Start the Report
+%
+\begin{document}
+
+\parindent 0pt
+\parskip 10pt
+
+%%%%%%% TITLE PAGE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+
+\pspicture(15.5,0)
+\psline[linestyle=solid,linecolor=red,linewidth=2pt](-0.1,0)(15.6,0)
+\endpspicture
+
+\vspace*{1mm}
+{\Huge\bf{ SEM2DPACK}}\\[5mm]
+{\Large A Spectral Element Method tool for 2D wave propagation}\\
+{\Large and earthquake source dynamics}\\[2mm] 
+{\Large \bf{User's Guide}}
+
+\pspicture(15.5,0)
+\psline[linestyle=solid,linecolor=red,linewidth=1.5pt](-0.1,0.2)(15.6,0.2)
+\endpspicture
+
+\newfont{\fdunB}{cmdunh10 scaled \magstep2}
+\vspace*{3cm}
+\fdunB
+Version \Version \\[3mm]
+\MonthYear \\[3cm]
+Jean-Paul Ampuero\\[2mm]
+{\small
+California Institute of Technology \\
+Seismological Laboratory \\
+1200 E. California Blvd., MC 252-21 \\
+Pasadena, CA 91125-2100, USA \\
+E-mail: ampuero@gps.caltech.edu\\
+Web: \url{http://web.gps.caltech.edu/~ampuero}\\
+\ \ \\
+Phone: (626) 395-6958 \\
+Fax  : (626) 564-0715 \\
+}
+\end{center}
+\vfill
+%\newpage
+\thispagestyle{empty}
+\hspace*{0pt}
+\newpage
+\thispagestyle{empty}
+\vspace*{\fill}
+\centerline{ \copyright\ 2003-2012 Jean-Paul Ampuero}
+
+%%%%%%% TABLE OF CONTENTS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newpage
+{\parskip 0pt
+  \tableofcontents
+}
+\newpage
+
+%%%%%%% BODY %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\include{introduction}
+\include{physics}
+\include{mesh}
+\include{how_to_sem}
+\include{how_to_add}
+\include{faq}
+
+\bibliographystyle{chicagoa}
+\bibliography{Biblio1}
+
+\end{document}
