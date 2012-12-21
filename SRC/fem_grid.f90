@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.7 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module fem_grid
 
 !=======================================================================
@@ -425,15 +462,17 @@ end subroutine FE_GetVertexConn
   type(fem_grid_type), intent(in) :: grid
   integer, intent(in) :: e
 
-  double precision :: area,x1,x2,y1,y2
+  double precision :: area,a,b,c,d,p,q
   double precision, pointer :: coorg(:,:)
 
   coorg => FE_GetElementCoord(grid,e)
-  x1 = coorg(1,1)-coorg(1,3);
-  x2 = coorg(2,1)-coorg(2,3);
-  y1 = coorg(1,2)-coorg(1,4);
-  y2 = coorg(2,2)-coorg(2,4);
-  area = 0.5*abs( x1*y2 - x2*y1 )
+  a = (coorg(1,2)-coorg(1,1))**2+(coorg(2,2)-coorg(2,1))**2
+  b = (coorg(1,3)-coorg(1,2))**2+(coorg(2,3)-coorg(2,2))**2
+  c = (coorg(1,4)-coorg(1,3))**2+(coorg(2,4)-coorg(2,3))**2
+  d = (coorg(1,1)-coorg(1,4))**2+(coorg(2,1)-coorg(2,4))**2
+  p = (coorg(1,1)-coorg(1,3))**2+(coorg(2,1)-coorg(2,3))**2
+  q = (coorg(1,2)-coorg(1,4))**2+(coorg(2,2)-coorg(2,4))**2
+  area = 0.25d0*sqrt( 4d0*p*q - (b+d-a-c)**2 )
   deallocate(coorg)
 
   end function FE_GetElementArea

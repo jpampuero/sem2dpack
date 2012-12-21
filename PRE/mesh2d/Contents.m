@@ -2,8 +2,6 @@
 % and visualization of structured 2D quadrilateral meshes, and unstructured 
 % compositions of structured meshes.
 %
-% The mesh database is stored in a structure described in MESH2D_TFI's help.
-%
 % Mesh generation:
 %
 %  MESH2D_TFI     	generates a structured mesh by transfinite interpolation
@@ -20,11 +18,6 @@
 %  MESH2D_MERGE    	merges several meshes into a single mesh
 %  MESH2D_WRITE  	writes a 2D mesh database file (*.mesh2d)
 %  MESH2D_READ 		reads a 2D mesh database from a *.mesh2d file 
-%
-% Reading mesh files from other mesh generation software:
-%
-%  READ_DCM 		reads a 2D mesh in the DCM format of EZ4U (http://www-lacan.upc.es/ez4u.htm)
-%  READ_INP		reads a 2D mesh in the INP format of ABAQUS exported by CUBIT
 %
 % Mesh visualization:
 %

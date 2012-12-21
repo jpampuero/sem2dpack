@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.7 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_abso
 
 ! Absorbing boundary conditions P1 and P3 of
@@ -25,6 +62,7 @@ module bc_abso
 !   with lambda = mu/Cs^2 *(Cp^2-2*Cs^2) 
 !   It corresponds to the first two terms in eq.11 of Kausel (1992)
 !
+! NOTE: Implemented here only for vertical and horizontal boundaries. 
 
   use spec_grid
   use memory_info
@@ -41,7 +79,7 @@ module bc_abso
     double precision, dimension(:), pointer :: B
     type(bnd_grid_type), pointer :: topo
     type(source_type), pointer :: wav=>null() ! incident wave
-    logical :: stacey,periodic,let_wave,is_flat
+    logical :: stacey,periodic,let_wave
   end type
 
   public :: BC_ABSO_type, BC_ABSO_read, BC_ABSO_init, BC_ABSO_set
@@ -62,8 +100,7 @@ contains
 ! ARG: let_wave [log] [T] Allow incident waves across this boundary 
 !                if mechanism='WAVE' in &SRC_DEF
 !
-! NOTE   : Stacey conditions and incident waves are only implemented for 
-!          vertical and horizontal boundaries
+! NOTE   : Only implemented for vertical and horizontal boundaries.
 !
 ! END INPUT BLOCK
 
@@ -151,28 +188,24 @@ contains
  ! check that the boundary is flat, vertical or horizontal:
  ! if horizontal:
   if (all( abs(bc%n(:,1))<TINY_XABS) ) then
-    bc%is_flat = .true.
     GeoDimTan = 1 ! Coordinate component (x,z) tangent to domain side
     GeoDimNor = 2 ! Coordinate component (x,z) normal to domain side
  ! if vertical:
   elseif (all( abs(bc%n(:,2))<TINY_XABS) ) then
-    bc%is_flat = .true.
     GeoDimTan = 2
     GeoDimNor = 1
  ! if not flat:
   else
-    bc%is_flat = .false.
-    GeoDimTan = 2
-    GeoDimNor = 1
-!    call IO_abort('BC_ABSO_init: boundary is not vertical or horizontal')
+    GeoDimTan = 0
+    GeoDimNor = 0
+    call IO_abort('BC_ABSO_init: boundary is not vertical or horizontal')
   endif
   
   allocate(bc%C(bc_npoin,ndof))
   call storearray('bc%C',bc_npoin*ndof,idouble)
   bc%C = 0d0
 
-! NOTE: Stacey only implemented for flat boundaries, for inplane mode 
-  bc%stacey = bc%stacey .and. (ndof==2) .and. bc%is_flat
+  bc%stacey = bc%stacey .and. (ndof==2)
   if (bc%stacey) then
     allocate(bc%K(ngll,ndof,bc_nelem))
     call storearray('bc%K',ngll*ndof*bc_nelem,idouble)
@@ -195,8 +228,10 @@ contains
       call MAT_getProp(c(GeoDimNor),mat(ebulk),'cp',i,j)
       call MAT_getProp(c(GeoDimTan),mat(ebulk),'cs',i,j)
 
+     ! the differential length for vertical and horizontal edges
+     ! has this simplified expression :
       xjac  = SE_Jacobian(grid,ebulk,i,j)        ! xjac  = DGlobDLoc
-      CoefIntegr = grid%wgll(k)*sqrt( xjac(1,LocDimTan)**2 + xjac(2,LocDimTan)**2 ) 
+      CoefIntegr = grid%wgll(k)*abs(xjac(GeoDimTan,LocDimTan))
 
       bck = bc%topo%ibool(k,e)
       if (ndof==1) then
@@ -222,16 +257,12 @@ contains
     bc%Ht => grid%hTprime
   endif
 
-! NOTE: periodic only possible for flat boundaries
-  if (bc%periodic .and. bc%is_flat) then
+  if (bc%periodic) then
     bc%C(1,:) = bc%C(1,:) + bc%C(bc_npoin,:)
     bc%C(bc_npoin,:) = bc%C(1,:)
   endif
 
  ! Modify the mass matrix for implicit treatment of C*v :
- ! NOTE: Only for flat boundaries. 
- !       Non-flat boundaries are usually circular boundaries far away and combined with mesh coarsening,
-!        so the elements are usually large and the explicit scheme is stable.
  !
  !   M*a_(n+1) = -K*d_pre_(n+alpha) -C*v_(n+alpha)
  ! with  v_(n+alpha) = v_pre_(n+alpha) + coefA2Vrhs*a_(n+1)
@@ -239,11 +270,9 @@ contains
  !
  ! => (M+coefA2Vrhs*C)*a_(n+1) = -K*d_pre_(n+alpha) -C*v_pre_(n+alpha)
  !
-  if (bc%is_flat) M(bc%topo%node,:) = M(bc%topo%node,:)  + TIME_getCoefA2Vrhs(tim)*bc%C
+  M(bc%topo%node,:) = M(bc%topo%node,:)  + TIME_getCoefA2Vrhs(tim)*bc%C
 
  ! search for a wave source, pick the first found
- ! NOTE: incident waves only implemented for flat boundaries
-  if (.not. bc%is_flat) bc%let_wave=.false.
   if (bc%let_wave .and. associated(src)) then
     do i=1,size(src)
       call SO_inquire(src(i),is_wave=is_wave)
@@ -258,8 +287,7 @@ contains
     allocate(bc%coord(2,bc_npoin)) 
     bc%coord = grid%coord(:,bc%topo%node)
   else
-    deallocate(bc%B)
-    if (bc%is_flat) deallocate(bc%n)
+    deallocate(bc%B,bc%n)
   endif
 
   end subroutine BC_ABSO_init
@@ -268,7 +296,7 @@ contains
 
 !=====================================================================
 !
-! NOTE: for Stacey conditions we assume vertical or horizontal boundaries
+! NOTE: assumed vertical or horizontal boundaries
 !       otherwise C and K are 2x2 matrices
 !
 !  D => fields%displ_alpha
@@ -288,14 +316,14 @@ contains
   double precision, intent(inout) :: MxA(:,:)
   double precision, intent(in) :: D(:,:),V(:,:), time
 
-  double precision, dimension(:,:), allocatable :: KxD, Vin, Tin, Vn
+  double precision, dimension(:,:), allocatable :: KxD, Vin, Tin
   integer, pointer :: nodes(:)
   integer :: e,i,k(bc%topo%ngnod),ndof
 
   nodes => bc%topo%node
-  ndof=size(MxA,2)
 
   if (associated(bc%wav)) then
+    ndof=size(MxA,2)
     allocate( Vin(bc%topo%npoin,ndof), Tin(bc%topo%npoin,ndof) )
     call SO_WAVE_get_VT( Vin, Tin, time,bc%coord,bc%n,bc%wav)
     do i=1,ndof
@@ -303,17 +331,7 @@ contains
     enddo
     deallocate(Vin,Tin)
   else
-    if (bc%is_flat .or. ndof==1) then
-      MxA(nodes,:) = MxA(nodes,:) - bc%C*V(nodes,:)
-    else
-      allocate( Vn(bc%topo%npoin,ndof) )
-      Vn(:,2) = ( V(nodes,1)*bc%n(:,1) + V(nodes,2)*bc%n(:,2) ) ! tmp dot product V.n
-      Vn(:,1) = Vn(:,2)*bc%n(:,1)
-      Vn(:,2) = Vn(:,2)*bc%n(:,2)
-      MxA(nodes,1) = MxA(nodes,1) - bc%C(:,1)*Vn(:,1) - bc%C(:,2)*( V(nodes,1)-Vn(:,1) )
-      MxA(nodes,2) = MxA(nodes,2) - bc%C(:,1)*Vn(:,2) - bc%C(:,2)*( V(nodes,2)-Vn(:,2) )
-      deallocate(Vn)
-    endif
+    MxA(nodes,:) = MxA(nodes,:) - bc%C*V(nodes,:)
   endif
 
   if (bc%stacey) then

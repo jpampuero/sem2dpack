@@ -1,12 +1,10 @@
 -- KNOWN ISSUES: 
-     + check examples. TestLayers fails
      + incompatibility between dynamic faults and absorbing boundaries:
        . see 1D test
        . see 2D test: fault normal stress in homogeneous symmetric examples 
          is not uniform when using Stacey absorbing boundaries
      + note gfortran (older versions) sequential binary files, 
        http://www.nabble.com/binary-file-problem-to12555962.html
-     + absorbing boundaries with incident waves are correct only for full homogeneous space
      + rsf is not the same as in Ampuero and Ben-Zion (2008)
      + rsf with v<0 is inconsistent
      + compatibility between dynamic faults and free surface is not enforced yet
@@ -26,14 +24,14 @@
   SOLVER:
 
    Materials:
-     + attenuation Q, merge code by Yihe
-     + in damage: plasticity after loss of convexity, merge code by Shiqing
+     + in damage: plasticity after loss of convexity
      + plasticity with dilatancy (helps regularization, 
        see Rudnicki and Rice, 1975; Templeton and Rice, 2008)
      + non-local regularization for plasticity
      + plasticity with softening
      + 2.5D models for "crustal-plane" rupture, local corrections for teleseismic
      + Perfectly Matched Layers, split or unsplit
+     + attenuation Q
      + coarse-grained variables for attenuation Q (Day)
      + more smoothing and interpolation options for heterogeneous velocity models
      + Rayleigh damping
@@ -44,22 +42,25 @@
      + homogeneization correction for shallow layers
 
    Sources:
-     + broad band source time functions: Morlet, Berlage
+     + broad band source time functions: Gaussian, Morlet, Berlage
      + other source time functions: Gabor, Kupper (see table in Mavroeidis and Papageorgiou, 2003)
      + source time functions for kinematic sources
      + allow sources not at node
+     + noise sources
 
    Boundary conditions:
      + nucleation through time-dependent stress
+     + kinematic faults
      + more friction laws: 
         . logarithmic rate-and-state
         . time weakening with spontaneous rupture speed
         . time healing
         . velocity toughening
      + couple dynamic faults to off-fault (1D) heat and fluid equations
+     + poroelasticity
      + dynamic faults: handle branching points
      + higher order ABC for SH
-     + time-dependent Dirichlet conditions
+     + time-dependent Dirichlet and Neumann conditions
      + Dirichlet and Neumann conditions on non vertical/horizontal boundaries
      + spatially non uniform Dirichlet and Neumann boundary conditions
 
@@ -80,16 +81,14 @@
      
 
   MESHER:
-     + add surrounding zone extending to a circle (refinement ratio = (r0+h0/2)/(r0-h0/2))
-     + refinement layers 4:2 and 3:1
+     + elements for rough faults with smooth normal
      + add surrounding strip of elements for PML
-     + element quality metrics
-     + more precise stability estimate (element-wise eigenvalue problem)
-     + automated meshing starting with a triangulation in Cubit or: 
+     + automated meshing starting with a triangulation: 
        Triangle (http://www.cs.cmu.edu/~quake/triangle.html)
         -->  CQmesh (http://www.dct.ufms.br/~marcelo/cqmesh.html)
          --> QMPP (http://www.dct.ufms.br/~marcelo/qmpp.html)
           --> SEM2DPACK 
+     + element quality metrics
      
   REFACTORING:
      + merge mesh_read and mesh_build ?

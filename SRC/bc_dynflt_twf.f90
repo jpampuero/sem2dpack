@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.7 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dynflt_twf
 
 ! BC_DYNFLT_TWF: Time weakening friction for dynamic faults
@@ -115,17 +152,14 @@ contains
   double precision, intent(in) :: coord(:,:),time
   double precision :: mu(size(coord,2))
 
-  integer :: i
   double precision :: r(size(coord,2)),t
-  double precision, parameter :: VERY_LARGE_VALUE = huge(1d0)
 
  ! compute the position of the front (where mu=mus)
  ! the time shift sets mu=mu0 at the hypocenter
   if (tw%kind==1) then
     t = time + (tw%mus-tw%mu0)*tw%L/((tw%mus-tw%mud)*tw%V)
-!    t = min(t,tw%T)  ! version 1 (old): total weakening persists after nucleation
-    if (t> tw%T) t=0d0 ! version 2 (new): reset the time-weakening coefficient to its static value after nucleation is over
-    r = tw%V*t
+    t = min(t,tw%T)
+    r = tw%V*t    
   else
     t = time+ 0.5d0*tw%T*( 1d0-sqrt( 1d0-4d0*(tw%mus-tw%mu0)*tw%L/((tw%mus-tw%mud)*tw%T*tw%V) ) )
     t = min(t,tw%T)
@@ -134,27 +168,11 @@ contains
   
  ! relative position of fault node with respect to the front
   r = sqrt( (coord(1,:)-tw%X)*(coord(1,:)-tw%X) + (coord(2,:)-tw%Z)*(coord(2,:)-tw%Z) ) -r
-
  ! friction coefficient
- ! version A (old): mu = mus beyond the nucleation front
- ! mu = tw%mus + (tw%mus-tw%mud)/tw%L *r
- ! mu = max( mu, tw%mud )
- ! mu = min( mu, tw%mus )
+  mu = tw%mus + (tw%mus-tw%mud)/tw%L *r
+  mu = max( mu, tw%mud )
+  mu = min( mu, tw%mus )
 
- ! friction coefficient
- ! version B (new): mu keeps growing linearly beyond the nucleation front up to distance L, 
- !                  then jumps to a huge value
-  do i=1,size(r)
-    if (r(i)< -tw%L) then
-      mu(i) = tw%mud
-    elseif ( r(i) <= tw%L ) then  
-   !NOTE: replace by "if r(i)<=0d0" to strongly enforce the position of the front
-      mu(i) = tw%mus + (tw%mus-tw%mud)/tw%L *r(i)
-    else
-      mu(i) = VERY_LARGE_VALUE
-    endif
-  enddo
-  
   end function twf_mu
 
 end module bc_dynflt_twf

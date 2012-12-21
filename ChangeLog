@@ -9,29 +9,7 @@ FR xxxxxxx : Feature Requests
 SR xxxxxxx : Support Requests
 
 
-Tue Aug  7 15:21:11 PDT 2012 -- v 2.3.8
- ++ mesh2d/read_inp.m reads mesh in ABAQUS' INP format exported by CUBIT 
-    (http://cubit.sandia.gov)
- ++ mesh2d/read_dcm.m reads mesh in DCM format exported by EZ4U
-    (http://www-lacan.upc.es/ez4u.htm)
- ++ preliminary version of kinematic fault sources (new &BC_KINFLT block)
- ++ heterogeneous coefficients for anistropic media 
-    FR 3313940
-  + PRE/critical_timestep.m computes the critical time step for given element
-    size and NGLL
-  + &BC_DTTTN0 removed (superseded by &BC_DIRNEU and &BC_KINFLT)
-  + absorbing boundaries with arbitrary orientation
-    (but only with explicit scheme, no Stacey, not periodic, no incident waves)
-  + warning when a declared material is not used by any element
-  + Gaussian source time function (&STF_GAUSSIAN)
- *+ time-weakening does not override stopping barriers in slip-weakening anymore
- *+ time-weakening does not impede healing of rate-and-state friction anymore
- *+ fixed segmentation fault during initialization of pure time-weakening friction
- *+ fixed handling of tip nodes of single-sided faults
-  
-
-Wed Aug 11 23:40:29 PDT 2010 -- v 2.3.7 
-(released in SourceForge on Aug 3 2012)
+Wed Aug 11 23:40:29 PDT 2010 -- v 2.3.7
  ++ more stable curved elements (Q8h) for faults with smooth normal 
     (new option ztopH='CSPLINE' in &MESH_LAYER and new &CSPLINE block)
  ++ added cohesion to dynamic faults (parameter 'cohesion' in &BC_DYNFLT)

@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.7 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_dynflt
 ! slip weakening friction fault
 
@@ -65,8 +102,7 @@ contains
 ! ARG: cohesion [dble] [0d0] part of the strength not proportional to normal stress
 ! ARG: opening  [log] [T] Allow fault opening instead of tensile normal stress
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
-! ARG: Tt       [dble] [0d0] Initial tangent traction 
-!                 (positive antiplane: y>0; positive inplane: right-lateral slip)
+! ARG: Tt       [dble] [0d0] Initial tangent traction (positive antiplane: y>0)
 ! ARG: Sxx      [dble] [0d0] Initial stress sigma_xx
 ! ARG: Sxy      [dble] [0d0] Initial stress sigma_xy
 ! ARG: Sxz      [dble] [0d0] Initial stress sigma_xz
@@ -84,10 +120,10 @@ contains
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
 !
-! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
+! NOTE: the initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
 !
-! NOTE: We recommend to use dynamic faults with the leapfrog time scheme
+! NOTE: we recommend to use dynamic faults with the leapfrog time scheme
 !       and a layer of Kelvin-Voigt damping material near the fault.
 !
 ! END INPUT BLOCK
@@ -263,27 +299,23 @@ contains
 ! nodes that are common to both sides (non-split nodes) are sticky nodes
 ! they must be deleted from the fault boundary
   npoin = bc%bc1%npoin
-  if ( two_sides ) then
+  do k=1,bc%bc1%npoin
+    if (bc%bc1%node(k)==bc%bc2%node(k))  npoin = npoin-1
+  enddo
+  if (npoin<bc%bc1%npoin) then
+    allocate( bc%node1(npoin) )
+    allocate( bc%node2(npoin) )
+    j = 0
     do k=1,bc%bc1%npoin
-      if (bc%bc1%node(k)==bc%bc2%node(k))  npoin = npoin-1
+      if (bc%bc1%node(k)/=bc%bc2%node(k)) then
+        j=j+1
+        bc%node1(j) = bc%bc1%node(k)
+        bc%node2(j) = bc%bc2%node(k)
+      endif
     enddo
-    if (npoin<bc%bc1%npoin) then
-      allocate( bc%node1(npoin) )
-      allocate( bc%node2(npoin) )
-      j = 0
-      do k=1,bc%bc1%npoin
-        if (bc%bc1%node(k)/=bc%bc2%node(k)) then
-          j=j+1
-          bc%node1(j) = bc%bc1%node(k)
-          bc%node2(j) = bc%bc2%node(k)
-        endif
-      enddo
-    else
-      bc%node1 => bc%bc1%node
-      bc%node2 => bc%bc2%node
-    endif
   else
     bc%node1 => bc%bc1%node
+    bc%node2 => bc%bc2%node
   endif
   bc%npoin = npoin
 
@@ -297,25 +329,21 @@ contains
 
 ! NOTE: the mesh being conformal, the weights B=GLL_weights*jac1D are equal on both
 !       sides of the fault. 
+  allocate( tmp_n1(bc%bc1%npoin,2) )
+  allocate( tmp_B(bc%bc1%npoin) ) ! assembled[ GLL_weights * jac1D ]
+  call BC_get_normal_and_weights(bc%bc1,grid,tmp_n1,tmp_B, BC_PERIO_intersects(bc%bc1,perio) )
   allocate( bc%n1(npoin,2) )
   allocate( bc%B(npoin,ndof) )
-  if (npoin<bc%bc1%npoin) then
-    allocate( tmp_n1(bc%bc1%npoin,2) )
-    allocate( tmp_B(bc%bc1%npoin) ) ! assembled[ GLL_weights * jac1D ]
-    call BC_get_normal_and_weights(bc%bc1,grid,tmp_n1,tmp_B, BC_PERIO_intersects(bc%bc1,perio) )
-    j = 0
-    do k=1,bc%bc1%npoin
-      if (bc%bc1%node(k)/=bc%bc2%node(k)) then
-        j=j+1
-        bc%B(j,1) = tmp_B(k)
-        bc%n1(j,:) = tmp_n1(k,:)
-      endif
-    enddo
-    deallocate(tmp_n1,tmp_B)
-  else
-    call BC_get_normal_and_weights(bc%bc1,grid,bc%n1,bc%B(:,1), BC_PERIO_intersects(bc%bc1,perio) )
-  endif
+  j = 0
+  do k=1,bc%bc1%npoin
+    if (bc%bc1%node(k)/=bc%bc2%node(k)) then
+      j=j+1
+      bc%B(j,1) = tmp_B(k)
+      bc%n1(j,:) = tmp_n1(k,:)
+    endif
+  enddo
   bc%B(:,ndof) = bc%B(:,1)
+  deallocate(tmp_n1,tmp_B)
 
 ! Coefficients of corrector phase (see solver.f90)
 !  vnew = vpredictor + coefA2V *anew   
@@ -386,12 +414,8 @@ contains
   allocate(bc%MU(npoin))
   if (associated(bc%swf)) then
     bc%MU = swf_mu(bc%swf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
-  elseif (associated(bc%rsf)) then
+  else
     bc%MU = rsf_mu(bc%V(:,1),bc%rsf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
-  elseif (associated(bc%twf)) then
-    bc%MU = twf_mu(bc%twf,bc%coord,0d0)
   endif
  
 ! cohesion
@@ -581,7 +605,8 @@ contains
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
 
 ! add initial stress
-  T = T + bc%T0
+  T = T + bc%T0            
+!   T = T + bc%T0*0.5*(1-cos(PI*min(time,1d0))) !brian 
 
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
@@ -596,16 +621,15 @@ contains
   if (associated(bc%swf)) then
    ! For time schemes that update displacements explicitly 
    ! (i.e. displacement at time n+1 is independent of velocity and acceleration at time n+1)
-   ! update the slip-dependent friction coefficient using the updated slip.
-   ! Otherwise, use the slip from the previous time step (one-timestep delay)
+   ! update the slip-dependent friction coefficient using the updated slip
+   ! otherwise, use the slip from the previous time step (one-timestep delay)
     if (bc%CoefA2D==0d0) then
       call swf_update_state(dD(:,1),dV(:,1),bc%swf)
     else
       call swf_set_state(bc%D(:,1), bc%swf)
     endif
     bc%MU = swf_mu(bc%swf)
-
-   ! superimposed time-weakening
+   ! combined with time-weakening
     if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
 
  !-- velocity and state dependent friction 
@@ -613,17 +637,14 @@ contains
     call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
    !DEVEL combined with time-weakening
+    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
    !DEVEL WARNING: slip rate is updated later, but theta is not
 
-   ! superimposed time-weakening
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
-
- !-- pure time-weakening
+ !-- pure time weakening
   elseif (associated(bc%twf)) then
-    bc%MU = twf_mu(bc%twf,bc%coord,time)
+    bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
 
   endif
-
 
 ! Update strength
   strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
@@ -633,6 +654,7 @@ contains
 
 ! Subtract initial stress
   T = T - bc%T0
+!   T = T - bc%T0*0.5*(1-cos(PI*min(time,1d0))) !brian 
 
 ! Save tractions
   bc%T = T

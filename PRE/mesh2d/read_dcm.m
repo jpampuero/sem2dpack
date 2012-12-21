@@ -1,5 +1,4 @@
-% READ_DCM	Reads a 2D mesh in DCM format, the output of the EZ4U mesh generation software
-%		(http://www-lacan.upc.es/ez4u.htm)
+% READ_DCM	Reads a 2D mesh in DCM format (the output of the EZ4U mesh generation software)
 %		Assumes Q4 or Q9 elements.
 % 
 % SYNTAX	m = read_dcm(file)
@@ -75,7 +74,7 @@ end
 function b = readBoundaries(stream)
 
 b =[];
-[binfo,count] = fscanf(stream,'%d',5);
+[binfo,count] = fscanf(stream,'%d',5); 
 while count>0
   nb = binfo(4);
   tag = binfo(5);

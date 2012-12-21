@@ -13,53 +13,32 @@
 %			clockwise in boundaries 3 and 4.
 %			The end nodes of a boundary must coincide with end nodes
 %			of the neighboring boundaries.
-%		Q	quad element type, identified by its number of nodes: 4 (default) or 9.
-%			If Q=9, the total number of nodes along each boundary must be odd.
+%		Q	quad element type, by number of nodes: 4 or 9 (default Q=4)
+%			If Q=9, the number of nodes along each boundary must be odd.
 %
-% OUTPUT	mesh	a structure that encapsulates the mesh database. 
-%			It contains the following fields:
-%
-%			coor	Coordinates (x,y) of the nodes
-%				Array of size = [2, total number of nodes]
-%
-%			enod	Element connectivity table:
+% OUTPUT	mesh	mesh structure, contains:
+%			coor	size = [2, number of mesh nodes]
+%				coordinates (x,y) of the mesh nodes
+%			enod	size = [Q, number of elements]
 %				enod(i,e) is the global index of the i-th node
 %				of the e-th element.
-%				Array of size = [Q, total number of elements]
+%			etag	length = number of elements
+%				etag(e) is the material tag of the e-th element
+%			bnds	cell array of length = number of boundaries
+%				The eb-th boundary element of the k-th boundary
+%				is the bnds{k}(2,eb)-th edge of the bnds{k}(1,eb)-th 
+%				element of the mesh.
 %
-%			etag	Domain or material tag (an integer) for each element:
-%				etag(e) is the tag of the e-th element
-%				Vector of length = total number of elements
-%
-%			bnds	Boundaries database:
-%				bnds{k}(1,be) is the mesh element that contains 
-%				the be-th boundary element of the k-th boundary,
-%				bnds{k}(2,be) is the index of the corresponding edge of 
-%				the element. Inside each element the edges are numbered 
-%				as follows. Numbers in [brackets] are edge indices, 
-%				other numbers are node indices. For Q4 elements:
+%				Inside each element the nodes and edges (numbers in [])
+%				are locally numbered as
 %			
-%	                                    [3]
-%			            	4---------3
-%               			|         |
-%            			  [4]   |         |   [2]
-%           		   	 	|         |
-%           			 	1---------2
-%                              	    	    [1]
-%
-%				For Q9 elements:
-%
-%	                                    [3]
-%			            	4----7----3
-%      		         		|         |
-%            			  [4]   8    9    6   [2]
-%           			    	|         |
-%           			 	1----5----2
-%              	                     	    [1]
-%
-%				Cell array of length = total number of boundaries
-%				Note that faults are made of two separate boundaries.
-%
+%                                   [3]
+%		            	4----7----3
+%               		|         |
+%            		  [4]   8    9    6   [2]
+%           		    	|         |
+%           		 	1----5----2
+%                                   [1]
 %
 % EXAMPLE	m=mesh2d_tfi('demo');
 %
