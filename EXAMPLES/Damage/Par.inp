@@ -1,49 +1,64 @@
-# Example: slip weakening fault surrounded by material with continuum damage
+# Parameter file for SEM2DPACK 2.0 
 
-#----- General parameters ----------------
-&GENERAL iexec=0, ngll=5, fmax=4d0 , ndof=2 ,
-  title = 'Slip-weakening dynamic rupture with off-fault damage', verbose='1011' , ItInfo = 200 /
+#----- General settings ----------------
+&ECHO title = 'Damage test 1', verbose='1111'
+    , ItInfo = 200, ItSnapshots = 20000 /
+&GENERAL iexec=1, ngll=5, fmax=25d0 , ndof=2 /
 
-#----- Build the mesh ---------------------------
-# with fault layer for Kelvin-Voigt material
+#----- Mesh generation ---------------------------
 &MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-100d0,100d0 ,zlim=0.d3,2.d3 , nelem=4,40 /
 
-# "fztag=2" sets tag=2 on the elements next to the fault
-# the rest of the domain gets tag=1 by default
+#----- Materials --------------
+&MATERIAL tag=1, isDamage=T, isKelvinVoigt=T /
+&MAT_DAMAGE rho=2400.d0, cp=3800.d0, cs=2000.d0, 
+            beta=0.d0, R=0.4d0, Cd=5d0, phi=30d0, alpha=0.d0 ,
+            e0 = -2d-3,-2d-3,-2d-3, 0.2d-3  /
+#            beta=0., R=0., Cd=0d0, phi=30d0, alpha=0.d0 ,
 
-&MESH_CART ezflt=-1,fztag=2, xlim=-30d0,30d0, 
-           zlim=-12.5d0,12.5d0, nelem=240,100/ # element size h=0.25
-#           zlim=-12.5d0,12.5d0, nelem=480,200/ # h=0.125
+# quality factor Q(f) = 1/(eta*2*pi*f)
+&MAT_KV eta=3.2d-4 , ETAxDT=F / 
 
-#---- Material parameters --------------
-
-# damage rheology
-&MATERIAL tag=1, kind='DMG' /
-# damage + Kelvin-Voigt layer
-&MATERIAL tag=2, kind='DMG','KV' /
-&MAT_DAMAGE rho=1d0, cp=1.7320508d0, cs=1d0,
-           beta=0.d0, R=1.d0, Cd=0.25d0, phi=30.9638d0, alpha=0d0 ,
-           e0 = -1.487381e+00, -1.708729e-01, 3.500000e-01 /
-&MAT_KV eta=0.1d0 /
+# if instead you need to test an elastic medium:
+#&MATERIAL tag=1, isElastic=T /
+#&MAT_ELASTIC rho=2400.d0, cp=3800.d0, cs=2000.d0 /
 
 #----- Boundary conditions ---------------------
+# Boundary tags: 1=bottom, 2=right, 3=top, 4=left
 
-&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
-&BC_DYNFLT friction='SWF','TWF', Szz=-2d0,Sxz=0.7d0 , otd=0.05d0  /
-&BC_DYNFLT_SWF Dc=1d0, MuS=0.6d0, MuD=0.1d0 /
-&BC_DYNFLT_TWF MuS=0.6d0, MuD=0.1d0, Mu0=0.35d0, V=0.5d0, L=1d0 /
+# bottom boundary is fixed 
+&BC_DEF  tag = 1 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='D' /
 
-&BC_DEF  tag = 1 , kind = 'ABSORB' /
-&BC_DEF  tag = 2 , kind = 'ABSORB' /
-&BC_DEF  tag = 3 , kind = 'ABSORB' /  
-&BC_DEF  tag = 4 , kind = 'ABSORB' /  
+# top boundary: time-dependent vertical load
+&BC_DEF  tag = 3 , kind = 'DIRNEU' /  
+#&BC_DIRNEU h= 'D' , v='N', vstf='RICKER' /
+#&STF_RICKER  f0= 5.d0, onset = 0.4d0, ampli = 100d0 / # amplitude in Pascal
+&BC_DIRNEU h= 'D' , v='N', vstf='HARMONIC' /
+&STF_HARMONIC f0= 5.d0, ampli = 100d0 / # amplitude in Pascal
 
-#---- Time scheme settings ----------------------
-&TIME  TotalTime=30d0, courant = 0.55d0, kind='leapfrog' /  ! T=30
+# use this instead if you apply a point source:
+#&BC_DIRNEU h= 'D' , v='N' /
+
+# left and right boundaries are free to move vertically
+# comment this out if you want the default: free stress
+&BC_DEF  tag = 2 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='N' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /  
+&BC_DIRNEU h= 'D' , v='N' /
+
+#----- Time scheme ----------------------
+&TIME TotalTime=10d0, courant=0.5d0, kind='leapfrog'/
+
+#----- Sources ----------------------------------
+# for a point force source:
+#&SRC_DEF stf= 'RICKER', coord= 0.d0,1.d3, mechanism= 'FORCE' /
+#&STF_RICKER  f0= 5.d0, onset = 0.4d0, ampli = 1.d-6 /
 
 #----- Receivers ---------------------------------
-#&REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20 / 
+&REC_LINE number = 21 , first = 0d3,0d3, last = 0d3,2d3, irepr='Z' / 
 
-#--------- Plots settings ----------------------
-&SNAP_DEF itd=200, fields ='VES', components='x', ps=F /
-#&SNAP_PS vectors =F, interpol = F, DisplayPts=6, ScaleField=2d0   /
+#----- Plots ----------------------
+&PLOTS fields='V', components='a' /
+&PLOTS_POSTSCRIPT  vectors =F, color=T, interpol= F / 
+#,ScaleField = 1.d-2 /

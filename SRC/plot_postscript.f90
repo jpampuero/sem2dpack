@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12e -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module plot_postscript
 
   use spec_grid 
@@ -9,24 +49,21 @@ module plot_postscript
   double precision, parameter :: centim = 28.5d0
   integer, parameter :: maxcolors = 20
   real, dimension(3,maxcolors), save :: RGB
-  logical, save :: legend=.true., interpol=.false., vectors=.false. &
-                  ,mesh=.false. , symbols=.true., boundaries=.true. &
-                  ,numbers=.false., color=.true.
-  integer, save :: set_background=0
+  logical, save :: legend,interpol,vectors,mesh,symbols,boundaries,color,numbers
+  integer, save :: set_background
 
   double precision, allocatable, save :: se_interp(:,:,:), fe_interp(:,:,:)
 
-  integer, save :: isubsamp=3, DisplayPts=3
-  double precision, save :: ScaleField = 0.d0 
+  integer, save :: isubsamp,DisplayPts
                    
   logical, parameter :: usletter=.true. ! Page format: US letter or A4
 
-  double precision, save :: sizex,sizez,rapp_page,xmin,zmin,xmax,zmax
-  character(3), save :: version='2.3'
+  double precision, save :: sizex,sizez,rapp_page,xmin,zmin,xmax,zmax,ScaleField
+  character(3), save :: version='2.2'
 
   real, save :: usoffset
 
-  public :: PLOT_PS, PLOT_PS_read
+  public :: PLOT_PS,POST_PS_read,POST_PS_init
 
 contains
 
@@ -35,10 +72,10 @@ contains
 !
 ! BEGIN INPUT BLOCK
 !
-! NAME   : SNAP_PS
-! GROUP  : SNAPSHOT_OUTPUTS
+! NAME   : PLOTS_POSTCRIPT
+! GROUP  : PLOTS
 ! PURPOSE: Preferences for PostScript snapshots
-! SYNTAX : &SNAP_PS vectors, mesh, background, color,
+! SYNTAX : &PLOTS_POSTSCRIPT vectors, mesh, background, color,
 !               isubsamp, boundaries, symbols, numbers, legend,
 !               ScaleField, Interpol, DisplayPts /
 !
@@ -60,7 +97,7 @@ contains
 ! ARG: ScaleField       [dble] [0d0] Fixed amplitude scale (saturation),
 !                       convenient for comparing snapshots and making movies. 
 !                       The default scales each snapshot by its maximum amplitude
-! ARG: Interpol         [log] [F] Interpolate field on a regular subgrid 
+! ARG: Interpol         [log] [T] Interpolate field on a regular subgrid 
 !                       inside each element
 ! ARG: DisplayPts       [log] [3] Size of interpolation subgrid inside each 
 !                       element is DisplayPts*DisplayPts. The default plots at 
@@ -68,7 +105,7 @@ contains
 !               
 ! END INPUT BLOCK
 
-  subroutine PLOT_PS_read(iin)
+  subroutine POST_PS_read(iin)
 
   use echo, only : iout,echo_input
 
@@ -76,15 +113,26 @@ contains
   character :: background
   character(10) :: bg_name
 
-  NAMELIST / SNAP_PS / vectors,numbers &
+  NAMELIST / PLOTS_POSTSCRIPT / vectors,numbers &
                          ,background,isubsamp,color &
                          ,boundaries,symbols,legend,mesh &
                          ,interpol,DisplayPts,ScaleField
 
+  vectors    = .false. 
+  numbers    = .false. 
   background = ''
+  isubsamp   = 3
+  color      = .true.
+  boundaries = .true.
+  symbols    = .true.
+  legend     = .true.
+  mesh       = .false.
+  interpol   = .true.
+  DisplayPts = 3
+  ScaleField = 0.d0 
      
   rewind(iin)
-  read(iin,SNAP_PS,END=100)
+  read(iin,PLOTS_POSTSCRIPT,END=100)
 100 continue
  
   if (vectors) then
@@ -120,13 +168,13 @@ contains
   'Points per edge for interpolation . . . (DisplayPts) = ',I0)
 
 
-  end subroutine PLOT_PS_read
+  end subroutine POST_PS_read
 
 !=======================================================================
 ! NOTE: indexed color scales can also be defined in Level 2 PostScript by
 !       [/Indexed /DeviceRGB 255 <... ... ...> ] setcolorspace 
 
-  subroutine PLOT_PS_init(grid)
+  subroutine POST_PS_init(grid)
 
   use spec_grid, only : sem_grid_type,SE_init_interpol
   use fem_grid, only : FE_getshape,Fe_GetNodesPerElement
@@ -198,7 +246,7 @@ contains
   endif
 
  
-  end subroutine PLOT_PS_init
+  end subroutine POST_PS_init
 
 
 !=======================================================================
@@ -241,12 +289,6 @@ contains
   double precision :: maxfield,time
   integer :: psunit,it,opt_comp
   logical :: nodal_field,elem_field,vector_field
-  logical, save :: initialized = .false.
-
-  if (.not.initialized) then
-    call PLOT_PS_init(grid)
-    initialized = .true.
-  endif
 
   if (present(time_in) .and. present(it_in)) then
     time = time_in
@@ -262,7 +304,6 @@ contains
     opt_comp = 0
   endif
 
-  vector_field = .false.
   nodal_field = present(vfield)
   if (nodal_field) then
     maxfield = maxval(abs(vfield))
@@ -466,6 +507,7 @@ contains
 
  600  format(F0.3,' neg CM 0 MR (Time =',EN12.3,' s) show')
  610  format(F0.3,' neg CM 0 MR (Time step = ',I0,') show')
+ 620  format(F0.3,' neg CM 0 MR (Cut =',F0.2,' \%) show')
  640  format(F0.3,' neg CM 0 MR (Max =',EN12.3,') show')
 
   end subroutine plot_legend
@@ -484,8 +526,8 @@ contains
 
   if (PS<1 .or. PS>2) return
 
-  cmin =  huge(cmin)
-  cmax = -huge(cmax)
+  cmin = -huge(cmin)
+  cmax =  huge(cmax)
   do e=1,grid%nelem
     if (PS==1) then
       call MAT_getProp(celem,mat(e),'cp')
@@ -565,7 +607,7 @@ contains
     write(psunit,*) '% elem ',e
     write(psunit,*) 'MK'
 
-    if (ngnod == 4) then ! linear element shape
+    if (ngnod == 4) then ! tracer des droites si elements Q4
    
      ! get the coordinates of the control nodes
       coorg => FE_GetElementCoord(grid%fem,e)
@@ -575,7 +617,7 @@ contains
       write(psunit,601) point_scaled( coorg(:,1) )
       deallocate(coorg)
     
-    else ! curved element shape
+    else ! tracer des courbes si elements Q9
 
      ! get the coordinates of the GLL points
       do j=1,grid%ngll
@@ -685,7 +727,7 @@ contains
   double precision :: point(NDIME),Uinterp(NDIME),factor
   double precision, pointer :: coorg(:,:)
   double precision, allocatable :: vloc(:,:)
-  integer :: e,i,j,k,ipoin
+  integer :: e,i,j,k,l,ipoin
 
   if (maxfield>0d0) then
     write(psunit,*) '%'
@@ -848,7 +890,6 @@ contains
         spl(i,j) = sum( se_interp(:,i,j)*stmp)
       enddo
       enddo
-      deallocate(coorg)
 
     else
       do j=1,grid%ngll

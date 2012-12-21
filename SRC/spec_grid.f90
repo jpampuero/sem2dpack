@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12e -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module spec_grid
 
   use stdio, only : IO_abort
@@ -25,7 +65,7 @@ module spec_grid
 !     dshape       = derivatives of shape functions
 !     hprime       = lagrange derivatives on the unit square
 !     hTprime      = transpose of hprime
-!     wgll         = 1D GLL integration weights
+!     wgll         = GLL integration weights
 !     wgll2        = 2D GLL integration weights
 !     xgll         = GLL points on the unit segment
 !
@@ -93,16 +133,16 @@ module spec_grid
          SE_find_point ,&
          SE_get_edge_nodes ,&
          SE_inquire , &
+         SE_single_tag , &
          SE_isFlat, &
-         SE_firstElementTagged, &
          SE_VolumeWeights ,&
          SE_InverseJacobian ,&
          SE_Jacobian ,&
          SE_elem_coord, &
          BC_inquire ,&
-         BC_tag_exists, &
          BC_get_normal_and_weights &
-          , edge_D,edge_R,edge_U,edge_L
+          , edge_D,edge_R,edge_U,edge_L &
+          , side_D,side_R,side_U,side_L
  
 contains
 
@@ -145,7 +185,7 @@ contains
 ! and derivatives of Lagrange polynomials  H_ij = h'_i(xgll(j))
   subroutine SE_init_gll(se)
 
-  use gll, only : get_GLL_info, print_GLL
+  use gll, only : get_GLL_info
 
   type (sem_grid_type), intent(inout) :: se
   double precision :: xi,eta 
@@ -160,7 +200,6 @@ contains
   allocate(se%wgll2(ngll,ngll))
 
   call get_GLL_info(ngll,se%xgll,se%wgll,se%hprime)
-  call print_GLL(ngll,se%xgll,se%wgll,se%hprime)
   se%hTprime = transpose(se%hprime)
   
  ! wgll2(i,j) = wgll(i) * wgll(j)
@@ -245,7 +284,6 @@ contains
 
   do e = 1,se%nelem
 
-
    !-- interior nodes are unique
     do j=2,ngll-1
     do i=2,ngll-1
@@ -264,7 +302,6 @@ contains
         if (ee>0) ibool(iedgR(k,nn),jedgR(k,nn),ee) = npoin
       enddo
     enddo
-
 
    !-- vertex nodes
     do n = 1,4
@@ -289,18 +326,15 @@ contains
 
   if (echo_init) then
     write(iout,fmtok)
-    write(iout,100) 'Total number of elements. . . . . . . . = ',se%nelem
     write(iout,100) 'Total number of GLL points. . . . . . . = ',npoin
     write(iout,*)
     write(iout,fmt1,advance='no') 'Saving element/node table in binary file ibool_sem2d.dat'
   endif
 
-  inquire( IOLENGTH=iol ) se%ibool(:,:,1)
+  inquire( IOLENGTH=iol ) se%ibool
   ounit = IO_new_unit()
   open(ounit,file='ibool_sem2d.dat',status='replace',access='direct',recl=iol)
-  do e = 1,se%nelem
-    write(ounit,rec=e) se%ibool(:,:,e)
-  enddo
+  write(ounit,rec=1) se%ibool
   close(ounit)
   if (echo_init) write(iout,fmtok)
 
@@ -359,12 +393,13 @@ contains
     
 !----  Always save the grid in a binary file
   if (echo_init) write(iout,fmt1,advance='no') 'Saving the grid coordinates (coord) in a binary file'
-  inquire( IOLENGTH=iol ) real(se%coord(:,1))
+  inquire( IOLENGTH=iol ) se%coord
+  iol=iol/2
   ounit = IO_new_unit()
   open(ounit,file='coord_sem2d.dat',status='replace',access='direct',recl=iol)
-  do i = 1,se%npoin
-    write(ounit,rec=i) real(se%coord(:,i))
-  enddo
+ ! NOTE: crashes here with segmentation fault if se%coord exceeds stack size
+ !       FIX: (bash) ulimit -s unlimited
+  write(ounit,rec=1) real(se%coord)
   close(ounit)
   if (echo_init) write(iout,fmtok)
 
@@ -424,15 +459,12 @@ contains
     endif
   enddo
 
-  if (present(coord)) coord = grid%coord(:,iglob)
+  if (present(coord)) coord(:) = grid%coord(:,iglob)
   if (present(distance)) distance = sqrt(d2min)
 
   end subroutine SE_find_nearest_node
 
 !=====================================================================
-! Find (e,i,j), element and local indices associated to a global node iglob
-! Version 1: first element found
-! Version 2: all elements
 !
   subroutine SE_node_belongs_to_1(iglob,e,i,j,grid)
 
@@ -716,7 +748,8 @@ subroutine BC_set_bulk_node(bc,grid)
   do n=1,bc%nelem
 
 !   get edge nodes, counterclockwise by default
-    call SE_get_edge_nodes(grid,bc%elem(n),bc%edge(n), bulk_node_vect)
+    call SE_get_edge_nodes(grid,bc%elem(n),bc%edge(n) &
+                          ,bulk_node_vect)
 
     do kloc = 1,bc%ngnod
 
@@ -746,8 +779,7 @@ subroutine BC_set_bulk_node(bc,grid)
 
         bc_npoin = bc_npoin +1
         bc_inode = bc_npoin
-        allocate(BC_node%P)
-        allocate(BC_node%P%data)
+        allocate(BC_node%P); allocate(BC_node%P%data)
         BC_node%P%data%bulk_node = bulk_node
         BC_node%P%data%bc_node = bc_inode
         Link = transfer(BC_node,Link)
@@ -769,14 +801,6 @@ subroutine BC_set_bulk_node(bc,grid)
     enddo
   enddo
 
- ! clean up the list of corners
-  do 
-    SubLink = LI_Remove_Head(BC_Corners_List)
-    if (.not.LI_Associated(SubLink)) exit
-    BC_corner = transfer(SubLink,BC_corner)
-    deallocate(BC_corner%P)
-  enddo
-
 !-----------------------------------------------------------------------
 !  Translate BC database from linked list to array storage
 
@@ -785,8 +809,7 @@ subroutine BC_set_bulk_node(bc,grid)
   do i=1,bc%npoin
     Link = LI_Remove_Head(BC_Nodes_List)
     BC_node = transfer(Link,BC_node)
-    bc%node(BC_node%P%data%bc_node) = BC_node%P%data%bulk_node
-    deallocate(BC_node%P%data)
+    bc%node(BC_node%P%Data%bc_node) = BC_node%P%Data%bulk_node
     deallocate(BC_node%P)
   enddo
 
@@ -819,37 +842,13 @@ end subroutine BC_set_bulk_node
 
 !=======================================================================
 !
-! example:
-!
-!  integer, pointer :: ptr(:)
-!  ptr => SE_firstElementTagged(grid)
-!  ...
-!  deallocate(ptr)
-!
-  function SE_firstElementTagged(grid) result(elist)
-
-  use utils, only : unique
+  logical function SE_single_tag(grid)
 
   type (sem_grid_type), intent(in) :: grid
-  integer, pointer :: elist(:)
 
-  integer, pointer :: tags(:)
-  integer :: ntags,k,e
+  SE_single_tag =  minval(grid%tag) == maxval(grid%tag)
 
-  tags => unique(grid%tag)
-  ntags = size(tags)
-
-  allocate(elist(ntags))
-  do k=1,ntags
-    do e=1,grid%nelem
-      if (grid%tag(e)==tags(k)) exit
-    enddo
-    elist(k) = e
-  enddo
-
-  deallocate(tags)
-  
-  end function SE_firstElementTagged
+  end function SE_single_tag
 
 !=======================================================================
 !
@@ -867,7 +866,6 @@ end subroutine BC_set_bulk_node
   double precision :: dmin,dmax
 
   !-- give the GLL local numbering ITAB,JTAB for a given EDGE
-  !   assuming counterclockwise orientation
   if ( present(edge) .and. present(itab) .and. present(jtab) ) then
     select case(edge)
       case(edge_D); itab = (/ (k, k=1,grid%ngll) /)   ; jtab = 1
@@ -932,25 +930,6 @@ end subroutine BC_set_bulk_node
   end subroutine BC_inquire
 
 !=======================================================================
-!
-  logical function BC_tag_exists(bounds,tag) result(exists)
-
-  type (bnd_grid_type), intent(in) :: bounds(:)
-  integer, intent(in) :: tag
-
-  integer :: i
-  
-  exists = .false.
-  do i=1,size(bounds)
-    if ( bounds(i)%tag == tag ) then
-      exists = .true.
-      exit
-    endif
-  enddo
-
-  end function BC_tag_exists
-
-!=======================================================================
 ! Normal to a boundary, pointing out of the element
 ! Normals are assembled --> "average" normal between elements
   subroutine BC_get_normal_and_weights(bc,grid,NORM,W,periodic)
@@ -970,10 +949,7 @@ end subroutine BC_set_bulk_node
   do BcElmt = 1,bc%nelem
     call SE_inquire(grid, edge=bc%edge(BcElmt) &
                    ,itab=iGLLtab, jtab=jGLLtab, dim_t=LocDimTanToEdge)
-   ! LocDimTanToEdge = local dimension (1=xi, 2=eta) tangent to current edge                    
    ! SignTang enforces the counterclockwise convention for tangent vector
-   ! (iGLLtab,jGLLtab) are the GLL indices of the nodes of boundary element BcElmt
-   ! in the same order (counterclockwise) as they appear in bc%ibool(:,BcElmt)
     if (bc%edge(BcElmt)==edge_U .OR. bc%edge(BcElmt)==edge_L) then
       SignTang = -1d0
     else

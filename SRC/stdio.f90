@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12e -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module stdio
 
   implicit none
@@ -12,7 +52,7 @@ module stdio
   integer, save :: ierror = 6 
 
   public :: IO_read_skip, IO_new_unit, IO_test_msg, IO_rw_field, IO_abort, &
-    IO_file_length, IO_file_columns
+    IO_file_length
 
 contains
 
@@ -65,28 +105,6 @@ contains
   end function IO_file_length
 
 !=====================================================================
-!! Count the number of columns in a text file
-  function IO_file_columns(filename) result(ncol)
-
-  character(*) :: filename
-  character(500) :: line !WARNING: assumed max line length
-  integer  :: ncol,i,iin
-  double precision :: xread !WARNING: assume double precision inputs
-
-  iin = IO_new_unit()
-  open(iin,file=filename)
-  read(iin,'(A)') line
-  close(iin)
-
-  do ncol=1,huge(ncol)
-    read(line,*,end=200) (xread, i=1,ncol)
-  enddo
-  200 continue
-  ncol = ncol-1
-
-  end function IO_file_columns
-
-!=====================================================================
 !! Tests a section name in input file
   logical function IO_test_msg(iin,msg)
     
@@ -115,21 +133,17 @@ contains
     character(*), intent(in) :: filename
     character, intent(in) :: action
 
-    integer :: iunit,iol,k
+    integer :: iunit,iol
 
+    INQUIRE( IOLENGTH=iol ) field
     iunit = IO_new_unit()
     if (action=='r') then
-      INQUIRE( IOLENGTH=iol ) field(1)
       open(unit=iunit,file=trim(filename)//'_sem2d.dat',status='old',access='direct',recl=iol)
-      do k=1,size(field)
-        read(iunit,rec=k) field(k)
-      enddo
+      read(iunit,rec=1) field
     elseif (action=='w') then 
-      INQUIRE( IOLENGTH=iol ) real(field(1))
+      iol = iol/2
       open(unit=iunit,file=trim(filename)//'_sem2d.dat',status='replace',access='direct',recl=iol)
-      do k=1,size(field)
-        write(iunit,rec=k) real(field(k))
-      enddo
+      write(iunit,rec=1) real(field)
     else
       call IO_abort('IO_rw_field: illegal action')
     endif
@@ -161,21 +175,17 @@ contains
     character(*), intent(in) :: filename
     character, intent(in) :: action
 
-    integer :: iunit,iol,k
+    integer :: iunit,iol
 
+    INQUIRE( IOLENGTH=iol ) field
     iunit = IO_new_unit()
     if (action=='r') then
-      INQUIRE( IOLENGTH=iol ) field(:,:,1)
       open(unit=iunit,file=trim(filename)//'_sem2d.dat',status='old',access='direct',recl=iol)
-      do k=1,size(field,3)
-        read(iunit,rec=k) field(:,:,k)
-      enddo
+      read(iunit,rec=1) field
     elseif (action=='w') then 
-      INQUIRE( IOLENGTH=iol ) real(field(:,:,1))
+      iol = iol/2
       open(unit=iunit,file=trim(filename)//'_sem2d.dat',status='replace',access='direct',recl=iol)
-      do k=1,size(field,3)
-        write(iunit,rec=k) real(field(:,:,k))
-      enddo
+      write(iunit,rec=1) real(field)
     else
       call IO_abort('IO_rw_field: illegal action')
     endif

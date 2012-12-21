@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.12e -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                             with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics Group
+! ETH Hönggerberg HPP O 13.1
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 44 633 2197 (office)
+! +41 44 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module stf_tabulated
 ! Tabulated source time function:
 ! read values from a file then spline-interpolate
@@ -24,11 +64,12 @@ contains
 ! SYNTAX : &STF_TAB file /
 !
 ! ARG: file     [string] ['stf.tab'] ASCII file containing the source time function,
-!               two columns: time and value. Time can be irregularly sampled and
-!               must increase monotonically.
+!		 two columns per line:
+!  		 (1) time
+!		 (2) value
 !
-! NOTE   : assumes value(t<min(time))=value(min(time)) 
-!          and value(t>max(time))=value(max(time))
+! NOTE   : time can be irregularly sampled
+! NOTE   : assumes value=0 before min(time) and after max(time)
 !
 ! END INPUT BLOCK
 
@@ -59,7 +100,7 @@ subroutine STF_TAB_read(stf,iin)
   close(iunit)
 
   allocate( stf%v2(N) )
-  !NOTE: assumes 0 derivative at extreme points of spline
+  ! 0 derivative at extreme points of spline
   call spline(stf%t,stf%v,N,0d0,0d0,stf%v2)   
 
   if (echo_input) write(iout,200) trim(file)
@@ -81,14 +122,14 @@ function STF_TAB_fun(stf,t) result(fun)
   double precision, intent(in) :: t
   double precision :: fun
 
-  double precision :: tbis
   integer :: N 
 
   N = size(stf%t)
-  !NOTE: assumes value(t<t1) = value(t1) and value(t>tN) = value(tN) 
-  tbis = max(t,stf%t(1))
-  tbis = min(tbis,stf%t(N))
-  call splint(stf%t,stf%v,stf%v2,N,tbis,fun)
+  if (t>=stf%t(1) .and. t<=stf%t(N)) then
+    call splint(stf%t,stf%v,stf%v2,N,t,fun)
+  else
+    fun = 0d0
+  endif
 
 end function STF_TAB_fun
 
