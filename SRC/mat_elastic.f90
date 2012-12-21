@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.8 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module mat_elastic
 ! Linear elasticity
 ! Isotropic or transverse anisotropic
@@ -53,14 +90,14 @@ contains
 ! SYNTAX : For isotropic material:
 !           &MAT_ELASTIC rho|rhoH, cp|cpH, cs|csH /
 !          For transverse anisotropy with vertical symmetry axis:
-!           &MAT_ELASTIC rho|rhoH, c11|c11H, c13|c13H, c33|c33H, c55|c55H, c66|c66H /
+!           &MAT_ELASTIC rho|rhoH, c11|c11H, c13|c13H, c33|c33H, c55|c55H /
 !          Followed by one DIST_XXXX blocks for each argument present with suffix H,
 !          in the same order as listed above.
 !
 ! ARG: cp       [dble][0d0] P wave velocity (m/s)
 ! ARG: cs       [dble][0d0] S wave velocity (m/s)
 ! ARG: rho      [dble][0d0] density (kg/m^3)
-! ARG: c11,c13,c33,c55,c66  [dble][0d0] anisotropic elastic moduli (Pa)
+! ARG: c11,c13,c33,c55  [dble][0d0] anisotropic elastic moduli (Pa)
 !
 ! END INPUT BLOCK
 
@@ -73,10 +110,10 @@ contains
   integer, intent(in) :: iin
 
   double precision :: Kmod,poiss,rho,cp,cs,mu,lambda
-  double precision :: c11,c13,c33,c55,c66
-  character(20) :: rhoH,cpH,csH,c11H,c13H,c33H,c55H,c66H
+  double precision :: c11,c13,c33,c55
+  character(20) :: rhoH,cpH,csH,c11H,c13H,c33H,c55H
 
-  NAMELIST / MAT_ELASTIC / rho,cp,cs, rhoH,cpH,csH, c11,c13,c33,c55,c66, c11H,c13H,c33H,c55H,c66H
+  NAMELIST / MAT_ELASTIC / rho,cp,cs, rhoH,cpH,csH, c11,c13,c33,c55, c11H,c13H,c33H,c55H
 
   call MAT_setKind(input,isElastic)
 
@@ -90,12 +127,10 @@ contains
   c13 = 0d0
   c33 = 0d0
   c55 = 0d0
-  c66 = 0d0
   c11H = ''
   c13H = ''
   c33H = ''
   c55H = ''
-  c66H = ''
 
   read(iin,MAT_ELASTIC,END=100)
 
@@ -126,10 +161,9 @@ contains
       call MAT_setProp(input,'mu',mu)
     endif
 
- ! Anisotropic material: c11, c13, c33, c55, c66 (Pa)
-  elseif ( ((c11>0d0 .or. c11H/='') .and. (c13>0d0 .or. c13H/='') .and. &
-            (c33>0d0 .or. c33H/='') .and. (c55>0d0 .or. c55H/='')) .or. &
-           ((c55>0d0 .or. c55H/='') .and. (c66>0d0 .or. c66H/='')) ) then
+ ! Anisotropic material: c11, c13, c33, c55 (Pa)
+  elseif ((c11>0d0 .or. c11H/='') .and. (c13>0d0 .or. c13H/='') .and. &
+          (c33>0d0 .or. c33H/='') .and. (c55>0d0 .or. c55H/='') ) then
 
     call MAT_setKind(input,isElasticAnisotropic)
 
@@ -137,14 +171,13 @@ contains
     call MAT_setProp(input,'c13',c13,c13H,iin,c13H)
     call MAT_setProp(input,'c33',c33,c33H,iin,c33H)
     call MAT_setProp(input,'c55',c55,c55H,iin,c55H)
-    call MAT_setProp(input,'c66',c66,c66H,iin,c66H)
 
-    if (echo_input) write(iout,250) c11H,c13H,c33H,c55H,c66H,rhoH
+    if (echo_input) write(iout,250) c11H,c13H,c33H,c55H,rhoH
 
    ! if uniform properties
-    if (c11>0d0 .and. c13>0d0 .and. c33>0d0 .and. c55>0d0 .and. c66>0d0 .and. rho>0d0) then
+    if (c11>0d0 .and. c13>0d0 .and. c33>0d0 .and. c55>0d0 .and. rho>0d0) then
       call MAT_setKind(input,isElasticHomogeneous)
-      if (echo_input) write(iout,300) sqrt(c33/rho),sqrt(c11/rho),sqrt(c55/rho),sqrt(c66/rho)
+      if (echo_input) write(iout,300) sqrt(c33/rho),sqrt(c11/rho),sqrt(c55/rho),sqrt(c55/rho)
     endif
   
   else
@@ -174,14 +207,15 @@ contains
     'c13 coefficient (Pascal). . . . . . (c13) =',A,/5x, &
     'c33 coefficient (Pascal). . . . . . (c33) =',A,/5x, &
     'c55 coefficient (Pascal). . . . . . (c55) =',A,/5x, &
-    'c66 coefficient (Pascal). . . . . . (c66) =',A,/5x, &
     'Mass density. . . . . . . . . . . . (rho) =',A)
 
   300   format(5x, &
     'Velocity of qP along vertical axis. . . . =',EN12.3,/5x, &
     'Velocity of qP along horizontal axis. . . =',EN12.3,/5x, &
-    'Velocity of qSV and vertical qSH  . . . . =',EN12.3,/5x, &
-    'Velocity of qSH along horizontal axis . . =',EN12.3)
+    'Velocity of qSV along vertical axis . . . =',EN12.3,/5x, &
+    'Velocity of qSV along horizontal axis . . =',EN12.3)
+
+!DEVEL: qSH vertical = sqrt(c66/rho), horizontal = sqrt(c55/rho)
 
   end subroutine MAT_ELAST_read
 
@@ -194,7 +228,7 @@ contains
   type(matpro_elem_type), intent(inout) :: elem
   double precision, intent(in) :: ecoord(:,:,:)
 
-  double precision, dimension(size(ecoord,2),size(ecoord,3)) :: cp,cs,rho,c11,c55,c66
+  double precision, dimension(size(ecoord,2),size(ecoord,3)) :: cp,cs,rho,c11,c55
   
   if (MAT_isKind(elem,isElasticIsotropic)) then
 
@@ -216,7 +250,6 @@ contains
   else
     call MAT_setProp(elem,'c13',ecoord,MAT_ELAST_mempro)
     call MAT_setProp(elem,'c55',ecoord,MAT_ELAST_mempro)
-    call MAT_setProp(elem,'c66',ecoord,MAT_ELAST_mempro)
     call MAT_setProp(elem,'c11',ecoord,MAT_ELAST_mempro)
     call MAT_setProp(elem,'c33',ecoord,MAT_ELAST_mempro)
 
@@ -287,7 +320,7 @@ contains
   type(matpro_elem_type), intent(in) :: mat
 
   double precision, dimension(ngll,ngll) :: DxiDx,DxiDz,DetaDx,DetaDz
-  double precision, dimension(ngll,ngll) :: Kx,Kz,la,mu,mux,muz
+  double precision, dimension(ngll,ngll) :: Kx,Kz,la,mu
   integer :: k
 
   DxiDx  = xjaci(1,1,:,:)
@@ -298,15 +331,11 @@ contains
   if (MAT_isKind(mat,isElasticIsotropic)) then
     call MAT_getProp(la, mat,'lambda')
     call MAT_getProp(mu, mat,'mu')
-    mux = mu
-    muz = mu
     Kx = la + 2d0*mu
     Kz = Kx
   else
     call MAT_getProp(la, mat,'c13')
     call MAT_getProp(mu, mat,'c55')
-    muz = mu
-    call MAT_getProp(mux, mat,'c66')
     call MAT_getProp(Kx, mat,'c11')
     call MAT_getProp(Kz, mat,'c33')
   endif
@@ -314,13 +343,13 @@ contains
   select case(nelast)
 
   case(2) ! SH flat
-    a(:,:,1) = mux * DxiDx*DxiDx
-    a(:,:,2) = muz * DetaDz*DetaDz
+    a(:,:,1) = mu * DxiDx*DxiDx
+    a(:,:,2) = mu * DetaDz*DetaDz
     
   case(3) ! SH general
-    a(:,:,1) = mux * DxiDx*DxiDx   + muz * DxiDz*DxiDz 
-    a(:,:,2) = mux * DetaDx*DetaDx + muz * DetaDz*DetaDz 
-    a(:,:,3) = mux * DxiDx*DetaDx  + muz * DxiDz*DetaDz 
+    a(:,:,1) = mu *( DxiDx*DxiDx + DxiDz*DxiDz )
+    a(:,:,2) = mu *( DetaDx*DetaDx + DetaDz*DetaDz )
+    a(:,:,3) = mu *( DxiDx*DetaDx + DxiDz*DetaDz )
 
   case(6) ! P-SV flat
     a(:,:,1) = Kx * DxiDx*DxiDx

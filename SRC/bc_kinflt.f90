@@ -1,3 +1,40 @@
+! SEM2DPACK version 2.3.8 -- A Spectral Element Method for 2D wave propagation and fracture dynamics,
+!                            with emphasis on computational seismology and earthquake source dynamics.
+! 
+! Copyright (C) 2003-2007 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! California Institute of Technology
+! Seismological Laboratory
+! 1200 E. California Blvd., MC 252-21 
+! Pasadena, CA 91125-2100, USA
+! 
+! ampuero@gps.caltech.edu
+! Phone: (626) 395-6958
+! Fax  : (626) 564-0715
+! 
+! http://web.gps.caltech.edu/~ampuero/
+! 
+! This software is freely available for academic research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_kinflt
 
 ! WARNING: This module is still in development
@@ -23,7 +60,7 @@ module bc_kinflt
     type(stf_type) :: stf
    ! for outputs:
     double precision :: ot1,odt
-    integer :: comp,oit,oitd,ounit,oix1,oixn,oixd
+    integer :: oit,oitd,ounit,oix1,oixn,oixd
   end type 
 
   public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_set, BC_kinflt_write
@@ -39,17 +76,16 @@ contains
 !          on a finite fault
 ! STATUS : The current implementation has the following features and restrictions:
 !            . the fault is a flat horizontal boundary at the bottom of the model
-!            . prescribed (x,t)-dependent horizontal or vertical velocity
-!            . traction is free in the other component 
+!            . prescribed (x,t)-dependent horizontal velocity
+!            . prescribed free vertical traction 
 !            . the source time function is the same everywhere (but variably shifted and scaled)
 !            . the rupture time, final slip and rise time can be spatially variable
-! SYNTAX : &BC_KINFLT comp, trup|trupH, slipr|sliprH, tris|trisH, stf, ot1, otd, oxi /
+! SYNTAX : &BC_KINFLT trup|trupH, slipr|sliprH, tris|trisH, stf, ot1, otd, oxi /
 !          followed, in order, by:
 !          1. &DIST_XXX blocks (from the DISTRIBUTIONS group) for arguments
 !             with suffix H, if present, in the order listed above.
 !          2. one SOURCE TIME FUNCTION block (&STF_XXXX)
 ! 
-! ARG: comp     [int] [1] component to apply velocity, 1=horizontal, 2=vertical
 ! ARG: trup     [dble] [0d0] Rupture time (s)
 ! ARG: slipr    [dble] [0d0] Slip rate (m/s)
 ! ARG: tris     [dble] [0d0] Rise time (s)
@@ -77,12 +113,11 @@ subroutine bc_kinflt_read(bc,iin)
   character(20) :: trupH,sliprH,trisH,dt_txt,oxi2_txt
   character(15) :: stf
   double precision :: trup,slipr,tris,ot1, otd
-  integer :: oxi(3),comp
+  integer :: oxi(3)
 
-  NAMELIST / BC_KINFLT / comp, trup, trupH, slipr, sliprH, tris, trisH, stf &
+  NAMELIST / BC_KINFLT / trup, trupH, slipr, sliprH, tris, trisH, stf &
                         ,ot1, otd, oxi
 
-  comp = 1
   trup = 0d0
   trupH = ''
   tris = 0d0
@@ -99,7 +134,6 @@ subroutine bc_kinflt_read(bc,iin)
 
   read(iin,BC_KINFLT,END=100)
 
-  bc%comp = comp
   bc%ot1 = ot1
   bc%odt = otd
   bc%oix1 = oxi(1)
@@ -122,7 +156,7 @@ subroutine bc_kinflt_read(bc,iin)
     else
       write(oxi2_txt,'(I0)') oxi(2)
     endif
-    write(iout,400) comp, trupH, trisH, sliprH,stf &
+    write(iout,400) trupH, trisH, sliprH,stf &
                    ,ot1,dt_txt,oxi(1),oxi2_txt,oxi(3)
   endif
  
@@ -130,7 +164,6 @@ subroutine bc_kinflt_read(bc,iin)
 
   100 call IO_abort('BC_KINFLT_read: BC_KINFLT input block not found')
   400 format(5x,'Kinematic slip source', &
-            /5x,'  Component . . . . . . . . . . . . (comp) = ',I0,&
             /5x,'  Rupture time. . . . . . . . . . . (trup) = ',A,&
             /5x,'  Rise time . . . . . . . . . . . . (trup) = ',A,&
             /5x,'  Slip rate . . . . . . . . . . . .(slipr) = ',A,&
@@ -287,18 +320,17 @@ subroutine bc_kinflt_set(bc,MxA,v,time)
   double precision, intent(inout) :: MxA(:,:)
   double precision, intent(in) :: time
 
-  integer :: i,ic
+  integer :: i
 
  ! WARNING: boundary is horizontal
 
  ! prescribed velocity (kinematic source)
-  ic = bc%comp
   do i=1,bc%topo%npoin
-    bc%V(i,ic) = bc%slipr(i)*STF_get(bc%stf,(time-bc%trup(i))/bc%tris(i))
+    bc%V(i,1) = bc%slipr(i)*STF_get(bc%stf,(time-bc%trup(i))/bc%tris(i))
   enddo
  ! T_stick, only x component
-  bc%T(:,ic) = bc%Z * ( -2d0*v(bc%topo%node,ic) -2d0*bc%CoefA2V*bc%invM1*MxA(bc%topo%node,ic) -bc%V(:,ic))
-  MxA(bc%topo%node,ic) = MxA(bc%topo%node,ic) + bc%B*bc%T(:,ic)
+  bc%T(:,1) = bc%Z * ( -2d0*v(bc%topo%node,1) -2d0*bc%CoefA2V*bc%invM1*MxA(bc%topo%node,1) -bc%V(:,1))
+  MxA(bc%topo%node,1) = MxA(bc%topo%node,1) + bc%B*bc%T(:,1)
  ! Tz component is assumed null
 
 end subroutine bc_kinflt_set
