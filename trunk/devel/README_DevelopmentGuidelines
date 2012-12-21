@@ -1,0 +1,15 @@
+Here are some code development guidelines. Please use this as a checklist before you do any "svn commit":
+
+1. run "svn update” very often and resolve conflicts in your working copy
+2. break down your developments into small sub-tasks, develop and commit sub-tasks one at a time
+3. add warning messages and stop commands for features that are not completely implemented yet
+4. respect the formatting style of the code, including the amount of indentation, capitalization of variable names, line spacing, etc
+5. keep your modifications well encapsulated, with minimal interference with existing features of the code
+6. if you modify something outside of your own modules, add explanatory comments in the code
+7. make sure the code compiles with ifort without errors and serious warnings
+8. make sure the code runs without run-time errors
+9. if a new feature is introduced, document it and consider adding a test example
+10. update the "ToDo" file accordingly
+11. add a meaningful description message when you do “svn commit -m”
+
+If you need to be more flexible about these guidelines, create a temporary "branch" of the code in the SVN repository. This way your developments will not interfere with others'. You should eventually "merge" the "branch" with the "trunk". Branching and merging can become complex operations though, so be sure you understand how Subversion works before you embark on that.
