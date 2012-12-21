@@ -1,18 +1,62 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_lsf
 ! Linear-slip fault
 
-  use bnd_grid, only: bnd_grid_type
+  use spec_grid, only: bc_topo_type
 
   implicit none
   private
 
   type bc_lsf_type
+! kind = 1 only tangent displacement discontinuity
+!        2 only normal ...
+!        3 both
+    integer :: kind
+    logical :: periodic
+!    double precision, pointer :: kt(:),kn(:)
     double precision :: kt,kn
-    double precision, dimension(:,:), pointer :: normal,B,W1,W2
-    type(bnd_grid_type), pointer :: bc1,bc2
+    double precision, pointer :: normal(:,:),weights(:),MassRatio1(:),MassRatio2(:)
+    type(bc_topo_type), pointer :: bc1,bc2
   end type bc_lsf_type
-
-  double precision, parameter :: inf = huge(inf)
 
   public :: BC_LSF_type, BC_LSF_read, BC_LSF_init, BC_LSF_set
 
@@ -21,21 +65,29 @@ contains
 !=====================================================================
 ! BEGIN INPUT BLOCK
 !
-! NAME   : BC_LSF 
-! GROUP  : BOUNDARY_CONDITION
+! NAME   : BC_LSF [boundary condition]
 ! PURPOSE: Linear slip fault, a displacement discontinuity interface
-!          where stress and slip are linearly related
-! SYNTAX : &BC_LSF Ktang | Ctang, Knorm | Cnorm /
+!          where stress and disp.discont. are linearly related
+! SYNTAX : &BC_LSF Ktang,Knorm,Periodic /
 !
 ! ARG: Ktang    [dble] [Inf] Tangential stiffness
 ! ARG: Ctang    [dble] [0d0] Tangential compliance
 ! ARG: Knorm    [dble] [Inf] Normal stiffness
 ! ARG: Cnorm    [dble] [0d0] Normal compliance
+! ARG: Periodic [log] [F]  Enable if the fault crosses a periodic boundary
 !
-! NOTE: For each component:
-!       You can set K _or_ C, but _not_both_
-!       If C=0d0 or K=Inf then no discontinuity is allowed (transparent)
-!       If K=0d0 the fault is free stress boundary
+! NOTE: for each component you can set K _or_ C, but _not_both_
+!       
+! NOTE: if one of the C=0d0 or K=Inf (the default) then
+!       no displacement discontinuity is allowed for that component
+!       (transparent),
+!       if K=0d0 the fault is a free stress boundary for that component
+!       In summary the fault can behave as:
+!               -1      transparent T&N (Tangent and Normal)
+!               0       stress free T&N
+!               1       linear-slip/free T, transparent N 
+!               2       transparent T, linear-slip/free N
+!               3       linear-slip/free T&N
 !
 ! END INPUT BLOCK
 
@@ -46,63 +98,65 @@ contains
 
   type(bc_lsf_type), intent(out) :: bc
   integer, intent(in) :: iin
-  double precision :: Ktang,Knorm,Ctang,Cnorm
-  character(13) :: kt_txt, kn_txt
+  double precision :: Ktang,Knorm,InitDble,Ctang,Cnorm
+  logical :: Periodic
 
-  NAMELIST / BC_LSF /  Ktang,Knorm,Ctang,Cnorm
+  NAMELIST / BC_LSF /  Ktang,Knorm,Periodic,Ctang,Cnorm
 
   Ctang = 0d0
   Cnorm = 0d0
-  Ktang = inf          ! the default is : welded contact
-  Knorm = inf
+  InitDble = huge(InitDble) ! an implausible initial value
+  Ktang = InitDble          ! the default is : welded contact
+  Knorm = InitDble
+  Periodic = .false.
 
   read(iin,BC_LSF,END=100)
   
-  if (Ctang/=0d0) Ktang= 1d0/Ctang ! Compliance input overwrites stiffness input
-  if (Ktang/=inf) then
+  if (Ctang/=0d0) Ktang= 1d0/Ctang ! Compliance input overwrites
+  if (Cnorm/=0d0) Knorm= 1d0/Cnorm ! stiffness input
+
+  bc%kind = -1  ! default: welded contact (continuous displ and sress)
+  if (Ktang/=InitDble) then
+    bc%kind = 1
     bc%kt   = Ktang
-    write(kt_txt,'(EN12.3)') Ktang
-  else
-    kt_txt = 'Inf'
   endif
-
-  if (Cnorm/=0d0) Knorm= 1d0/Cnorm 
-  if (Knorm/=inf) then
+  if (Knorm/=InitDble) then
+    bc%kind = bc%kind+2
     bc%kn   = Knorm
-    write(kn_txt,'(EN12.3)') Knorm
-  else
-    kn_txt = 'Inf'
   endif
+  if (Knorm==0d0.and.Ktang==0d0) bc%kind=0 ! free boundaries
 
-  if (echo_input) write(iout,200) kt_txt, kn_txt
+  bc%periodic = Periodic
+  
+  if (echo_input) write(iout,200) bc%kind,bc%kt,bc%kn,Periodic
 
   return
   100 call IO_abort('BC_LSF_read: BC_LSF input block not found')
   200 format(5x,'Type   = Linear slip fault', &
-            /5x,'  Tangential stiffness = ',A,&
-            /5x,'  Normal stiffness     = ',A)
+            /5x,'  Kind                 =',I0,&
+            /5x,'  Tangential stiffness =',EN12.3,&
+            /5x,'  Normal stiffness     =',EN12.3,&
+            /5x,'  Periodic fault       =',L1 )
 
   end subroutine BC_LSF_read
 
 
 !=====================================================================
 !
-  subroutine BC_LSF_init(bc,tags,grid,M,perio)
+  subroutine BC_LSF_init(bc,tags,grid,RMass)
   
   use spec_grid, only : sem_grid_type,BC_inquire,BC_get_normal_and_weights
   use stdio, only: IO_abort
-  use constants, only : TINY_XABS
-  use bc_periodic, only : bc_periodic_type,BC_PERIO_intersects
 
   type(bc_lsf_type)  , intent(inout) :: bc
   type(sem_grid_type), intent(in) :: grid
-  double precision, intent(in) :: M(:,:)
+  double precision, intent(in) :: RMass(:)
   integer, intent(in) :: tags(2)
-  type(bc_periodic_type), pointer :: perio
 
-  integer :: ndof 
-
-  ndof = size(M,2)
+  double precision, parameter :: tiny=1d-3
+  double precision, pointer :: tmp(:)
+  
+  if (bc%kind==0) return ! free boundaries
 
 ! bc1 --> grid%bounds(i) corresponding to TAG
   call BC_inquire( grid%bounds, tag = tags(1), bc_topo_ptr = bc%bc1 )
@@ -114,28 +168,30 @@ contains
   if (bc%bc1%npoin/=bc%bc2%npoin) &
    call IO_abort('bc_lsf_init: number of nodes on boundaries do not match')
 
-  if ( any(abs(grid%coord(1,bc%bc1%node)-grid%coord(1,bc%bc2%node))>TINY_XABS) &
-   .OR.any(abs(grid%coord(2,bc%bc1%node)-grid%coord(2,bc%bc2%node))>TINY_XABS) )&
+  if ( any(abs(grid%coord(1,bc%bc1%bulk_node)-grid%coord(1,bc%bc2%bulk_node))>tiny) &
+   .OR.any(abs(grid%coord(2,bc%bc1%bulk_node)-grid%coord(2,bc%bc2%bulk_node))>tiny) )&
    call IO_abort('bc_lsf_init: coordinates on boundaries do not match properly')
 
   allocate( bc%normal(bc%bc1%npoin,2) )
-  allocate( bc%B(bc%bc1%npoin,ndof) ) ! assembled[ GLL_weights * jac1D ]
-  call BC_get_normal_and_weights(bc%bc1,grid,bc%normal,bc%B(:,1), BC_PERIO_intersects(bc%bc1,perio))
+  allocate( bc%weights(bc%bc1%npoin) ) ! assembled[ GLL_weights * jac1D ]
+  call BC_get_normal_and_weights(bc%bc1,grid,bc%normal,bc%weights,bc%periodic)
 ! NOTE: the mesh being conformal, the [GLL_weights*jac1D] are equal on both
 !       sides of the fault. 
-  if (ndof==2) bc%B(:,2) = bc%B(:,1)
 
  !The following are needed to compute the traction 
  !as if the fault was stuck (no displ discontinuity)
- !Tstick = ( -K2*d2/M2 + K1*d1/M1 )/( B1/M1 + B2/M2 )
- !Here we store: bc%Wi = 1/Mi /( B1/M1 + B2/M2 )
-  allocate(bc%W1(bc%bc1%npoin,ndof))
-  allocate(bc%W2(bc%bc2%npoin,ndof))
-! NOTE: B1=B2, same GLL_weights*jac1D on both sides, see note above
+ !TracStick = ( -K2*d2/M2 + K1*d1/M1 )/( B1/M1 + M2/B2 )
+ !Here we store: bc%MassRatioi = 1/Mi /( B1/M1 + M2/B2 )
+  allocate(bc%MassRatio1(bc%bc1%npoin))
+  allocate(bc%MassRatio2(bc%bc2%npoin))
+! NOTE: same GLL_weights*jac1D on both sides, see note above
 ! NOTE: assuming periodic boundaries have been already initialized 
-!       (M and B respect periodicity)
-  bc%W1 = 1d0/( bc%B*( 1d0+M(bc%bc1%node,:)/M(bc%bc2%node,:) ))
-  bc%W2 = 1d0/( bc%B*( M(bc%bc2%node,:)/M(bc%bc1%node,:)+1d0 ))
+!       (RMass and weights respect eventual periodicity)
+  tmp => bc%MassRatio2
+  tmp = bc%weights*( RMass(bc%bc1%bulk_node)+RMass(bc%bc2%bulk_node) )
+  tmp = 1d0/tmp
+  bc%MassRatio1 = RMass(bc%bc1%bulk_node)*tmp
+  bc%MassRatio2 = RMass(bc%bc2%bulk_node)*tmp
 
   end subroutine BC_LSF_init
 
@@ -149,71 +205,81 @@ contains
 ! => T and D have same sign
 !
 ! NOTE: this is an EXPLICIT scheme, 
-!       If Newmark: we use the PREDICTED displacement to compute the slip
-!       If leapfrog: second order ok
+!       we use the PREDICTED displacement to compute the slip
 !
-! NOTE: possible periodicity does not need to be enforced at this level
-!       because it is assumed that MxA and D are already periodic
-!
-  subroutine BC_LSF_set(bc,MxA,D)
+! NOTE: eventual periodicity does not need to be enforced at this level
+!       because it is assumed that MxAccel and Displ are already periodic
+  subroutine BC_LSF_set(bc,MxAccel,Displ)
 
-  type(bc_lsf_type), intent(in) :: bc
-  double precision, intent(in) :: D(:,:)
-  double precision, intent(inout) :: MxA(:,:)
+  type(bc_lsf_type), intent(in)    :: bc
+  double precision, intent(in) :: Displ(:,:)
+  double precision, intent(inout) :: MxAccel(:,:)
 
-  double precision, dimension(bc%bc1%npoin,size(D,2)) :: T,dD
+  double precision, dimension(bc%bc1%npoin) :: Tang,Norm
+  double precision, dimension(bc%bc1%npoin,2), target :: tmp1,tmp2
+  double precision, dimension(:,:), pointer :: BxTrac,TracStick,Ddispl
 
- ! Traction as if the fault was welded (no slip acceleration)
- !   Tstick = ( -K2*d2/M2 + K1*d1/M1 )/( B1/M1 + B2/M2 )
- ! On entry MxA = -K*d 
- !          bc%Wi = 1/Mi /( B1/M1 + B2/M2 ) 
-  T = bc%W2*MxA(bc%bc2%node,:) - bc%W1*MxA(bc%bc1%node,:)
+  if (bc%kind ==0)  return ! free boundaries: do nothing
 
- ! slip = displacement discontinuity = Face2 - Face1
-  dD = D(bc%bc2%node,:) - D(bc%bc1%node,:)
+! NOTE: using pointers here to save memory. Not critical, just good practice.
+!       But beware, if you forget it you will scratch data
+  Ddispl => tmp1
+  TracStick => tmp2
+  BxTrac => tmp1
 
-  if (size(D,2)==2) then
+! STEP 1: get discontinuity of input fields across the fault
+ !Displacement discontinuity = Face2 - Face1
+  Ddispl = Displ( bc%bc2%bulk_node,: ) - Displ( bc%bc1%bulk_node,: )
+ !Traction as if the fault was stuck (no accel discontinuity)
+ !TracStick = ( -K2*d2/M2 + K1*d1/M1 )/( B1/M1 + M2/B2 )
+ !on entry -K*d is stored in MxAccel
+ !       , 1/Mi /( B1/M1 + M2/B2 ) is stored in bc%MassRatioi
+  TracStick(:,1)= bc%MassRatio2*MxAccel(bc%bc2%bulk_node,1) &
+                 - bc%MassRatio1*MxAccel(bc%bc1%bulk_node,1)
+  TracStick(:,2)= bc%MassRatio2*MxAccel(bc%bc2%bulk_node,2) &
+                 - bc%MassRatio1*MxAccel(bc%bc1%bulk_node,2)
 
-   ! rotate to fault frame (Tt,Tn)
-    T = rotate(bc,T,1)
-    dD = rotate(bc,dD,1)
- 
-   ! apply the linear slip fault condition
-    if (bc%kt<inf) T(:,1) = bc%kt * dD(:,1)
-    if (bc%kn<inf) T(:,2) = bc%kn * dD(:,2)
+! STEP 2: Get tractions in fault frame (Tang,Norm)
+  select case(bc%kind)
 
-   ! rotate tractions back to original frame
-    T = rotate(bc,T,-1)
+  case(-1) ! welded contact in both components
+    Tang =  bc%normal(:,2)*TracStick(:,1) + bc%normal(:,1)*TracStick(:,2)
+    Norm = -bc%normal(:,1)*TracStick(:,1) + bc%normal(:,2)*TracStick(:,2)
 
-  else
-    if (bc%kt<inf) T(:,1) = bc%kt * dD(:,1)
+  case(1)
+  ! Linear slip law for tangent component
+  ! NOTE: this is an EXPLICIT scheme: I use the PREDICTED slip to compute the tractions
+  !       It would be better (higher order) to solve the constitutive law of the fault implicitly
+    Tang = bc%normal(:,2)*Ddispl(:,1) + bc%normal(:,1)*Ddispl(:,2) ! = tangent slip
+    Tang = bc%kt * Tang ! = tangent traction
+  ! Normal accel is continuous
+    Norm = -bc%normal(:,1)*TracStick(:,1) + bc%normal(:,2)*TracStick(:,2)
 
-  endif
-  
- ! Add boundary term B*T to M*a
-  MxA(bc%bc1%node,:) = MxA(bc%bc1%node,:) + bc%B*T
-  MxA(bc%bc2%node,:) = MxA(bc%bc2%node,:) - bc%B*T
+  case(2)
+  ! Linear slip law for normal component
+    Norm = -bc%normal(:,1)*Ddispl(:,1) + bc%normal(:,2)*Ddispl(:,2)
+    Norm =  bc%kn * Norm
+  ! Tangent accel is continuous
+    Tang =  bc%normal(:,2)*TracStick(:,1) + bc%normal(:,1)*TracStick(:,2)
+
+  case(3)
+  ! Rotate slip to fault frame (tangent,normal)
+    Tang =  bc%normal(:,2)*Ddispl(:,1) + bc%normal(:,1)*Ddispl(:,2)
+    Norm = -bc%normal(:,1)*Ddispl(:,1) + bc%normal(:,2)*Ddispl(:,2)
+  ! Apply linear slip law
+    Tang =  bc%kt * Tang
+    Norm =  bc%kn * Norm
+
+  end select
+
+! STEP 3: Add boundary term B*T to M*a
+ !Rotate tractions back to original frame and apply boundary weights
+  BxTrac(:,1) = bc%weights*( bc%normal(:,2)*Tang - bc%normal(:,1)*Norm )
+  BxTrac(:,2) = bc%weights*( bc%normal(:,1)*Tang + bc%normal(:,2)*Norm )
+ !add
+  MxAccel(bc%bc1%bulk_node,:) = MxAccel(bc%bc1%bulk_node,:) + BxTrac
+  MxAccel(bc%bc2%bulk_node,:) = MxAccel(bc%bc2%bulk_node,:) - BxTrac
 
   end subroutine BC_LSF_set
-
-
-!---------------------------------------------------------------------
-  function rotate(bc,v,fb) result(vr)
-
-  type(bc_lsf_type), intent(in) :: bc
-  double precision, intent(in) :: v(bc%bc1%npoin,2)
-  integer, intent(in) :: fb
-  double precision :: vr(bc%bc1%npoin,2)
-
-  if (fb==1) then
-    vr(:,1) = bc%normal(:,2)*v(:,1) - bc%normal(:,1)*v(:,2)
-    vr(:,2) = bc%normal(:,1)*v(:,1) + bc%normal(:,2)*v(:,2)
-  else
-    vr(:,1) = bc%normal(:,2)*v(:,1) + bc%normal(:,1)*v(:,2)
-    vr(:,2) =-bc%normal(:,1)*v(:,1) + bc%normal(:,2)*v(:,2)
-  endif
-
-  end function rotate
-
 
   end module bc_lsf

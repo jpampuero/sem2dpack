@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_gradient
   
   implicit none
@@ -19,23 +59,21 @@ module distribution_gradient
 !
 ! BEGIN INPUT BLOCK
 !
-! NAME   : DIST_GRADIENT
-! GROUP  : DISTRIBUTIONS_2D
+! NAME   : DIST_GRADIENT [distributions]
 ! PURPOSE: Constant gradient 2D distribution.
 ! SYNTAX : &DIST_GRADIENT file,valref ,grad,angle/
 !
-! ARG: file             [name] [none]    Name of the file containing the coordinates
-!                        of the points defining the reference line.
-!                        It is an ASCII file with 2 columns per line:
-!                        (1) X position (in m) and
-!                        (2) Z position (in m)
+! ARG: file             [name] [none]    Name of the reference-line file.
+!                        This ASCII file contains the number of points to be read
+!                        (first line), followed by a coordinate table (two rows, 
+!                        double precision) 
 ! ARG: valref           [dble] [none]    Value along the reference line
 ! ARG: grad             [dble >0] [none] Positive gradient (valref_units/meter)
 ! ARG: angle            [dble] [none]    Angle (degrees) between the vertical down 
 !                        and the grad+ direction. Anticlockwise convention (grad+
 !                        points down if 0, right if 90)
 !
-! NOTE   : Make sure the angle and ref-line are compatible. The code will
+! NOTE   : Be sure that your angle and ref-line are compatible. The code will
 !          abort if the ref-line is too short: some points of the domain
 !          cannot be projected to ref-line in the angle direction.
 !
@@ -44,7 +82,7 @@ module distribution_gradient
   subroutine read_gradient_dist (d, iin)
 
   use utils, only: dsort
-  use stdio, only: IO_abort, IO_new_unit, IO_file_length
+  use stdio, only: IO_abort, IO_new_unit
 
   type(gradient_dist_type) :: d
   integer , intent(in) :: iin 
@@ -63,11 +101,11 @@ module distribution_gradient
   d%valref = valref
 
 ! Read the reference line
-  N = IO_file_length(file)
-  allocate( d%x(N),d%y(N) )
-  allocate( xread(N),yread(N) )
   iunit = IO_new_unit()
   open(iunit,file=file,status='old')
+  read (iunit,*) N
+  allocate( d%x(N),d%y(N) )
+  allocate( xread(N),yread(N) )
   do i= 1,N
     read (iunit,*) xread(i),yread(i)
   end do
@@ -86,6 +124,10 @@ module distribution_gradient
   return
 
   100 call IO_abort('read_gradient_dist: DIST_GRADIENT parameters missing')
+!-- checkings:
+!  print *,"  Read ",file
+!  print *,"   X min max   ",minval(xread),maxval(xread)
+!  print *,"   Y min max   ",minval(yread),maxval(yread)
 
   end subroutine read_gradient_dist
 

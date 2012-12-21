@@ -6,7 +6,6 @@ program post_seis
   integer :: answer,it,nt,nsta,trace,irecl,i
   real, allocatable :: Udata(:,:),x(:),z(:)
   character(30) :: file_name
-  character :: comp
   logical :: data_loaded
 
   data_loaded = .false.
@@ -30,14 +29,15 @@ program post_seis
     write(*,*) 
     write(*,*) 'MENU'
     write(*,*) '1. Exit'
-    write(*,*) '2. Read seismograms'
-    write(*,*) '3. Export one station to ASCII'
-    write(*,*) '4. Export all stations to ASCII'
-    write(*,*) '5. Plot all stations'
+    write(*,*) '2. Read X sismos'
+    write(*,*) '3. Read Z sismos'
+    write(*,*) '4. Export one station to ASCII'
+    write(*,*) '5. Export all stations to ASCII'
+    write(*,*) '6. Plot all stations'
     write(*,*)
    
     read(*,*) answer
-    if (answer>3 .and. .not.data_loaded) then
+    if (answer>2 .and. .not.data_loaded) then
       write(*,*) 'No data loaded yet! First select 2 or 3.'
       cycle
     endif
@@ -49,14 +49,18 @@ program post_seis
         stop
 
       case(2)
-        write(*,"(A)",advance='no') '  Component (x,y,z) = '
-        read(*,*) comp
-        open(unit=11,file='U'//comp//'_sem2d.dat',status='old',access='direct',recl=irecl) 
+        open(unit=11,file='Ux_sem2d.dat',status='old',access='direct',recl=irecl) 
         read(11,rec=1) Udata
         close(11)
         data_loaded = .true.
 
       case(3)
+        open(unit=11,file='Uz_sem2d.dat',status='old',access='direct',recl=irecl) 
+        read(11,rec=1) Udata
+        close(11)
+        data_loaded = .true.
+
+      case(4)
         write(*,"(A)",advance='no') '  Trace number = '
         read(*,*) trace
         write(*,"(A)",advance='no') '  Name of output data file (ASCII) = '
@@ -64,21 +68,21 @@ program post_seis
         open(unit=11,file=file_name,status='replace')
         write(11,"(A,I0)") '# Trace at seismogram ', trace
         do it = 1,nt
-          write(11,*) (it-1)*dt, Udata(it,trace)
+          write(11,*) it*dt, Udata(it,trace)
         enddo
         close(11)
 
-      case(4)
+      case(5)
         write(*,"(A)",advance='no') '  Name of output data file (ASCII) = '
         read(*,*) file_name
         open(unit=11,file=file_name,status='replace')
         do it = 1,nt
-          write(11,'(1000(e14.7,1x))') (it-1)*dt,Udata(it,:)
+          write(11,'(1000(e14.7,1x))') it*dt,Udata(it,:)
                !this number > max nb stations ever
         enddo
         close(11)
 
-      case(5) 
+      case(6) 
         call plot_all_traces(Udata,dt,x,z)
 
     end select
@@ -101,7 +105,7 @@ contains
   nt   = size(udata,1)
   nsta = size(udata,2)
 
-  write(*,"(A)",advance='no') '  Prefix of output file (prefix.ps)  = '
+  write(*,"(A)",advance='no') '  Name of output file (name.ps)  = '
   read(*,*) file_name
   write(*,"(A)",advance='no') '  Offset by (1) X, (2) Z or (3) distance = '
   read(*,*) offset_mode
@@ -127,14 +131,13 @@ contains
   open(unit=11,file='tmp.ascii',status='replace')
   do ix = 1,nsta
     do it = 1,nt
-      write(11,*) (it-1)*dt,offset(ix) + scal*udata(it,ix)
+      write(11,*) it*dt,offset(ix) + scal*udata(it,ix)
     enddo
     write(11,*)
     write(11,*)
   enddo
   close(11)
 
- ! GNUPLOT script
   open(13,file='plot_traces.gnu',status='replace')
   write(13,*) 'set term postscript ; set output "',trim(file_name),'.ps" '
   write(13,*) 'set xlabel "Time (secs)" ; set ylabel "',ylabel,' (m)" '

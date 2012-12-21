@@ -1,17 +1,58 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_gaussian
 
-  use stdio, only: IO_abort
+  use stdio, only: IO_abort, IO_read_skip
   implicit none
   private
  
   type gaussian_dist_type
     private
-    double precision :: x_0=0d0,z_0=0d0,lx=1d0,lz=1d0,level_0=0d0,ampli=1d0
-    integer :: order=1
+    double precision :: x_0, z_0,lx,lz,level_0,ampli
   end type gaussian_dist_type
 
   public :: gaussian_dist_type,read_gaussian_dist,generate_gaussian_dist ,&
             destroy_gaussian_dist
+
+  integer, parameter :: ndime = 2
 
   contains
 
@@ -20,16 +61,14 @@ module distribution_gaussian
 !
 ! BEGIN INPUT BLOCK
 !
-! NAME   : DIST_GAUSSIAN
-! GROUP  : DISTRIBUTIONS_2D
-! PURPOSE: Bell shaped Gaussian 2D distribution 
-! SYNTAX : &DIST_GAUSSIAN centered_at, length, offset, ampli, order /
+! NAME   : DIST_GAUSSIAN [distributions]
+! PURPOSE: Bell shaped (Gaussian) 2D distribution
+! SYNTAX : &DIST_GAUSSIAN centered_at, length, offset, ampli /
 !
-! ARG: centered_at      [dble(2)] [0,0] Coordinates of the center point.
-! ARG: length           [dble(2)] [1]   Characteristic lengths on each axis.
-! ARG: offset           [dble] [0]      Background level.    
-! ARG: ampli            [dble] [1]      Amplitude from background.
-! ARG: order            [int] [1]       Exponent
+! ARG: centered_at      [dble(2)] [none] Coordinates of the center point.
+! ARG: length           [dble(2)] [none] Characteristic lengths on each axis.
+! ARG: offset           [dble] [none]    Background level.    
+! ARG: ampli            [dble] [none]    Amplitude from background.
 !
 ! END INPUT BLOCK
 
@@ -39,16 +78,9 @@ module distribution_gaussian
   type(gaussian_dist_type) :: d
   integer , intent(in) :: file
 
-  double precision :: centered_at(2),length(2),offset,ampli
-  integer :: order
+  double precision :: centered_at(ndime),length(ndime),offset,ampli
 
-  NAMELIST / DIST_GAUSSIAN / centered_at,length,offset,ampli,order
-
-  centered_at = 0d0
-  length = 1d0
-  offset = 0d0
-  ampli = 1d0
-  order = 1
+  NAMELIST / DIST_GAUSSIAN / centered_at,length,offset,ampli
 
   read(file,DIST_GAUSSIAN,END=100)
 
@@ -58,7 +90,6 @@ module distribution_gaussian
   d%lz  = length(2)
   d%level_0 = offset
   d%ampli = ampli
-  d%order = order
 
   return
 
@@ -76,10 +107,17 @@ module distribution_gaussian
 
   double precision, intent(out), dimension(:) :: field 
 
-  !field = d%level_0 + d%ampli*exp(- ((coord(1,:)-d%x_0)/d%lx)**(2d0*d%order) &
-  !                                - ((coord(2,:)-d%z_0)/d%lz)**(2d0*d%order) )
-  field = d%level_0 + d%ampli*exp(- ( ((coord(1,:)-d%x_0)/d%lx)**2d0 &
-                                     +((coord(2,:)-d%z_0)/d%lz)**2d0  )**d%order )
+  integer :: nod
+
+  if (size(coord,1) == 2) then
+    do nod =1,size(field)
+      field(nod) = d%level_0 &
+        + d%ampli*exp(- ((coord(1,nod)-d%x_0)/d%lx)**2 &
+                        - ((coord(2,nod)-d%z_0)/d%lz)**2 )
+    end do
+  else
+    call IO_abort('generate_gaussian_distribution: not implemented for 3D')
+  endif
  
   end subroutine generate_gaussian_dist
 

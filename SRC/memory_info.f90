@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module memory_info
 
 !=======================================================================
@@ -13,13 +53,12 @@ module memory_info
   integer, parameter, public :: iinteg = 1, isngl = 2, idouble = 3
 
 ! This is the array directory, it is GLOBAL
-! WARNING: a better implementation would use linked lists
+! WARNING: a better implementation would  linked lists
   integer, parameter :: maxnbarrays = 250
   integer, save :: nbarrays =0
-  integer*8, dimension(maxnbarrays),save :: arraysizes=0
-  integer, dimension(maxnbarrays),save :: arraytypes=0
-  integer, parameter :: NAME_LEN = 16
-  character(len=NAME_LEN), dimension(maxnbarrays), save :: arraynames  = ' '
+  integer, dimension(maxnbarrays),save :: arraysizes=0,arraytypes=0
+  character(len=12), dimension(maxnbarrays),save :: &
+    arraynames  = '                    '
 
 ! ici codage en dur des tailles des variables en octets
 ! mettre iratio = 1 pour le Cray, iratio = 2 pour les autres machines
@@ -43,12 +82,11 @@ subroutine MEMO_echo
   use stdio, only : IO_new_unit
 
   integer :: iout
-  ! devel: should be long integers, these overflow for very large simulations
-  integer*8 :: itotsize,iarray,isize
+  integer :: itotsize,iarray
   character(len=7) :: label(3)
   integer :: isizevars(3)
 
-  isizevars(1) = 8/iratio  ! integer, in bytes = bit_size(0)/8
+  isizevars(1) = 8/iratio  ! integer
   isizevars(2) = 8/iratio  ! single precision
   isizevars(3) = 8         ! double precision
 
@@ -56,39 +94,37 @@ subroutine MEMO_echo
   label(2) = 'Real   '
   label(3) = 'Double '
 
+! compute total size in bytes
+  itotsize = 0
+  do iarray = 1,nbarrays
+    itotsize = itotsize + arraysizes(iarray)*isizevars(arraytypes(iarray))
+  enddo
 
   iout = IO_new_unit()
   open(iout,file='MemoryInfo_sem2d.txt')
-  write(iout,90) ''
 
-  itotsize = 0
+  write(iout,100) nbarrays,dble(itotsize)/dble(1024*1024),itotsize, &
+                      itotsize/isizevars(3)
+
   do iarray = 1,nbarrays
-   ! size in bytes
-    isize = arraysizes(iarray)*isizevars(arraytypes(iarray))
-   ! total size in bytes
-    itotsize = itotsize + isize
-    write(iout,110) iarray,arraynames(iarray),isize,itotsize
-    !arraysizes(iarray),label(arraytypes(iarray))
+    write(iout,110) iarray,arraysizes(iarray),arraynames(iarray), &
+        label(arraytypes(iarray))
   enddo
-
-  write(iout,100) nbarrays,dble(itotsize)/dble(1024*1024),itotsize
 
   close(iout)
 
-  90   format(/1x,51('=')/ &
-  ' =   S E M 2 D P A C K   m e m o r y   u s a g e   ='/1x,51('=')// &
-  '       Name            Size (bytes)     Cumulative'/1x,51('-'),a/)
-  100   format(//,' Total number of allocated arrays. . . . .',i11/ &
-  ' Total size of arrays in megabytes . . . .',f11.3/ &
-  '                      in bytes . . . . . .',i11///) 
-  110   format(i4,3x,a16,2x,i10,5x,i10) !WARNING: "a" must be NAME_LEN long
+  100   format(//1x,41('=')/ &
+  ' =  D i r e c t o r y     l i s t i n g  ='/1x,41('=')// &
+  ' Total number of allocated arrays. . . . . . . . . .',i11/ &
+  ' Total size of arrays in megabytes . . . . . . . . .',f11.3/ &
+  ' Total size of arrays in bytes . . . . . . . . . . .',i11/ &
+  ' Total size of arrays in double precision words. . .',i11/// &
+  '  Array nb    Size         Name        Type'/1x,47('=')/)
+  110   format(i6,3x,i10,5x,a12,2x,a7)
 
 end subroutine MEMO_echo
 
 !=====================================================================
-
-! or other types try:
-! size_of_foo = size( transfer(foo, (/ 0d0 /) ))
 
 subroutine storearray(name,isize,itype)
 !
@@ -99,25 +135,20 @@ subroutine storearray(name,isize,itype)
 !
 !=======================================================================
 
-  use stdio, only : IO_abort
-
   character*(*) name
   integer, intent(in) :: isize,itype
 
-  if (itype /= iinteg .and. itype /= isngl .and. itype /= idouble) &
-    call IO_abort('Wrong array type in dynamic allocation')
+  if(itype /= iinteg .and. itype /= isngl .and. itype /= idouble) &
+    stop 'Wrong array type in dynamic allocation'
 
-  if (isize < 0) call IO_abort('Incoherent array size in dynamic allocation')
-  if (isize ==0) return
+  if(isize <= 0) stop 'Incoherent array size in dynamic allocation'
 
   nbarrays = nbarrays + 1
-  if(nbarrays > maxnbarrays) call IO_abort('Maximum number of arrays reached')
+  if(nbarrays > maxnbarrays) stop 'Maximum number of arrays reached'
 
   arraysizes(nbarrays) = isize
   arraytypes(nbarrays) = itype
   arraynames(nbarrays) = name
-
-  call MEMO_echo()
 
 end subroutine storearray
 

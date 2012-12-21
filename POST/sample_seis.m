@@ -1,21 +1,29 @@
-% SAMPLE_SEIS example of visualization of seismogram output from SEM2DPACK
-% Assumes a 2D P-SV simulation (ndof=2)
+% Read parameters from header file
+[dt,nsamp,nsta] = textread('SeisHeader_sem2d.hdr','%n%n%n',1,'headerlines',1);
+[xsta,zsta] = textread('SeisHeader_sem2d.hdr','%f%f','headerlines',3);
 
-% Read seismogram outputs from SEM2DPACK
-data = sem2d_read_seis();
+% Read seismograms
+fid=fopen('Ux_sem2d.dat'); ux = fread(fid,[nsamp,nsta],'single') ; fclose(fid);
+fid=fopen('Uz_sem2d.dat'); uz = fread(fid,[nsamp,nsta],'single') ; fclose(fid);
 
-% Plot all x-component traces together, offset by distance to first station
+t = [1:nsamp]*dt;
+
+% Plot all Ux traces together, offset by distance to first station
 figure(1)
-d = sqrt((data.x-data.x(1)).^2 +(data.z-data.z(1)).^2);
-plot_seis(d,data.dt,data.ux)
+d = sqrt((xsta-xsta(1)).^2 +(zsta-zsta(1)).^2);
+doff = max(d)/(nsta-1);
+ascale = doff/max(abs(ux(:)));
+offset = [0:nsta-1]*doff; 
+plot(t,ux*ascale +repmat(offset,nsamp,1))
+xlabel('Time (s)')
+ylabel('Distance (m)')
 
-% Plot seismograms (two components) at first station
-t = [1:data.nt]*data.dt;
+% Plot fisrt station
 figure(2)
-subplot(211)
-plot(t,data.ux(:,1))
+subplot(212)
+plot(t,ux(:,1))
 ylabel('Ux')
 subplot(212)
-plot(t,data.uz(:,1))
+plot(t,uz(:,1))
 ylabel('Uz')
 xlabel('Time (s)')

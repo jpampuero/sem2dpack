@@ -7,7 +7,7 @@ vpath %.exe $(BINPATH)
 EXEC := $(patsubst %.f90,%.exe,$(wildcard *.f90)) 
 
 F90 = ifort
-OPT = -O3
+OPT = -O
 
 all: $(EXEC)
 

@@ -1,22 +1,23 @@
 #!/bin/csh
-set comps = (x y z)
-
-foreach comp ($comps)
-  set name = U${comp}_sem2d
-  if (-e $name.dat) then
-    echo $name
-    post_seis.exe << END > tmp
+post_seis.exe << END > tmp
 2
-$comp
-5
-$name
+6
+Ux_sem2d.ps
 3
 2.0
 1
 END
 
-    gv $name.ps &
-  endif
-end
+post_seis.exe << END > tmp
+3
+6
+Uz_sem2d.ps
+3
+2.0
+1
+END
+
+gv ux_sem2d.ps &
+gv uz_sem2d.ps &
 
 rm -f tmp

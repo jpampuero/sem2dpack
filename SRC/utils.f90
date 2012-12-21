@@ -1,170 +1,46 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 ! This is a set of basic tools, adapted from different open sources
 module utils
-
-  implicit none
-  private
-
-  interface setopt
-    module procedure double_setopt, integer_setopt, string_setopt
-  end interface setopt
-
-  public :: setopt, invert2, unique, drank, dsort, hunt &
-          , sub2ind, sub2ind_b, spline, splint, heaviside, positive_part
-
 contains
-
-!=====================================================================
-elemental function heaviside(x)
-
-  double precision, intent(in) :: x
-  double precision :: heaviside
-
-  if (x>=0d0) then
-    heaviside = 1d0
-  else
-    heaviside = 0d0
-  endif
-
-end function heaviside
-
-!=====================================================================
-elemental function positive_part(x)
-
-  double precision, intent(in) :: x
-  double precision :: positive_part
-
-  if (x>=0d0) then
-    positive_part = x
-  else
-    positive_part = 0d0
-  endif
-
-end function positive_part
-
-!=====================================================================
-subroutine double_setopt(value,deflt,opt)
-
-  double precision, intent(out) :: value
-  double precision, intent(in) :: deflt
-  double precision, optional :: opt
-
-  if( present(opt)) then
-    value=opt
-  else
-    value=deflt
-  endif
-
-end subroutine double_setopt
-
-!----------------------------------------------------------------------
-subroutine integer_setopt(value,deflt,opt)
-
-  integer, intent(out) :: value
-  integer, intent(in) :: deflt
-  integer, optional :: opt
-  
-  if( present(opt)) then
-    value=opt
-  else
-    value=deflt
-  endif
-
-end subroutine integer_setopt
-
-!----------------------------------------------------------------------
-subroutine string_setopt(value,deflt,opt)
-
-  character(*), intent(out) :: value
-  character(*), intent(in) :: deflt
-  character(*), optional :: opt
-  
-  if( present(opt)) then
-    value=opt
-  else
-    value=deflt
-  endif
-
-end subroutine string_setopt
-
-
-!=====================================================================
-!-- inversion of a 2 x 2 matrix
-function invert2(A) result(B)
-
-  use stdio, only : IO_abort
-
-  double precision, intent(in) :: A(2,2)
-  double precision :: B(2,2)
-
-  double precision :: determinant
-
-  determinant = A(1,1)*A(2,2) - A(1,2)*A(2,1)
-  if (determinant <= 0d0) call IO_abort('SE_InverseJacobian: undefined Jacobian')
-
-  B(1,1) =   A(2,2)
-  B(2,1) = - A(2,1)
-  B(1,2) = - A(1,2)
-  B(2,2) =   A(1,1)
-
-  B = B/determinant
-
-end function invert2
-
-!=====================================================================
-! subscript (i,j) to index (iglob)
-! numbering conventions :
-!   i=1:n 
-!   j=1:p
-!   iglob = 1:
-
-integer function sub2ind(i,j,n)
-  integer, intent(in) :: i,j,n
-  sub2ind = (j-1)*n + i
-end function sub2ind
-
-!--------------------------------------------------------------------- 
-! returns 0 if out of box
-integer function sub2ind_b(i,j,n,p)
-  integer, intent(in) :: i,j,n,p
-  if (i<=n .and. i>=1 .and. j<=p .and. j>=1) then 
-    sub2ind_b= (j-1)*n + i
-  else
-    sub2ind_b=0 
-  endif
-end function sub2ind_b
-
-!-----------------------------------------------------------------------
-function unique(k) result(ku)
-
-integer, intent(in) :: k(:)
-integer, pointer :: ku(:)
-
-integer :: ks(size(k)),n,p,i
-
-call drank(dble(k),ks)
-ks = k(ks)
-
-n = 1
-p = ks(1)
-do i=2,size(ks)
-  if (ks(i)>p) then
-    n=n+1
-    p = ks(i)
-  endif
-enddo
-
-allocate( ku(n) )
-n = 1
-ku(n) = ks(1)
-do i=2,size(ks)
-  if (ks(i)>ku(n)) then
-    n = n+1
-    ku(n) = ks(i)
-  endif
-enddo
-
-end function unique
-
 
 !-----------------------------------------------------------------------
 !From Michel Olagnon's ORDERPACK 2.0
@@ -586,13 +462,8 @@ End Subroutine drank
 !    ENDIF
 190    RETURN
     end SUBROUTINE DSORT
-
 !-----------------------------------------------------------------------
-!  HUNT is adapted from Numerical Recipes for double precision, F90
-!
-!  jlo = index in xx right before x
-!      = 0 or length(xx) if x is out of xx bounds 
-!
+!  HUNT is adapted from Numerical Recipes for: double precision, F90
 subroutine hunt(xx,x,jlo)
   integer, intent(inout) :: jlo
   double precision, intent(in) :: x,xx(:)
@@ -644,93 +515,5 @@ subroutine hunt(xx,x,jlo)
   enddo
  
 end subroutine hunt
-
-!***********************************************************************
-!  SPLINE INTERPOLATION
-!  adapted from Numerical Recipes for double precision, Fortran 90
-
-  SUBROUTINE spline(x,y,n,yp1,ypn,y2)
-
-  INTEGER, intent(in) :: n
-  double precision, intent(in) :: yp1,ypn,x(n),y(n)
-  double precision, intent(out) :: y2(n)
-
-  INTEGER i,k
-  double precision :: p,qn,sig,un
-  double precision :: u(n)
-
-  if (yp1 > .99d30) then
-    y2(1)=0d0
-    u(1)=0d0
-  else
-    y2(1)=-0.5d0
-    u(1)=(3d0/(x(2)-x(1)))*((y(2)-y(1))/(x(2)-x(1))-yp1)
-  endif
-  do i=2,n-1
-    sig=(x(i)-x(i-1))/(x(i+1)-x(i-1))
-    p=sig*y2(i-1)+2d0
-    y2(i)=(sig-1d0)/p
-    u(i)=(6d0*((y(i+1)-y(i)) &
-         /(x(i+1)-x(i))-(y(i)-y(i-1)) &
-         /(x(i)-x(i-1))) &
-         /(x(i+1)-x(i-1)) &
-         -sig*u(i-1))/p
-  enddo
-  if (ypn > .99e30) then
-    qn=0d0
-    un=0d0
-  else
-    qn=0.5d0
-    un=(3d0/(x(n)-x(n-1)))*(ypn-(y(n)-y(n-1))/(x(n)-x(n-1)))
-  endif
-    y2(n)=(un-qn*u(n-1))/(qn*y2(n-1)+1d0)
-  do k=n-1,1,-1
-    y2(k)=y2(k)*y2(k+1)+u(k)
-  enddo
-  
-  END SUBROUTINE spline
-
-!---------------------------------------------------------------
-!  adapted from Numerical Recipes for double precision, Fortran 90
-!  and to speed up table lookup
-
-  SUBROUTINE splint(xa,ya,y2a,n,x,y,dydx)
-
-  INTEGER, intent(in) :: n
-  double precision, intent(in) :: x,xa(n),y2a(n),ya(n)
-  double precision, intent(out) :: y
-  double precision, intent(out), optional :: dydx
-
-!  integer :: k
-  integer :: khi
-  integer, save :: klo=1
-  double precision :: a,b,h
-
-! original : find bracketing indices bissection
-!  klo=1
-!  khi=n
-!  do while (khi-klo > 1)
-!    k=(khi+klo)/2
-!    if(xa(k).gt.x)then
-!      khi=k
-!    else
-!      klo=k
-!    endif
-!  enddo
-
-! modified: 
-  call hunt(xa,x,klo)
-  khi=klo+1
-
-  h=xa(khi)-xa(klo)
-  a=(xa(khi)-x)/h
-  b=(x-xa(klo))/h
-  y=a*ya(klo)+b*ya(khi)+((a**3-a)*y2a(klo)+(b**3-b)*y2a(khi))*(h*h)/6d0
-  
-  if (present(dydx)) then
-    dydx = -ya(klo)/h + ya(khi)/h + (-(2*a*a-1)*y2a(klo)+(2*b*b-1)*y2a(khi))*h/6d0
-  endif
-
-  END SUBROUTINE splint
 
 end module utils

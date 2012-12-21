@@ -1,82 +1,152 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module spec_grid
 
+!=======================================================================
+!
+!                       This module deals with quadrangle elements
+!                       defined by 4 or 9 control nodes.
+!                       The control nodes are defined as follows:
+!
+!                               4 . . . . 7 . . . . 3
+!                               .                   .
+!                               .         t         .
+!                               .                   .
+!                               8         9  s      6
+!                               .                   .
+!                               .                   .
+!                               .                   .
+!                               1 . . . . 5 . . . . 2
+!
+!                           Local coordinate system : s,t
+!
+!=======================================================================
+ 
   use stdio, only : IO_abort
-  use constants
-  use fem_grid
-  use bnd_grid
 
   implicit none
   private
 
+!-----------------------------------------------------------------------
+!-- General topology for boundary condition :
+
+!     nelem        = total number of bc elements              [input]
+!     npoin        = total number of bc nodes (no redundant)
+!     bulk_element = #bc_element --> #bulk_element            [input]
+!     element_edge = #bc_element --> #edge in bulk element    [input]
+!     bulk_node    = #bc_node    --> #bulk_node
+!     ibool        = (#gll_node,#bc_element) --> #bc_node
+
+  type bc_topo_type
+    integer :: nelem=0,npoin=0,ngll=0,tag=0
+    integer, pointer :: ibool(:,:)=>null()
+    integer, dimension(:), pointer :: bulk_element=>null() &
+                                     ,element_edge=>null() &
+                                     ,bulk_node=>null()
+  end type bc_topo_type
 
 !-----------------------------------------------------------------------
-!-- Spectral element grid type
-!
-!------ Topology
+!-- Q Spectral element grid type
+
+!---- Finite element mesh (Q4 or Q9)
+!     ndime        = physical dimension of the domain
+!     npgeo        = total number of control nodes
+!     coorg        = coordinates of the control nodes
 !     nelem        = total number of elements
+!     ngnod        = number of control nodes per element (4 or 9)
+!     tag          = element -> domain tags
+!     knods        = local to global numbering for the control nodes
+!                    (ignod,element) -> control node index
+!     flat         = flag for cartesian grid (allows simplifications)
+
+!---- GLL spectral element mesh
+
+!------ Topology
 !     ngll         = number of Gauss-Lobato-Legendre nodes per unit segment
 !     npoin        = total number of GLL nodes in the mesh
 !     ibool        = local to global numbering for the GLL mesh
 !                    (igll,jgll,element) -> bulk node index
 !     coord        = coordinates of the GLL nodes
-!
+
 !------ Working data
 !     shape        = control nodes to GLL nodes shape functions
-!     dshape       = derivatives of shape functions
-!     hprime       = lagrange derivatives on the unit square
+!     xjaci        = jacobian inverted, at each node
+!     weights      = volume integration weight, at each node
+!     hprime       = lagrange derivatives on the unit Q
 !     hTprime      = transpose of hprime
-!     wgll         = 1D GLL integration weights
-!     wgll2        = 2D GLL integration weights
-!     xgll         = GLL points on the unit segment
-!
-!------ Other
-!     tag          = element -> domain tags
+!     wgll         = GLL integration weights
+!     xgll         = GLL points on the unit segement
+
+!------ Checks
 !     fmax         = Highest frequency to be resolved by the grid
-!
-!
-! NOTE: After initialization, the FEM mesh database is only used for plotting
+
+! NOTE: XJACI is very large but usually it can be cleaned at the end of 
+!       the initialization phase. It is needed for instance if energy is to be
+!       computed.
+!       After init-phase, the FEM mesh database is only used for plotting
 !       purposes, so if no plots are needed you can save them on disk and 
 !       clean it from memory.
-!
-! NOTE: COORD is used in the solver only for computation of the incident
-!       wavefield, the boundary coordinates could be stored instead in the 
-!       bc structure (boundary_condition).
+!       COORD is used in the solver only for computation of the incident
+!       wavefield.
 
 
   type sem_grid_type
-    integer :: ngll=0,nelem=0,npoin=0
-    type(fem_grid_type) :: fem
-    double precision :: fmax=0d0
-    double precision, pointer :: coord(:,:)      =>null(), &
-                                 hprime(:,:)     =>null(), &
-                                 hTprime(:,:)    =>null(), &
-                                 wgll(:)         =>null(), &
-                                 xgll(:)         =>null(), &
-                                 wgll2(:,:)      =>null(), &
-                                 shape(:,:,:)    =>null(), &
-                                 dshape(:,:,:,:) =>null()
-    integer, pointer :: ibool(:,:,:)  =>null(), &
-                        tag(:) =>null()
-    type (bnd_grid_type), pointer :: bounds(:) =>null()
+    integer :: ngll,ndime,npgeo,ngnod,nelem,npoin
+    double precision :: fmax
+    double precision, pointer :: xjaci(:,:,:,:,:),weights(:,:,:) &
+                                ,coorg(:,:),coord(:,:) &
+                                ,hprime(:,:),hTprime(:,:) &
+                                ,wgll(:),xgll(:),shape(:,:,:)
+    integer, pointer :: ibool(:,:,:),knods(:,:),tag(:)
+    type (bc_topo_type), pointer :: bounds(:)
+    logical :: flat
   end type sem_grid_type
 
 !-----------------------------------------------------------------------
 
-  interface SE_Jacobian
-    module procedure SE_Jacobian_e, SE_Jacobian_eij
-  end interface SE_Jacobian
+  type interpol_type
+    integer :: n
+    double precision, pointer :: shape(:,:,:),flagrange(:,:),xi(:)
+  end type interpol_type
 
-  interface SE_InverseJacobian
-    module procedure SE_InverseJacobian_e, SE_InverseJacobian_eij
-  end interface SE_InverseJacobian
-
-  interface SE_VolumeWeights
-    module procedure SE_VolumeWeights_e, SE_VolumeWeights_eij
-  end interface SE_VolumeWeights
-
-  interface SE_node_belongs_to
-    module procedure SE_node_belongs_to_1, SE_node_belongs_to_2
-  end interface SE_node_belongs_to
 
   ! (i,j) GLL for element corner nodes
   !icorner(1) = 1    ; jcorner(1) = 1
@@ -84,108 +154,45 @@ module spec_grid
   !icorner(3) = ngll ; jcorner(3) = ngll
   !icorner(4) = 1    ; jcorner(4) = ngll
 
+  !-- element edges tags Up, Down, Left, Right
+  integer, parameter :: edge_D = 1
+  integer, parameter :: edge_R = 2
+  integer, parameter :: edge_U = 3
+  integer, parameter :: edge_L = 4
 
-  public :: sem_grid_type ,&
-         SE_init ,&
+  !-- domain side tags Up, Down, Left, Right
+  integer, parameter :: side_D = 1
+  integer, parameter :: side_R = 2
+  integer, parameter :: side_U = 3
+  integer, parameter :: side_L = 4
+
+  !-- control nodes defining the element edges
+  integer, dimension(4), parameter :: EdgeKnod1 = (/  1, 2, 3, 4 /) &
+                                     ,EdgeKnod2   = (/  2, 3, 4, 1 /)
+  
+  !-- physical dimension of the domain
+  integer, parameter :: ndime = 2
+
+  public :: bc_topo_type ,&
+         sem_grid_type ,&
+         interpol_type ,&
+         SE_init_numbering ,&
+         SE_init_gll ,&
          SE_init_interpol ,&
+         SE_init_coord ,&
          SE_find_nearest_node ,&
-         SE_node_belongs_to, &
-         SE_find_point ,&
          SE_get_edge_nodes ,&
-         SE_inquire , &
-         SE_isFlat, &
-         SE_firstElementTagged, &
-         SE_VolumeWeights ,&
-         SE_InverseJacobian ,&
-         SE_Jacobian ,&
-         SE_elem_coord, &
+         SE_inquire ,&
+         Q49_read ,&
+         Q49_init ,&
+         Q49_init_interpol ,&
+         SE_BcTopoInit,&
          BC_inquire ,&
-         BC_tag_exists, &
-         BC_get_normal_and_weights &
-          , edge_D,edge_R,edge_U,edge_L
+         BC_get_normal_and_weights ,&
+         edge_D,edge_R,edge_U,edge_L, &
+         side_D,side_R,side_U,side_L
  
 contains
-
-!=======================================================================
-!
-  logical function SE_isFlat(se)
-  type (sem_grid_type), intent(in) :: se
-  SE_isFlat = se%fem%flat 
-  end function SE_isFlat
-
-!=======================================================================
-!
-  subroutine SE_init(se)
-
-  use stdio, only : IO_new_unit
-  type (sem_grid_type), intent(inout) :: se
-  integer :: ounit
-
-  call SE_init_gll(se) ! GLL quadrature points, weights 
-                            ! and lagrange coefficients,
-                            ! shape functions and their derivatives
-  call SE_init_numbering(se) ! generate the global node numbering
-  call SE_init_coord(se) ! get the coordinates of the GLL nodes,
-                              ! and export the grid to a file
-  call SE_BcTopoInit(se) ! initialize boundaries generic data
-
-  ! export grid parameters
-  ounit = IO_new_unit()
-  open(ounit,file='grid_sem2d.hdr',status='replace')
-  write(ounit,*) 'NELEM  NPGEO  NGNOD  NPOIN  NGLL'
-  write(ounit,*) se%nelem, FE_GetNbNodes(se%fem), FE_GetNodesPerElement(se%fem), &
-                 se%npoin, se%ngll
-  close(ounit)
-
-  end subroutine SE_init
-
-!=======================================================================
-!
-! get coordinates and weights of the Gauss-Lobatto-Legendre points
-! and derivatives of Lagrange polynomials  H_ij = h'_i(xgll(j))
-  subroutine SE_init_gll(se)
-
-  use gll, only : get_GLL_info, print_GLL
-
-  type (sem_grid_type), intent(inout) :: se
-  double precision :: xi,eta 
-  integer :: ngll,i,j, ngnod
-
-  ngll = se%ngll
-
-  allocate(se%xgll(ngll))
-  allocate(se%wgll(ngll))
-  allocate(se%hprime(ngll,ngll))
-  allocate(se%hTprime(ngll,ngll))
-  allocate(se%wgll2(ngll,ngll))
-
-  call get_GLL_info(ngll,se%xgll,se%wgll,se%hprime)
-  call print_GLL(ngll,se%xgll,se%wgll,se%hprime)
-  se%hTprime = transpose(se%hprime)
-  
- ! wgll2(i,j) = wgll(i) * wgll(j)
-  do j = 1,ngll
-    se%wgll2(:,j) = se%wgll * se%wgll(j)
-  enddo
-
-!-----------------------------------------------------------------------
-!-- set up the shape functions and their local derivatives
-  ngnod = FE_GetNodesPerElement(se%fem)
-
-  allocate(se%shape(ngnod,ngll,ngll))
-  allocate(se%dshape(ngnod,NDIME,ngll,ngll))
-
-  do j = 1,ngll
-    eta = se%xgll(j)
-    do i = 1,ngll
-      xi = se%xgll(i)
-      se%shape(:,i,j) = FE_getshape(xi,eta,ngnod)
-      se%dshape(:,:,i,j) = FE_getdershape(xi,eta,ngnod)
-    enddo
-  enddo
-
-  end subroutine SE_init_gll
-
 
 
 !=======================================================================
@@ -196,111 +203,158 @@ contains
 
   use memory_info
   use echo, only : echo_init,iout,fmt1,fmtok
+  use generic_list, only : Link_Ptr_Type,Link_Type,List_Type &
+     ,LI_Init_List,LI_Add_To_Head,LI_Get_Head,LI_Get_Len &
+     ,LI_Get_Next,LI_Associated,LI_Remove_Head,LI_Remove_Next,LI_Nullify
   use stdio, only : IO_new_unit
+
+  type Edge_Data_Type
+    integer :: bulk_element,element_edge,knods(2)
+    integer, pointer :: ibool(:)
+  end type Edge_Data_Type
+
+  type Edge_Type
+    type(Link_Type) :: Link
+    type(Edge_Data_Type) :: Data
+  end type Edge_Type
+
+  type Edge_Ptr_Type
+    type(Edge_Type), pointer :: P
+  end type Edge_Ptr_Type
 
   type(sem_grid_type), intent(inout) :: se
 
-  integer, pointer :: ibool(:,:,:)
-  integer, dimension(se%ngll,4) :: iedg,jedg,iedgR,jedgR
-  integer, dimension(4) :: ivtx,jvtx
-  integer :: i,j,k,e,n,ii,jj,ee,nn,ngll,npoin,iol,ounit
-  integer, pointer :: ees(:),nns(:)
+  integer :: nelem,i,j,k,e,ee,npedge,npcorn,nedge,knods(2),ngll,iol,ounit
+
+  type(List_Type)     :: Edges_List
+  type(Link_Ptr_Type) :: Link,Link2,Link_pre
+  type(Edge_Ptr_Type) :: Edge,Edge2
 
 !-----------------------------------------------------------------------
 
-  if (echo_init) then
-    write(iout,*) 
-    write(iout,'(a)') ' S p e c t r a l   e l e m e n t s   g r i d'
-    write(iout,'(a)') ' ==========================================='
-    write(iout,*) 
-  endif
+  if (echo_init) write(iout,'(// " G L L   g r i d" / " ===============" /)' )
 
+  nelem = se%nelem
   ngll  = se%ngll
-  se%nelem = FE_GetNbElements(se%fem)
-  se%tag => se%fem%tag
 
-! global numbering table
-  allocate(se%ibool(ngll,ngll,se%nelem))
+! initialisation du tableau de numerotation globale
+  allocate(se%ibool(ngll,ngll,nelem))
   call storearray('ibool',size(se%ibool),iinteg)
-  ibool => se%ibool
-  ibool = 0
+  se%ibool(:,:,:) = 0
+
+  se%npoin  = 0
+  npedge = 0
+  npcorn = 0
+
+!---- store the edges data in a linked list:
+  if (echo_init) write(iout,fmt1,advance='no') 'Listing edges'
+  call LI_Init_List(Edges_List)
+  do e = nelem,1,-1
+  do nedge   = 1,4
+    allocate(Edge%P)
+    Edge%P%Data%bulk_element = e
+    Edge%P%Data%element_edge = nedge
+    Edge%P%Data%knods(1)     = se%knods(EdgeKnod1(nedge),e)
+    Edge%P%Data%knods(2)     = se%knods(EdgeKnod2(nedge),e)
+    select case(nedge)
+      case(edge_D) ; Edge%P%Data%ibool  => se%ibool(:,1,e)
+      case(edge_R) ; Edge%P%Data%ibool  => se%ibool(ngll,:,e)
+      case(edge_U) ; Edge%P%Data%ibool  => se%ibool(ngll:1:-1,ngll,e)
+      case(edge_L) ; Edge%P%Data%ibool  => se%ibool(1,ngll:1:-1,e)
+    end select
+    Link = transfer(Edge,Link)
+    call LI_Add_To_Head(Link,Edges_List)
+  enddo
+  enddo
+  if (echo_init) write(iout,fmtok)
 
 !---- start numbering
-  if (echo_init) write(iout,fmt1,advance='no') 'Numbering GLL points'
-  npoin = 0
+  if (echo_init) write(iout,fmt1,advance='no') 'Numbering interior points'
+  Link = LI_Remove_Head(Edges_List)
+  Edge = transfer(Link,Edge)
+  ee = Edge%P%Data%bulk_element  ! current edge belongs to this element
 
- ! GLL index (i,j) of edge nodes, counterclockwise
-  do n = 1,4
-    call SE_inquire(se,edge=n,itab=iedg(:,n),jtab=jedg(:,n))
-  enddo
- ! reverse order for matching edges
-  iedgR = iedg(ngll:1:-1,:)
-  jedgR = jedg(ngll:1:-1,:)
+  do e = 1,nelem
 
- ! GLL index (i,j) for vertex nodes
-  ivtx(1) = 1;    jvtx(1) = 1
-  ivtx(2) = ngll; jvtx(2) = 1
-  ivtx(3) = ngll; jvtx(3) = ngll
-  ivtx(4) = 1;    jvtx(4) = ngll
-
-  do e = 1,se%nelem
-
-
-   !-- interior nodes are unique
+   !-- points inside an element are unique
     do j=2,ngll-1
     do i=2,ngll-1
-      npoin = npoin + 1
-      ibool(i,j,e) = npoin
+      se%npoin = se%npoin + 1
+      se%ibool(i,j,e) = se%npoin
     enddo
-    enddo
-  
-   !-- edge nodes
-    do n = 1,4
-      if ( ibool(iedg(2,n),jedg(2,n),e)>0 ) cycle ! skip if already processed
-      call FE_GetEdgeConn(se%fem,e,n,ee,nn)
-      do k = 2,ngll-1
-        npoin = npoin+1
-        ibool(iedg(k,n),jedg(k,n),e) = npoin
-        if (ee>0) ibool(iedgR(k,nn),jedgR(k,nn),ee) = npoin
-      enddo
     enddo
 
+   !-- points on element edges
+   ! process current edge only if it belongs to current element
+   do while (ee==e)
 
-   !-- vertex nodes
-    do n = 1,4
-      i = ivtx(n)
-      j = jvtx(n)
-      if ( ibool(i,j,e) > 0 ) cycle
-      npoin = npoin +1
-     ! scan Vertex_Conn for shared elements
-      call FE_GetVertexConn(se%fem,e,n,ees,nns)
-      do k= 1,size(ees)
-        ii = ivtx(nns(k))
-        jj = jvtx(nns(k))
-        ibool(ii,jj,ees(k)) = npoin
+      ! numbering of the new edge
+      npedge = npedge + ngll - 2 ! number of edge-no-corner nodes (just for info)
+      do k = 1,ngll
+        if (k==1 .or. k==ngll) then  ! skip corner if already processed
+          if (Edge%P%Data%ibool(k) /=0 ) cycle
+          npcorn = npcorn + 1  ! number of corner nodes (just for info)
+        endif
+        se%npoin  = se%npoin + 1
+        Edge%P%Data%ibool(k)  = se%npoin  ! this ibool points to the global ibool
       enddo
-    enddo 
+
+      ! search the grid for a matching edge (matching control nodes),
+      ! update its ibool and remove it from the list of edges 
+      ! search also for matching vertices and fill their ibool
+
+      knods = Edge%P%Data%knods
+      call LI_Nullify(Link_pre)
+      Link2 = LI_Get_Head(Edges_List)
+      do while (LI_Associated(Link2))
+        Edge2 = transfer(Link2,Edge2)
+        if ( Edge2%P%Data%knods(1) == knods(2) &
+        .AND.Edge2%P%Data%knods(2) == knods(1)  ) then ! matching edge
+        ! the ordering of the control nodes is inverse for matching edges
+          Edge2%P%Data%ibool = Edge%P%Data%ibool(ngll:1:-1)
+          Link2 = LI_Remove_Next(Link_pre,Edges_List)
+          deallocate(Edge2%P)
+          if (LI_Associated(Link_pre)) then
+            Link2 = LI_Get_Next(Link_pre)
+          else
+            Link2 = LI_Get_Head(Edges_List)
+          endif
+        else 
+          ! matching first vertex
+          if ( knods(1)==Edge2%P%Data%knods(1) ) Edge2%P%Data%ibool(1) = Edge%P%Data%ibool(1)
+          Link_pre = Link2
+          Link2 = LI_Get_Next(Link2)
+        endif
+      enddo
+
+     ! pick next edge from list (and remove it from the list)
+      Link = LI_Remove_Head(Edges_List)
+      if (LI_Associated(Link)) then
+        Edge = transfer(Link,Edge)
+        ee = Edge%P%Data%bulk_element  ! current edge belongs to this element
+      else
+        ee = 0
+      endif
+
+    enddo
 
   enddo
-
-  call FE_UnsetConnectivity(se%fem)
-
-  se%npoin = npoin
 
   if (echo_init) then
     write(iout,fmtok)
-    write(iout,100) 'Total number of elements. . . . . . . . = ',se%nelem
-    write(iout,100) 'Total number of GLL points. . . . . . . = ',npoin
     write(iout,*)
-    write(iout,fmt1,advance='no') 'Saving element/node table in binary file ibool_sem2d.dat'
+    write(iout,100) 'Nodes of the global mesh  . . . . = ',se%npoin
+    write(iout,100) 'Interior points . . . . . . . . . = ',se%npoin-npedge-npcorn
+    write(iout,100) 'Edge points (without corners) . . = ',npedge
+    write(iout,100) 'Corner points . . . . . . . . . . = ',npcorn
+    write(iout,*)
+    write(iout,fmt1,advance='no') 'Saving node index table (ibool) in a binary file'
   endif
 
-  inquire( IOLENGTH=iol ) se%ibool(:,:,1)
+  inquire( IOLENGTH=iol ) se%ibool
   ounit = IO_new_unit()
   open(ounit,file='ibool_sem2d.dat',status='replace',access='direct',recl=iol)
-  do e = 1,se%nelem
-    write(ounit,rec=e) se%ibool(:,:,e)
-  enddo
+  write(ounit,rec=1) se%ibool
   close(ounit)
   if (echo_init) write(iout,fmtok)
 
@@ -313,6 +367,84 @@ contains
   
 !=======================================================================
 !
+  subroutine SE_init_gll(se)
+
+  use gll, only : zwgljd,hdgll
+  use memory_info
+
+  type (sem_grid_type), intent(inout) :: se
+  integer :: ngll,ip,i
+
+  ngll = se%ngll
+
+!----    set up coordinates of the Gauss-Lobatto-Legendre points
+  allocate(se%xgll(ngll)); call storearray('xgll',ngll,idouble)
+  allocate(se%wgll(ngll)); call storearray('wgll',ngll,idouble)
+  call zwgljd(se%xgll,se%wgll,ngll,0.d0,0.d0)
+!------ if nb of points is odd, the middle abscissa is exactly zero
+  if(mod(ngll,2) /= 0) se%xgll((ngll-1)/2+1) = 0.d0
+
+!-- compute hprime coefficients (derivatives of Lagrange polynomials)
+
+  allocate(se%hprime(ngll,ngll))
+  allocate(se%hTprime(ngll,ngll))
+  call storearray('hprime',ngll*ngll,idouble)
+  call storearray('hTprime',ngll*ngll,idouble)
+
+  do ip=1,ngll
+  do i=1,ngll
+    se%hprime(ip,i)  = hdgll(ip-1,i-1,se%xgll,ngll)
+    se%hTprime(i,ip) = se%hprime(ip,i)
+  enddo
+  enddo
+
+  
+  end subroutine SE_init_gll
+  
+
+
+!=======================================================================
+!
+!--- for interpolation
+!
+  subroutine SE_init_interpol(interp,grid,ipts)
+
+  use memory_info
+  use gll, only : hgll
+
+  type (interpol_type), pointer :: interp
+  type (sem_grid_type), intent(in) :: grid
+  integer, intent(in) :: ipts
+
+  integer :: i,k,ngll
+
+  if (ipts == 0) return
+
+  allocate(interp)
+  interp%n = ipts
+ 
+  !---- regular grid
+  allocate( interp%xi(ipts) )
+  interp%xi = 2.d0* (/ (i-1, i=1,ipts) /) /dble(ipts-1) - 1.d0
+
+  !---- Lagrange interpolators
+  
+  allocate(interp%flagrange(grid%ngll,ipts))
+  call storearray('interp%flagrange',size(interp%flagrange),idouble)
+
+  do i=1,grid%ngll
+  do k=1,ipts
+    interp%flagrange(i,k) = hgll(i-1,interp%xi(k),grid%xgll,grid%ngll)
+  enddo
+  enddo
+
+  call Q49_init_interpol(grid,interp)
+
+  end subroutine SE_init_interpol
+
+
+!=======================================================================
+!
 !  set the global nodal coordinates
 !
   subroutine SE_init_coord(se)
@@ -323,22 +455,21 @@ contains
 
   type (sem_grid_type), intent(inout) :: se
 
-  integer :: i,j,e,ounit,iol
-  double precision, pointer :: coorg(:,:)
+  integer i,j,e,ounit,iol
+  double precision :: dum_coorg(ndime,se%ngnod)
 
-  allocate(se%coord(NDIME,se%npoin))
+  allocate(se%coord(ndime,se%npoin))
   call storearray('coord',size(se%coord),idouble)
 
 !---- Coordinates of the global points 
   if (echo_init) write(iout,fmt1,advance='no') 'Defining nodes coordinates'
   do e = 1,se%nelem
-    coorg => FE_GetElementCoord(se%fem,e)
+    dum_coorg = se%coorg(:,se%knods(:,e))
     do j = 1,se%ngll
     do i = 1,se%ngll
-      se%coord(:,se%ibool(i,j,e)) = matmul( coorg, se%shape(:,i,j) )
+      se%coord(:,se%ibool(i,j,e)) = matmul( dum_coorg, se%shape(:,i,j) )
     enddo
     enddo
-    deallocate(coorg)
   enddo
   if (echo_init) write(iout,fmtok)
 
@@ -346,7 +477,7 @@ contains
 
 !----  Save the grid in a text file
     write(iout,*) 
-    write(iout,fmt1,advance='no') 'Saving the grid coordinates (coord) in a text file'
+    write(iout,fmt1,advance='no') 'Saving the grid coordinates (coord) in a text file...'
     ounit = IO_new_unit()
     open(ounit,file='coord_sem2d.tab',status='unknown')
     write(ounit,*) se%npoin
@@ -358,165 +489,89 @@ contains
   endif
     
 !----  Always save the grid in a binary file
-  if (echo_init) write(iout,fmt1,advance='no') 'Saving the grid coordinates (coord) in a binary file'
-  inquire( IOLENGTH=iol ) real(se%coord(:,1))
+  if (echo_init) write(iout,fmt1,advance='no') 'Saving the grid coordinates (coord) in a binary file...'
+  inquire( IOLENGTH=iol ) se%coord
+  iol=iol/2
   ounit = IO_new_unit()
   open(ounit,file='coord_sem2d.dat',status='replace',access='direct',recl=iol)
-  do i = 1,se%npoin
-    write(ounit,rec=i) real(se%coord(:,i))
-  enddo
+  write(ounit,rec=1) real(se%coord)
   close(ounit)
   if (echo_init) write(iout,fmtok)
 
   end subroutine SE_init_coord
 
 
-
-!=======================================================================
-!
-! lagrange interpolation functions at (xi,eta)
-! interp(ngll*ngll) is then used as
-!   interpolated_value = matmul(interp,nodal_values)
-!   interpolated_vector(1:ndof) = matmul(interp,nodal_vectors(:,1:ndof))
-!
-  subroutine SE_init_interpol(xi,eta,interp,grid)
-
-  use gll, only : hgll
-
-  double precision, intent(in) :: xi,eta
-  type (sem_grid_type), intent(in) :: grid
-  double precision, intent(out) :: interp(grid%ngll*grid%ngll)
-
-  double precision :: fi,fj
-  integer :: i,j,k
-
-  k=0
-  do j=1,grid%ngll
-    fj = hgll(j-1,eta,grid%xgll,grid%ngll)
-    do i=1,grid%ngll
-      k=k+1
-      fi = hgll(i-1,xi,grid%xgll,grid%ngll)
-      interp(k) = fi*fj
-    enddo
-  enddo
-
-  end subroutine SE_init_interpol
-
-
 !=====================================================================
 !
-  subroutine SE_find_nearest_node(coord_in,grid,iglob,coord,distance)
+  subroutine SE_find_nearest_node(coord_in,grid,iglob,igll,jgll &
+                                 ,element,coord,inner,bound,distance)
 
   type(sem_grid_type), intent(in)  :: grid
   double precision   , intent(in)  :: coord_in(:)
   double precision, optional, intent(out) :: coord(:),distance
-  integer, intent(out) :: iglob
+  integer, optional, intent(in)  :: bound
+  integer, optional, intent(out) :: iglob,igll,jgll,element
+  logical, optional  , intent(in)  :: inner
 
-  double precision :: d2min,d2
-  integer :: ip
+  double precision :: dmin,xs,zs,xp,zp,dist
+  integer :: ip,i,j,e,ilo,jlo,ihi,jhi,iglob_loc,igll_loc,jgll_loc,element_loc
+  logical :: search_inner
 
-  d2min = huge(d2min)
-  do ip = 1,grid%npoin
-    d2 = (coord_in(1)-grid%coord(1,ip))**2 + (coord_in(2)-grid%coord(2,ip))**2
-    if (d2 <= d2min) then
-      d2min  = d2
-      iglob = ip
+  if (present(bound)) &
+    call IO_abort('SE_find_nearest_node: locate to boundary not implemented')
+
+  ! coordonnees demandees
+  xs = coord_in(1)
+  zs = coord_in(2)
+
+  ! eventuellement, on ne fait la recherche que sur l'interieur de l'element
+  search_inner = .false.
+  if(present(inner)) search_inner = inner
+
+  if(search_inner) then
+    ilo = 2
+    jlo = 2
+    ihi = grid%ngll-1
+    jhi = grid%ngll-1
+  else
+    ilo = 1
+    jlo = 1
+    ihi = grid%ngll
+    jhi = grid%ngll
+  endif
+
+  ! recherche du point de grille le plus proche
+  dmin = huge(dmin)
+  do e=1,grid%nelem
+  do i=ilo,ihi
+  do j=jlo,jhi
+
+    ip = grid%ibool(i,j,e)
+    xp = grid%coord(1,ip)
+    zp = grid%coord(2,ip)
+    dist = sqrt((xp-xs)**2 + (zp-zs)**2)
+
+    if (dist < dmin) then
+      dmin        = dist
+      iglob_loc   = ip
+      igll_loc    = i
+      jgll_loc    = j
+      element_loc = e
     endif
+
+  enddo
+  enddo
   enddo
 
-  if (present(coord)) coord = grid%coord(:,iglob)
-  if (present(distance)) distance = sqrt(d2min)
+  if (present(coord)) coord(:) = grid%coord(:,iglob_loc)
+  if (present(igll)) igll = igll_loc
+  if (present(jgll)) jgll = jgll_loc
+  if (present(element)) element = element_loc
+  if (present(iglob)) iglob = iglob_loc
+  if (present(distance)) distance = dmin
 
   end subroutine SE_find_nearest_node
 
-!=====================================================================
-! Find (e,i,j), element and local indices associated to a global node iglob
-! Version 1: first element found
-! Version 2: all elements
-!
-  subroutine SE_node_belongs_to_1(iglob,e,i,j,grid)
-
-  integer, optional, intent(in) :: iglob
-  integer, intent(out) :: i,j,e
-  type(sem_grid_type), intent(in)  :: grid
-
-  if (iglob>grid%npoin) call IO_abort('SE_node_belongs_to: iglob out of range')
-
-  do e= 1,grid%nelem
-  do j= 1,grid%ngll
-  do i= 1,grid%ngll
-    if (grid%ibool(i,j,e)==iglob) return
-  enddo
-  enddo
-  enddo
-
-  end subroutine SE_node_belongs_to_1
-
-!---------------------------------------------------------------------
-
-  subroutine SE_node_belongs_to_2(iglob,etab,itab,jtab,grid)
-
-  integer, optional, intent(in) :: iglob
-  integer, pointer, dimension(:) :: itab,jtab,etab
-  type(sem_grid_type), intent(in)  :: grid
-
-  integer :: i,j,e,nel
-  ! WARNING: dimension should be larger than the maximum expected
-  ! number of neighbour elements 
-  integer, dimension(10) :: etmp,jtmp,itmp
-
-  if (iglob>grid%npoin) call IO_abort('SE_node_belongs_to: iglob out of range')
-
-  nel = 0
-  do e= 1,grid%nelem
-  do j= 1,grid%ngll
-  do i= 1,grid%ngll
-    if (grid%ibool(i,j,e)==iglob) then
-      nel = nel +1
-      etmp(nel) = e
-      itmp(nel) = i
-      jtmp(nel) = j
-    endif
-  enddo
-  enddo
-  enddo
-
-  if (associated(etab)) deallocate(etab)
-  if (associated(itab)) deallocate(itab)
-  if (associated(jtab)) deallocate(jtab)
-  allocate(etab(nel),itab(nel),jtab(nel))
-  etab = etmp(1:nel)
-  itab = itmp(1:nel)
-  jtab = jtmp(1:nel)
-
-  end subroutine SE_node_belongs_to_2
-
-!=====================================================================
-!
-  subroutine SE_find_point(coord,grid,e,xi,eta,new_coord)
-
-  double precision, intent(in)  :: coord(NDIME)
-  type(sem_grid_type), intent(in) :: grid
-  integer, intent(out) :: e
-  double precision, intent(out) :: xi,eta,new_coord(NDIME)
-
-  integer :: iglob,k,istat
-  integer, pointer, dimension(:) :: itab,jtab,etab
-
-  call SE_find_nearest_node(coord,grid,iglob)
-  call SE_node_belongs_to(iglob,etab,itab,jtab,grid)
-  do k = 1,size(etab)
-    xi=grid%xgll(itab(k))
-    eta=grid%xgll(jtab(k))
-    e = etab(k)
-    call FE_find_point(coord,grid%fem,e,xi,eta,new_coord,istat)
-    if (istat==0) exit
-  enddo
-  
-  deallocate(itab,jtab,etab)
-  if (istat>0) call IO_abort('SE_find_point: point not found')
-
-  end subroutine SE_find_point
 
 !=====================================================================
 ! get the list of bulk indices of the EDGE nodes of an ELEMENT, 
@@ -540,128 +595,440 @@ contains
 
 !=======================================================================
 !
-! Jacobian matrix  =  | dx/dxi   dx/deta |
-!                     | dz/dxi   dz/deta |
+!--- Read Q-grid data from ASCII file
 !
-  function SE_Jacobian_e(sem,e) result(jac)
+subroutine Q49_read(sem,iin)
 
-  type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e
-  double precision :: jac(2,2,sem%ngll,sem%ngll)
+  use echo, only : echo_init,iout
+  use stdio, only : IO_new_unit
 
-  double precision, pointer :: coorg(:,:)
-  integer :: i,j
+  type(sem_grid_type), intent(out) :: sem
+  integer, intent(in) :: iin
 
-  coorg => FE_GetElementCoord(sem%fem,e)
-  do j = 1,sem%ngll
-  do i = 1,sem%ngll
-    jac(:,:,i,j) = matmul(coorg, sem%dshape(:,:,i,j) )
-  enddo
-  enddo
-  deallocate(coorg)
+  integer :: iin2
+  character(50) :: file
 
-  end function SE_Jacobian_e
+  NAMELIST / QGRID / file
+  
+  file = 'HERE'
+  rewind(iin)
+  read(iin,QGRID,END=100)
+  if (file == 'HERE') then
+    iin2 = iin  
+  else
+    iin2 = IO_new_unit()
+    open(iin2,file=file,status='old',action='read')
+  endif
 
-!-----------------------------------------------------------------------
+  call Q49_read_coorg(sem,iin2)
 
-  function SE_Jacobian_eij(sem,e,i,j) result(jac)
+  call Q49_read_elements(sem,iin2)
 
-  type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e,i,j
-  double precision :: jac(2,2)
-  double precision, pointer :: coorg(:,:)
+  if (iin2 /= iin) close(iin2)
+    
+  if (echo_init) write(iout,200) sem%ndime,sem%npgeo,sem%flat &
+                              ,sem%ngnod,sem%nelem
 
-  coorg => FE_GetElementCoord(sem%fem,e)
-  jac = matmul(coorg, sem%dshape(:,:,i,j) )
-  deallocate(coorg)
+  return
 
-  end function SE_Jacobian_eij
+  100 call IO_abort('Q49_read: QGRID data missing')
+
+  200 format(//1x,'G r i d   P a r a m e t e r s   C o n t r o l   c a r d', &
+  /1x,34('='),//5x,&
+  'Number of space dimensions . . . . . . . . . (ndime) =',I0/5x, &
+  'Number of spectral elements control nodes. . (npgeo) =',I0/5x, &
+  'Flat topography or not. . . . . . . . . .(topoplane) =',L1/5x, &
+  'Number of control nodes per element . . . . .(ngnod) =',I0/5x, &
+  'Number of spectral elements . . . . . . . . .(nelem) =',I0)
+
+end subroutine Q49_read
 
 
 !=======================================================================
 !
-!-- Compute weights(i,j) = wgll(i)*wgll(j)*dvol(i,j) for one element
+!  Read macroblocs nodal coordinates
 !
-  function SE_VolumeWeights_e(sem,e) result(dvol)
+subroutine Q49_read_coorg(grid,iin)
 
-  type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e
-  double precision :: dvol(sem%ngll,sem%ngll)
+  use memory_info
 
-  double precision :: jac(2,2,sem%ngll,sem%ngll)
+  type(sem_grid_type), intent(inout) :: grid
+  integer, intent(in) :: iin
+  
+  integer :: i,ip,npgeo,dim
+  logical :: topoplane
 
-  jac = SE_Jacobian_e(sem,e)
-  dvol = jac(1,1,:,:)*jac(2,2,:,:) - jac(1,2,:,:)*jac(2,1,:,:)
-  dvol = dvol*sem%wgll2
+  NAMELIST / COORG / dim,npgeo,topoplane
 
-  end function SE_VolumeWeights_e
+  dim         = 2
+  npgeo       = -1
+  topoplane   = .false. 
 
-!-----------------------------------------------------------------------
+  rewind(iin)
+  read(iin,COORG,END=100)
 
-  function SE_VolumeWeights_eij(sem,e,i,j) result(dvol)
+  if (ndime /= 2) call IO_abort('Input: only dim = 2 implemented')
+  if (npgeo <= 0) call IO_abort('Parameter npgeo is null or missing')
 
-  type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e,i,j
-  double precision :: dvol
+  grid%npgeo = npgeo
+  grid%flat  = topoplane
 
-  double precision :: jac(2,2)
+  allocate(grid%coorg(dim,npgeo)) 
+  call storearray('grid%coorg',size(grid%coorg),idouble)
 
-  jac = SE_Jacobian_eij(sem,e,i,j)
-  dvol = ( jac(1,1)*jac(2,2) - jac(1,2)*jac(2,1) )*sem%wgll2(i,j)
+  do i = 1,npgeo
+    read(iin,*) ip,grid%coorg(:,ip)
+  enddo
 
-  end function SE_VolumeWeights_eij
+  return
+
+  100 call IO_abort('COORG parameters not found')
+  
+end subroutine Q49_read_coorg
+
+!=======================================================================
+!
+!  Read elements topology and material set for
+!  spectral elements bloc
+! 
+  subroutine Q49_read_elements(grid,iin)
+
+  use memory_info 
+
+  type(sem_grid_type), intent(inout) :: grid
+  integer, intent(in) :: iin
+
+  integer :: n,kmatoread,i,ngnod,nelem
+
+  NAMELIST / ELEMENTS / ngnod,nelem
+
+  ngnod = -1
+  nelem = -1
+
+  rewind(iin)
+  read(iin,ELEMENTS,END=100)
+
+  if (ngnod < 0) call IO_abort('Q49_read_elements: ngnod parameter missing')
+  if (ngnod /= 4 .or. ngnod /= 9) &
+    call IO_abort('Q49_read_elements: only Q4 and Q9 elements supported')
+  grid%ngnod = ngnod
+
+  if (nelem <= 0) call IO_abort('Q49_read_elements: nelem parameter null or missing')
+  grid%nelem = nelem
+
+  allocate(grid%knods(ngnod,nelem)); call storearray('knods',ngnod*nelem,iinteg)
+  allocate(grid%tag(nelem)); call storearray('kmato',nelem,iinteg)
+
+  do i = 1,nelem
+    read(iin,*) n,grid%tag(n),grid%knods(:,n)
+  enddo
+
+  if (any(grid%tag == 0)) &
+    call IO_abort('Q49_read_elements: material domains not completely set')
+
+  return
+
+100 call IO_abort('Q49_read_elements: ELEMENTS data not found')
+
+  end subroutine Q49_read_elements
+
 
 
 !=======================================================================
 !
-! Inverse Jacobian matrix  =  | dxi/dx    dxi/dz |
-!                             | deta/dx  deta/dz |
+!-- set up the shape functions and their local derivatives
+!-- and compute the jacobian matrix at the integration points
 !
-  function SE_InverseJacobian_e(sem,e) result(jaci)
+subroutine Q49_init(sem)
 
-  use utils, only : invert2
+  use memory_info
+  use echo, only : echo_init,iout,fmt1,fmtok
+
+  type(sem_grid_type), intent(inout) :: sem
+
+  double precision :: dershape(sem%ndime,sem%ngnod,sem%ngll,sem%ngll) &
+                     ,coorg_e(sem%ndime,sem%ngnod),wgll2(sem%ngll,sem%ngll) &
+                     ,dvolu(sem%ngll,sem%ngll)
+
+  integer :: ngll,ngnod,nelem,ndime,l1,l2,e,i,j
+
+!-----------------------------------------------------------------------
+
+  ngnod = sem%ngnod
+  nelem = sem%nelem
+  ndime = sem%ndime
+  ngll  = sem%ngll
+
+!-----------------------------------------------------------------------
+!-- set up the shape functions and their local derivatives
+
+  if (echo_init) write(iout,fmt1,advance='no') 'Defining shape functions'
+  allocate(sem%shape(ngnod,ngll,ngll))
+  call storearray('shape',size(sem%shape),idouble)
+
+!----    4-noded rectangular element
+  if(ngnod  ==  4) then
+    do l2 = 1,ngll
+    do l1 = 1,ngll
+      call Q4_getshape(sem%xgll(l1),sem%xgll(l2),sem%shape(:,l1,l2),dershape(:,:,l1,l2))
+    enddo
+    enddo
+
+!--    9-noded rectangular element
+  else if(ngnod  ==  9) then
+    do l2 = 1,ngll
+    do l1 = 1,ngll
+      call Q9_getshape(sem%xgll(l1),sem%xgll(l2),sem%shape(:,l1,l2),dershape(:,:,l1,l2))
+    enddo
+    enddo
+
+  else
+    call IO_abort('Wrong number of control nodes')
+  endif
+
+  if (echo_init) write(iout,fmtok)
+
+  
+!-----------------------------------------------------------------------
+!----    compute the jacobian matrix at the integration points
+!----    compute the weighting for volume integrals
+
+  if (echo_init) write(iout,fmt1,advance='no') 'Defining jacobian and weights'
+
+  allocate(sem%xjaci(ndime,ndime,ngll,ngll,nelem))
+  allocate(sem%weights(ngll,ngll,nelem))
+  call storearray('xjaci',size(sem%xjaci),idouble)
+  call storearray('weights',size(sem%weights),idouble)
+  
+ ! wgll2(i,j) = wgll(i) * wgll(j)
+  do j = 1,ngll
+    wgll2(:,j) = sem%wgll * sem%wgll(j)
+  enddo
+
+  do e = 1,nelem
+
+    coorg_e = sem%coorg(:,sem%knods(:,e))
+    do j = 1,ngll
+    do i = 1,ngll
+      call Q49_getjac(dvolu(i,j), sem%xjaci(:,:,i,j,e), coorg_e, dershape(:,:,i,j) )
+    enddo
+    enddo
+
+    sem%weights(:,:,e) = wgll2 * dvolu(:,:)
+
+  enddo
+
+  if (echo_init) write(iout,fmtok)
+
+end subroutine Q49_init
+
+
+!=======================================================================
+!
+!---- set up the shape functions for the interpolated grid
+!
+subroutine Q49_init_interpol(sem,interp)
+
+  use memory_info
 
   type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e
-  double precision :: jaci(2,2,sem%ngll,sem%ngll)
+  type(interpol_type), intent(inout) :: interp
+  
+  integer :: l2,l1
 
-  double precision :: jac(2,2,sem%ngll,sem%ngll)
-  integer :: i,j
+  allocate(interp%shape(sem%ngnod,interp%n,interp%n))
+  call storearray('interp%shape',size(interp%shape),idouble)
 
-  jac = SE_Jacobian_e(sem,e)
-  do j = 1,sem%ngll
-  do i = 1,sem%ngll
-    jaci(:,:,i,j) = invert2(jac(:,:,i,j))
+  do l2 = 1,interp%n
+  do l1 = 1,interp%n
+    if ( sem%ngnod == 4 ) then
+      call Q4_getshape(interp%xi(l1),interp%xi(l2),shape = interp%shape(:,l1,l2))
+    else
+      call Q9_getshape(interp%xi(l1),interp%xi(l2),shape = interp%shape(:,l1,l2))
+    endif  
   enddo
   enddo
 
-  end function SE_InverseJacobian_e
+end subroutine Q49_init_interpol
+
+
+!=======================================================================
+!
+!! GET SHAPE FUNCTIONS AND/OR THEIR DERIVATIVES 
+!! s,t = local coordinates
+
+subroutine Q4_getshape(s,t,shape,dershape)
+
+  double precision, intent(in) :: s,t
+  double precision, intent(out), optional :: shape(4)
+  double precision, intent(out), optional :: dershape(2,4)
+
+  double precision :: sp,sm,tp,tm 
+  double precision, parameter :: one=1d0,quart=0.25d0
+  
+  sp = s + one
+  sm = s - one
+  tp = t + one
+  tm = t - one
+
+  if (present(shape)) then
+
+    shape(1) = quart * sm * tm
+    shape(2) = - quart * sp * tm
+    shape(3) = quart * sp * tp
+    shape(4) = - quart * sm * tp
+
+  endif
+
+  if (present(dershape)) then
+
+    dershape(1,1) = quart * tm
+    dershape(1,2) = - quart * tm
+    dershape(1,3) =  quart * tp
+    dershape(1,4) = - quart * tp
+
+    dershape(2,1) = quart * sm
+    dershape(2,2) = - quart * sp
+    dershape(2,3) =  quart * sp
+    dershape(2,4) = - quart * sm
+
+  endif
+
+end subroutine Q4_getshape
+
+!-----------------------------------------------------------------------
+
+subroutine Q9_getshape(s,t,shape,dershape)
+
+  double precision, intent(in) :: s,t
+  double precision, intent(out), optional :: shape(9)
+  double precision, intent(out), optional :: dershape(2,9)
+
+  double precision :: sp,sm,tp,tm,s2,t2,ss,tt,st
+  double precision, parameter :: two=2d0,one=1d0,half=0.5d0,quart=0.25d0
+
+  sp = s + one
+  sm = s - one
+  tp = t + one
+  tm = t - one
+  s2 = s * two
+  t2 = t * two
+  ss = s * s
+  tt = t * t
+  st = s * t
+
+  if (present(shape)) then
+
+    shape(1) = quart * sm * st * tm
+    shape(2) = quart * sp * st * tm
+    shape(3) = quart * sp * st * tp
+    shape(4) = quart * sm * st * tp
+
+    shape(5) = half * tm * t * (one - ss)
+    shape(6) = half * sp * s * (one - tt)
+    shape(7) = half * tp * t * (one - ss)
+    shape(8) = half * sm * s * (one - tt)
+
+    shape(9) = (one - ss) * (one - tt)
+
+  endif
+
+  if (present(dershape)) then
+
+    dershape(1,1) = quart * tm * t * (s2 - one)
+    dershape(1,2) = quart * tm * t * (s2 + one)
+    dershape(1,3) = quart * tp * t * (s2 + one)
+    dershape(1,4) = quart * tp * t * (s2 - one)
+
+    dershape(2,1) = quart * sm * s * (t2 - one)
+    dershape(2,2) = quart * sp * s * (t2 - one)
+    dershape(2,3) = quart * sp * s * (t2 + one)
+    dershape(2,4) = quart * sm * s * (t2 + one)
+
+    dershape(1,5) = -one  * st * tm
+    dershape(1,6) =  half * (one - tt) * (s2 + one)
+    dershape(1,7) = -one  * st * tp
+    dershape(1,8) =  half * (one - tt) * (s2 - one)
+
+    dershape(2,5) =  half * (one - ss) * (t2 - one)
+    dershape(2,6) = -one  * st * sp
+    dershape(2,7) =  half * (one - ss) * (t2 + one)
+    dershape(2,8) = -one  * st * sm
+
+    dershape(1,9) = -one * s2 * (one - tt)
+    dershape(2,9) = -one * t2 * (one - ss)
+
+  endif
+
+end subroutine Q9_getshape
+
+
+!
+!=======================================================================
+! 
+!! GET JACOBIAN (INVERTED) AND ELEMENTAL VOLUME
+!! i,j = local index 
+!! coorg   = ordered coordinates of control nods (2, 4 or 9)
+!! dershape= derivatives of shape function (2, 4 or 9)
+subroutine Q49_getjac(dvolu,xjaci,coorg,dershape)
+
+  double precision, intent(in) :: coorg(:,:),dershape(:,:)
+  double precision, intent(out) :: dvolu,xjaci(2,2)
+
+  double precision :: xjac2(2,2)
+
+  xjac2 = matmul(coorg, transpose(dershape) )
+  call invert2(xjac2,xjaci,dvolu)
+  if (dvolu <= 0d0) call IO_abort('Q49_getjac: Jacobian undefined')
+
+end subroutine Q49_getjac
 
 !----------------------------------------------------------------------
+!-- inversion and determinant of a 2 x 2 matrix
+subroutine invert2(A,B,det)
 
-  function SE_InverseJacobian_eij(sem,e,i,j) result(jaci)
+  double precision, intent(in) :: A(2,2)
+  double precision, intent(out) :: B(2,2)
+  double precision, optional, intent(out) :: det
 
-  use utils, only : invert2
+  double precision :: determinant
 
-  type(sem_grid_type), intent(in) :: sem
-  integer, intent(in) :: e,i,j
-  double precision :: jaci(2,2)
+  determinant = A(1,1)*A(2,2) - A(1,2)*A(2,1)
+  if (determinant == 0d0) call IO_abort( 'invert2: undefined inverse matrix')
 
-  double precision :: jac(2,2)
+  B(1,1) =   A(2,2)
+  B(2,1) = - A(2,1)
+  B(1,2) = - A(1,2)
+  B(2,2) =   A(1,1)
 
-  jac = SE_Jacobian_eij(sem,e,i,j)
-  jaci = invert2(jac)
+  B = B/determinant
 
-  end function SE_InverseJacobian_eij
+  if (present(det)) det = determinant 
 
+end subroutine invert2
+!
+!=======================================================================
+! 
+!! GET GLOBAL COORDINATES FROM LOCAL
+!! coorg(ndime, 4 or 9)
+!! shape_loc(4 or 9) = shape functions ALREADY evaluated at X_loc
+subroutine Q49_loc2glob(X_glob,coorg,shape_loc)
+
+  double precision, intent(in) :: coorg(:,:),shape_loc(:)
+  double precision, intent(out) :: X_glob(:)
+
+  X_glob = matmul(coorg,shape_loc)
+
+end subroutine Q49_loc2glob
 
 !=======================================================================
 !
 subroutine SE_BcTopoInit(grid)
   type(sem_grid_type), intent(inout) :: grid
   integer :: i
-  grid%bounds => grid%fem%bnds
+  if (.not.associated(grid%bounds)) return
   do i=1,size(grid%bounds)
+!    write(51,'("BC ",I2)') i 
     call BC_set_bulk_node(grid%bounds(i),grid)
   enddo
 end subroutine SE_BcTopoInit
@@ -672,11 +1039,11 @@ subroutine BC_set_bulk_node(bc,grid)
 
   use generic_list, only : Link_Ptr_Type,Link_Type,List_Type &
      ,LI_Init_List,LI_Add_To_Head,LI_Get_Head &
-     ,LI_Get_Next,LI_Associated,LI_Remove_Head
+     ,LI_Get_Next,LI_Associated,LI_Get_Len,LI_Remove_Head
 
   use utils, only: drank
 
-  type(bnd_grid_type), intent(inout) :: bc
+  type(bc_topo_type), intent(inout) :: bc
   type(sem_grid_type), intent(in) :: grid
   
   type BC_Node_Data_Type
@@ -703,8 +1070,8 @@ subroutine BC_set_bulk_node(bc,grid)
   integer, allocatable :: Isort(:),Iback(:)
   double precision :: Lx,Lz
 
-  bc%ngnod = grid%ngll
-  allocate(bc%ibool(bc%ngnod,bc%nelem))
+  bc%ngll = grid%ngll
+  allocate(bc%ibool(bc%ngll,bc%nelem))
 
 !-----------------------------------------------------------------------
 !  Build the database as a linked list
@@ -716,9 +1083,10 @@ subroutine BC_set_bulk_node(bc,grid)
   do n=1,bc%nelem
 
 !   get edge nodes, counterclockwise by default
-    call SE_get_edge_nodes(grid,bc%elem(n),bc%edge(n), bulk_node_vect)
+    call SE_get_edge_nodes(grid,bc%bulk_element(n),bc%element_edge(n) &
+                          ,bulk_node_vect)
 
-    do kloc = 1,bc%ngnod
+    do kloc = 1,bc%ngll
 
       bulk_node = bulk_node_vect(kloc)
       new_node = .true.
@@ -727,7 +1095,7 @@ subroutine BC_set_bulk_node(bc,grid)
 !  check if it is already in the BC list.
 !  Note that the search is done in a BC_corners sublist.
 
-      node_at_corner = kloc==1 .or. kloc==bc%ngnod
+      node_at_corner = kloc==1 .or. kloc==bc%ngll
       if (node_at_corner) then
         SubLink = LI_Get_Head(BC_Corners_List)
         do while(LI_Associated(SubLink))
@@ -746,14 +1114,13 @@ subroutine BC_set_bulk_node(bc,grid)
 
         bc_npoin = bc_npoin +1
         bc_inode = bc_npoin
-        allocate(BC_node%P)
-        allocate(BC_node%P%data)
+        allocate(BC_node%P); allocate(BC_node%P%data)
         BC_node%P%data%bulk_node = bulk_node
         BC_node%P%data%bc_node = bc_inode
         Link = transfer(BC_node,Link)
         call LI_Add_To_Head(Link,BC_Nodes_List)
          
-!  ... and possibly to the sublist of BC corners.
+!  ... and eventually to the sublist of BC corners.
         if (node_at_corner) then
           allocate(BC_corner%P)
           BC_corner%P%data => BC_node%P%data
@@ -769,24 +1136,15 @@ subroutine BC_set_bulk_node(bc,grid)
     enddo
   enddo
 
- ! clean up the list of corners
-  do 
-    SubLink = LI_Remove_Head(BC_Corners_List)
-    if (.not.LI_Associated(SubLink)) exit
-    BC_corner = transfer(SubLink,BC_corner)
-    deallocate(BC_corner%P)
-  enddo
-
 !-----------------------------------------------------------------------
 !  Translate BC database from linked list to array storage
 
   bc%npoin = bc_npoin ! = LI_Get_Len(BC_Nodes_List)
-  allocate(bc%node(bc%npoin)) 
+  allocate(bc%bulk_node(bc%npoin)) 
   do i=1,bc%npoin
     Link = LI_Remove_Head(BC_Nodes_List)
     BC_node = transfer(Link,BC_node)
-    bc%node(BC_node%P%data%bc_node) = BC_node%P%data%bulk_node
-    deallocate(BC_node%P%data)
+    bc%bulk_node(BC_node%P%Data%bc_node) = BC_node%P%Data%bulk_node
     deallocate(BC_node%P)
   enddo
 
@@ -795,7 +1153,7 @@ subroutine BC_set_bulk_node(bc,grid)
 !  Use the coordinate with the largest range
   allocate(BcCoord(2,bc%npoin))
   allocate(Isort(bc%npoin))
-  BcCoord = grid%coord(:,bc%node)
+  BcCoord = grid%coord(:,bc%bulk_node)
   Lx = maxval(BcCoord(1,:)) - minval(BcCoord(1,:))
   Lz = maxval(BcCoord(2,:)) - minval(BcCoord(2,:))
   if (Lx>Lz) then
@@ -803,9 +1161,9 @@ subroutine BC_set_bulk_node(bc,grid)
   else
     call drank(BcCoord(2,:),Isort)
   endif
-!    write(51,'(I5,1X,I3)') ( bc%node(n),Isort(n),n=1,bc%npoin) 
-  bc%node = bc%node(Isort)
-!    write(51,'(I5)') bc%node
+!    write(51,'(I5,1X,I3)') ( bc%bulk_node(n),Isort(n),n=1,bc%npoin) 
+  bc%bulk_node = bc%bulk_node(Isort)
+!    write(51,'(I5)') bc%bulk_node
   allocate(Iback(bc%npoin))
   Iback(Isort) = (/ (i, i=1,bc%npoin) /) 
   do n=1,bc%nelem
@@ -816,49 +1174,49 @@ subroutine BC_set_bulk_node(bc,grid)
 
 end subroutine BC_set_bulk_node
 
+!=======================================================================
+!
+  subroutine SE_get_element_info(dmax,dmin,e,grid)
+
+    type (sem_grid_type), intent(in) :: grid
+    double precision, intent(out) :: dmax,dmin 
+    integer, intent(in) :: e
+
+    double precision :: x0,z0,x1,z1,x2,z2,x3,z3,rdist(4)
+    integer :: ngll
+
+    ngll = grid%ngll
+
+    x0 = grid%coord(1,grid%ibool(1,1,e))
+    z0 = grid%coord(2,grid%ibool(1,1,e))
+    x1 = grid%coord(1,grid%ibool(ngll,1,e))
+    z1 = grid%coord(2,grid%ibool(ngll,1,e))
+    x2 = grid%coord(1,grid%ibool(ngll,ngll,e))
+    z2 = grid%coord(2,grid%ibool(ngll,ngll,e))
+    x3 = grid%coord(1,grid%ibool(1,ngll,e))
+    z3 = grid%coord(2,grid%ibool(1,ngll,e))
+
+    rdist(1) = (x1-x0)**2 + (z1-z0)**2 
+    rdist(2) = (x2-x1)**2 + (z2-z1)**2 
+    rdist(3) = (x3-x2)**2 + (z3-z2)**2 
+    rdist(4) = (x3-x0)**2 + (z3-z0)**2
+
+    dmax = sqrt( maxval(rdist) )
+    dmin = sqrt( minval(rdist) )
+
+  end subroutine SE_get_element_info
+
 
 !=======================================================================
 !
-! example:
-!
-!  integer, pointer :: ptr(:)
-!  ptr => SE_firstElementTagged(grid)
-!  ...
-!  deallocate(ptr)
-!
-  function SE_firstElementTagged(grid) result(elist)
-
-  use utils, only : unique
-
-  type (sem_grid_type), intent(in) :: grid
-  integer, pointer :: elist(:)
-
-  integer, pointer :: tags(:)
-  integer :: ntags,k,e
-
-  tags => unique(grid%tag)
-  ntags = size(tags)
-
-  allocate(elist(ntags))
-  do k=1,ntags
-    do e=1,grid%nelem
-      if (grid%tag(e)==tags(k)) exit
-    enddo
-    elist(k) = e
-  enddo
-
-  deallocate(tags)
-  
-  end function SE_firstElementTagged
-
-!=======================================================================
-!
-  subroutine SE_inquire(grid,element,edge &
-                       ,itab,jtab,dim_t &
+  subroutine SE_inquire(grid,element,igll,jgll,edge &
+                       ,inv_jacobian,jacobian,itab,jtab,dim_t &
                        ,size_min,size_max)
 
   type (sem_grid_type), intent(in) :: grid
-  integer, optional, intent(in) :: element,edge
+  integer, optional, intent(in) :: element,igll,jgll,edge
+  double precision, dimension(grid%ndime,grid%ndime), optional, intent(out) :: &
+    inv_jacobian,jacobian
   double precision, optional, intent(out) :: size_min,size_max
   integer, dimension(grid%ngll), optional, intent(out) :: itab,jtab
   integer, optional, intent(out) :: dim_t
@@ -866,8 +1224,14 @@ end subroutine BC_set_bulk_node
   integer :: k
   double precision :: dmin,dmax
 
+  !-- JACOBIAN and its inverse INV_JACOBIAN at a GLL node defined
+  !   DGlobDLoc                DLocDGlob
+  !   by its ELEMENT and local numbering IGLL,JGLL
+  if (present(inv_jacobian)) inv_jacobian = grid%xjaci(:,:,igll,jgll,element)
+  if (present(jacobian)) call invert2(grid%xjaci(:,:,igll,jgll,element) &
+                                         ,jacobian)
+
   !-- give the GLL local numbering ITAB,JTAB for a given EDGE
-  !   assuming counterclockwise orientation
   if ( present(edge) .and. present(itab) .and. present(jtab) ) then
     select case(edge)
       case(edge_D); itab = (/ (k, k=1,grid%ngll) /)   ; jtab = 1
@@ -886,7 +1250,7 @@ end subroutine BC_set_bulk_node
   endif
 
   if (present(size_min) .or. present(size_max)) then
-    call FE_GetElementSizes(dmax,dmin,element,grid%fem)
+    call SE_get_element_info(dmax,dmin,element,grid)
     if (present(size_min)) size_min = dmin
     if (present(size_max)) size_max = dmax
   endif
@@ -895,33 +1259,13 @@ end subroutine BC_set_bulk_node
 
 !=======================================================================
 !
-  function SE_elem_coord(grid,e) result(ecoord)
-
-  type (sem_grid_type), intent(in) :: grid
-  integer, intent(in) :: e
-
-  double precision :: ecoord(2,grid%ngll,grid%ngll)
-  integer :: i,j
-
-  do j=1,grid%ngll
-  do i=1,grid%ngll
-    ecoord(:,i,j) = grid%coord(:,grid%ibool(i,j,e))
-  enddo
-  enddo
-
-  end function SE_elem_coord
-
-!=======================================================================
-!
   subroutine BC_inquire(bounds,tag,bc_topo_ptr)
 
-  type (bnd_grid_type), pointer :: bounds(:),bc_topo_ptr
+  type (bc_topo_type), pointer :: bounds(:),bc_topo_ptr
   integer, intent(in) :: tag
   
   integer :: i
  
- ! if no boundary exists with the requested tag a null pointer is returned
-  nullify(bc_topo_ptr) 
   do i=1,size(bounds)
     if ( bounds(i)%tag == tag ) then
       bc_topo_ptr => bounds(i)
@@ -932,55 +1276,35 @@ end subroutine BC_set_bulk_node
   end subroutine BC_inquire
 
 !=======================================================================
-!
-  logical function BC_tag_exists(bounds,tag) result(exists)
-
-  type (bnd_grid_type), intent(in) :: bounds(:)
-  integer, intent(in) :: tag
-
-  integer :: i
-  
-  exists = .false.
-  do i=1,size(bounds)
-    if ( bounds(i)%tag == tag ) then
-      exists = .true.
-      exit
-    endif
-  enddo
-
-  end function BC_tag_exists
-
-!=======================================================================
 ! Normal to a boundary, pointing out of the element
 ! Normals are assembled --> "average" normal between elements
   subroutine BC_get_normal_and_weights(bc,grid,NORM,W,periodic)
 
-  type (bnd_grid_type), intent(inout) :: bc
+  type (bc_topo_type), intent(inout) :: bc
   type (sem_grid_type), intent(in) :: grid
   double precision, intent(out) :: NORM(bc%npoin,2)
   double precision, intent(out) :: W(bc%npoin)
   logical, intent(in) :: periodic
 
   double precision :: DGlobDLoc(2,2),DxzDt(2),Tang(2),Jac1D,SignTang
-  integer :: iGLLtab(bc%ngnod),jGLLtab(bc%ngnod)
+  integer :: iGLLtab(bc%ngll),jGLLtab(bc%ngll)
   integer :: BcElmt,kGLL,BcNode,LocDimTanToEdge
 
   NORM = 0d0
   W = 0d0
   do BcElmt = 1,bc%nelem
-    call SE_inquire(grid, edge=bc%edge(BcElmt) &
+    call SE_inquire(grid, edge=bc%element_edge(BcElmt) &
                    ,itab=iGLLtab, jtab=jGLLtab, dim_t=LocDimTanToEdge)
-   ! LocDimTanToEdge = local dimension (1=xi, 2=eta) tangent to current edge                    
    ! SignTang enforces the counterclockwise convention for tangent vector
-   ! (iGLLtab,jGLLtab) are the GLL indices of the nodes of boundary element BcElmt
-   ! in the same order (counterclockwise) as they appear in bc%ibool(:,BcElmt)
-    if (bc%edge(BcElmt)==edge_U .OR. bc%edge(BcElmt)==edge_L) then
+    if (bc%element_edge(BcElmt)==edge_U .OR. bc%element_edge(BcElmt)==edge_L) then
       SignTang = -1d0
     else
       SignTang = 1d0
     endif
-    do kGLL = 1,bc%ngnod
-      DGlobDLoc = SE_Jacobian(grid,bc%elem(BcElmt),iGLLtab(kGLL),jGLLtab(kGLL))
+    do kGLL = 1,bc%ngll
+      call SE_inquire(grid,element=bc%bulk_element(BcElmt) &
+                     ,igll=iGLLtab(kGLL),jgll=jGLLtab(kGLL) &
+                     ,jacobian=DGlobDLoc)
       DxzDt = DGlobDLoc(:,LocDimTanToEdge)
       Jac1D = sqrt( DxzDt(1)**2 + DxzDt(2)**2 )
       Tang = SignTang*DxzDt/Jac1D
@@ -999,7 +1323,7 @@ end subroutine BC_set_bulk_node
   do BcElmt = 1,bc%nelem ! fix interelement normals:
     BcNode = bc%ibool(1,BcElmt)
     NORM(BcNode,:) = NORM(BcNode,:) / sqrt( NORM(BcNode,1)**2 + NORM(BcNode,2)**2 )
-    BcNode = bc%ibool(bc%ngnod,BcElmt)
+    BcNode = bc%ibool(bc%ngll,BcElmt)
     NORM(BcNode,:) = NORM(BcNode,:) / sqrt( NORM(BcNode,1)**2 + NORM(BcNode,2)**2 )
   enddo
   

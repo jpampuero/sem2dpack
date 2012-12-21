@@ -1,13 +1,53 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module distribution_linear
   
+  use stdio, only: IO_abort, IO_new_unit
   implicit none
   private
  
   type linear_dist_type
     private
-    integer :: dim = 1
-    double precision :: smoothing_length = 0d0
-    double precision, pointer :: X(:)=>null(),val(:)=>null()
+    double precision :: smoothing_length
+    double precision, pointer :: X(:),val(:)
   end type linear_dist_type
 
   public :: linear_dist_type,read_linear_dist,generate_linear_dist ,&
@@ -20,75 +60,55 @@ module distribution_linear
 !
 ! BEGIN INPUT BLOCK
 !
-! NAME   : DIST_LINEAR
-! GROUP  : DISTRIBUTIONS_1D
-! PURPOSE: Piecewise linear 1D distribution along X or Z.
-! SYNTAX : &DIST_LINEAR n,dim,length /
-!            followed immediately by the interpolation data, 
-!            one line per point, two columns: 
-!            position (X or Z), value
-!          or
-!          &DIST_LINEAR file,dim,length / 
-!            and the interpolation data is read from a two-column file
+! NAME   : DIST_LINEAR [distributions]
+! PURPOSE: Piecewise linear 1D distribution along X.
+! SYNTAX : &DIST_LINEAR file,length /
 !
-! ARG: n        [int] [0] Number of points to be interpolated
-! ARG: dim      [int] [1] Interpolate along X (dim=1) or along Z (dim=2)
-! ARG: file     [name] [none] Name of the ASCII file containing the data
-! ARG: length   [dble] [0] Smoothing length for sliding average window
-!               No smoothing if length=0
-!
-! NOTE: If the requested point is out of bounds we extrapolate linearly
-!       the two terminal values
+! ARG: file     [name] [none] Name of the ASCII file containing
+!               the data to be interpolated in this format:
+!                       n               (number of points to be read)
+!                       x(1) v(1)       (coordinate and value)
+!                       ...  ...
+!                       x(n) v(n)
+!               X must be sorted in increasing order
+! ARG: length   [dble] [0]    Smoothing length (sliding average window)
 !
 ! END INPUT BLOCK
 
   subroutine read_linear_dist (d, iin)
 
-  use utils, only: dsort
-  use stdio, only: IO_abort, IO_new_unit, IO_file_length
-
   type(linear_dist_type) :: d
   integer , intent(in) :: iin 
 
   double precision :: length
-  integer :: iunit, i,N,dim
+  integer :: iunit, i,N
   character(50) :: file
 
-  NAMELIST / DIST_LINEAR / file,length,N,dim
+  NAMELIST / DIST_LINEAR / file,length
 
   length = 0d0
   file = ''
-  N = 0
-  dim = 1
   read(iin,DIST_LINEAR, END = 100)
 
   d%smoothing_length = length
-  if (dim<1 .or. dim>2) call IO_abort('read_linear_dist: dim must be 1 or 2')
-  d%dim = dim
 
-  if (file=='') then
-    allocate( d%X(N),d%val(N) )
-    do i= 1,N
-      read (iin,*) d%x(i),d%val(i)
-    end do
-    
-  else
-    N = IO_file_length(file)
-    allocate( d%X(N),d%val(N) )
-    iunit = IO_new_unit()
-    open(iunit,file=file,status='old')
-    do i= 1,N
-      read (iunit,*) d%x(i),d%val(i)
-    end do
-    close(iunit)
-  endif
+  iunit = IO_new_unit()
+  open(iunit,file=file,status='old')
+  read (iunit,*) N
+  allocate( d%X(N),d%val(N) )
+  do i= 1,N
+    ! WARNING: X must be ordered
+    read (iunit,*) d%x(i),d%val(i)
+  end do
+  close(iunit)
 
   return
 
-! sort X in ascending order, carry VAL
-  call dsort(d%x,d%val) 
-
   100 call IO_abort('read_linear_dist: DIST_LINEAR parameters missing')
+!-- checkings:
+  print *,"  Read ",file
+  print *,"   X min max   ",minval(d%x),maxval(d%x)
+  print *,"   VAL min max ",minval(d%val),maxval(d%val)
 
   end subroutine read_linear_dist
 
@@ -102,19 +122,28 @@ module distribution_linear
 
   double precision, intent(out), dimension(:) :: field 
 
+  integer :: unit,i 
+
+    ! WARNING: interpolating along X
     if (d%smoothing_length > 0d0) then
-      call smooth_interpol(d%X,d%val,coord(d%dim,:),field,d%smoothing_length)
+      call smooth_interpol(d%X,d%val,coord(1,:),field,d%smoothing_length)
     else
-      call interpol(d%X,d%val,coord(d%dim,:),field)
+      call interpol(d%X,d%val,coord(1,:),field)
     endif
 
+    unit = IO_new_unit()
+    open(unit,file='DistLinear_sem2d.tab',status='replace')
+    do i= 1,size(field)
+      write(unit,*) coord(1,i),field(i)
+    enddo
+    close(unit)
+
+ 
   end subroutine generate_linear_dist
 
 !
 !***********************************************************************
 !
-! Linear interpolation
-! If the requested point is out of bounds extrapolate the two start/end values
   subroutine interpol(xi,yi,xo,yo)
 
   use utils, only: hunt
@@ -123,24 +152,21 @@ module distribution_linear
   double precision, intent(out) :: yo(:)
 
   double precision :: eta
-  integer :: i,ipos,ni,no
+  integer :: i,ipos
 
-  ni=size(xi)
-  no=size(xo)
   ipos = 1
-  do i=1,no
+  do i=1,size(xo)
     call hunt(xi,xo(i),ipos)
-    if (ipos==0) ipos=1
-    if (ipos==ni) ipos=ni-1
     eta = ( xo(i)-xi(ipos) ) / ( xi(ipos+1)-xi(ipos) )
     yo(i) = yi(ipos) + eta*( yi(ipos+1)-yi(ipos) ) 
   enddo
 
   end subroutine interpol
 
+!
 !***********************************************************************
-! This is too complicated
-! Better solution: smooth the underlying data at startup then interpolate
+! This is too complicated, better: smooth the underlying data at startup
+! then just interpolate
 !
   subroutine smooth_interpol(xi,yi,xo,yo,length)
 

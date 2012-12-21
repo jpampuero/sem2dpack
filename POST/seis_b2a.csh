@@ -1,21 +1,20 @@
 #!/bin/csh
-set comps = (x y z)
-
-foreach comp ($comps)
-  set name = U${comp}_sem2d
-  if (-e $name.dat) then
-    echo 'Writing ascii file $name.tab'
-    post_seis.exe << END > tmp
+post_seis.exe << END > tmp
 2
-$comp
-4
-${name}.tab
+5
+Ux_sem2d.tab
 1
 END
 
-  endif
-end
+
+post_seis.exe << END > tmp
+3
+5
+Uz_sem2d.tab
+1
+END
 
 rm -f tmp
 
-echo 'NOTE: first column = time'
+echo 'Wrote ascii files Ux_sem2d.tab and Uz_sem2d.tab'
+echo 'NOTE: the first column is the time axis'

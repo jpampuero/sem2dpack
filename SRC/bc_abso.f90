@@ -1,48 +1,82 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module bc_abso
 
-! Absorbing boundary conditions P1 and P3 of
-! R. Stacey, BSSA Vol.78, No.6, pp. 2089-2097, Dec 1988
-!
-! P1. Clayton and Engquist, first order accurate:
+! Absorbing boundaries using first order derivatives
+! Reference: R. Stacey, BSSA Vol.78, No.6, pp. 2089-2097, Dec 1988
+
+! P1. Clayton and Engquist, first order:
 !   V_t = - Cs * U_t,n
 !   V_n = - Cp * U_n,n
-!
-! P3. Stacey, second order accurate:
-!   V_t = - Cs * U_t,n - (Cp-Cs) * U_n,t
-!   V_n = - Cp * U_n,n - (Cp-Cs) * U_t,t
-!
-! Implemented as a boundary term (virtual work of tractions),
-! involving only tangential derivatives :
-!
-! P1. T_t = - rho*Cs * V_t
-!     T_n = - rho*Cp * V_n
-!
-! P3. T_t = - rho*Cs * V_t + rho*Cs*(2*Cs-Cp) * U_n,t
-!     T_n = - rho*Cp * V_n - rho*Cs*(2*Cs-Cp) * U_t,t
-!
-! NOTE: this form of P3.2 comes from e.g. Casadei et al. (2002)
-!     T_n = - (lambda+2*mu)/Cp * V_n + (lambda*Cs+2*mu*(Cs-Cp))/Cp * U_t,t
-!   with lambda = mu/Cs^2 *(Cp^2-2*Cs^2) 
-!   It corresponds to the first two terms in eq.11 of Kausel (1992)
-!
+
+! P3. Stacey, second order:
+!   V_t = - Cs * U_t,n + (Cp-Cs) * U_n,t
+!   V_n = - Cp * U_n,n + (Cp-Cs) * U_t,t
+
+! Note: this is implemented as a constraint on acceleration
+! after deriving once wrt time
+! A different implementation would be as a boundary term (virtual work
+! of tractions)
+! P1. T_t = - mu/Cs * V_t
+!     T_n = - mu/Cp * V_n
+! P3. see Kausel, BSSA 1992, eq.7
 
   use spec_grid
   use memory_info
-  use bnd_grid, only : bnd_grid_type
-  use sources
 
   implicit none
   private
   
   type bc_abso_type
     private
-    double precision, dimension(:,:,:), pointer :: K    
-    double precision, dimension(:,:), pointer :: C,Ht,n,coord
-    double precision, dimension(:), pointer :: B
-    type(bnd_grid_type), pointer :: topo
-    type(source_type), pointer :: wav=>null() ! incident wave
-    logical :: stacey,periodic,let_wave,is_flat
+    double precision, dimension(:,:), pointer :: &
+      Cx_DetaDn,Cx_DxiDn,Cx_DetaDt,Cx_DxiDt &
+     ,Cz_DetaDn,Cz_DxiDn,Cz_DetaDt,Cz_DxiDt
+    double precision, dimension(:), pointer :: cdamp
+    type(bc_topo_type), pointer :: topo
+    integer :: side
+    logical :: stacey,Periodic
   end type
+
+  integer, parameter :: ndime = 2
 
   public :: BC_ABSO_type, BC_ABSO_read, BC_ABSO_init, BC_ABSO_set
     
@@ -52,18 +86,20 @@ contains
 !   
 ! BEGIN INPUT BLOCK
 !
-! NAME   : BC_ABSORB
-! GROUP  : BOUNDARY_CONDITION
+! NAME   : BC_ABSORB [boundary condition]
 ! PURPOSE: Absorbing boundary
-! SYNTAX : &BC_ABSORB stacey, let_wave /
+! SYNTAX : &BC_ABSORB side,stacey,periodic /
 !
-! ARG: stacey   [log] [F] Apply Stacey absorbing conditions for P-SV.
-!                Higher order than Clayton-Engquist (the default).
-! ARG: let_wave [log] [T] Allow incident waves across this boundary 
-!                if mechanism='WAVE' in &SRC_DEF
+! ARG: side     [char] [none] Which side of the model corresponds to this
+!               boundary:       'U'     Up,top
+!                               'D'     Down,bottom
+!                               'L'     Left
+!                               'R'     Right
+! ARG: stacey   [log] [T] Apply or not Stacey absorbing conditions. If F, we
+!                will simply use Clayton and Engquist.
+! ARG: Periodic [log] [F]  Enable if the fault crosses a periodic boundary
 !
-! NOTE   : Stacey conditions and incident waves are only implemented for 
-!          vertical and horizontal boundaries
+! NOTE   : Only implemented for vertical and horizontal boundaries.
 !
 ! END INPUT BLOCK
 
@@ -75,19 +111,29 @@ contains
   type(bc_abso_type), intent(out) :: bc
   integer, intent(in) :: iin
 
-  logical :: stacey,let_wave
+  integer :: i
+  logical :: stacey,periodic
+  character :: side
   character(20) :: abs_type
 
-  NAMELIST / BC_ABSORB / stacey,let_wave
+  NAMELIST / BC_ABSORB / side,stacey,periodic
 
-  stacey  = .false.
-  let_wave = .true.
+  side = ''
+  stacey  = .true.
+  periodic = .false.
 
   read(iin,BC_ABSORB,END=100)
-100 continue
   
+  select case (side)
+  case('U'); bc%side =  side_U
+  case('D'); bc%side =  side_D
+  case('L'); bc%side =  side_L
+  case('R'); bc%side =  side_R
+  case default; call IO_abort('BC_ABSO_read: side must be U,D,R or L')
+  end select
+
   bc%stacey = stacey
-  bc%let_wave = let_wave
+  bc%periodic = periodic
 
   if (echo_input) then 
     if (stacey) then
@@ -95,13 +141,14 @@ contains
     else
       abs_type = 'Clayton-Engquist'
     endif
-    write(iout,200) abs_type,let_wave
+    write(iout,200) abs_type,periodic
   endif
 
   return
 
-  200 format(5x, 'Type of absorbing boundary. . . .(stacey) = ',A &
-            /5x, 'Allow incident wave . . . . . .(let_wave) = ',L1 )
+  100 call IO_abort('BC_ABSO_read: no BC_ABSORB input block found') 
+  200 format(6x,'Type = Absorbing boundary ',A &
+            /6x,'Periodic =',L1 )
 
   end subroutine BC_ABSO_read
 
@@ -111,156 +158,123 @@ contains
 !
 !--- Definition of the working coefficients
 !
-  subroutine BC_ABSO_init(bc,tag,grid,mat,M,tim,src,perio)
+  subroutine BC_ABSO_init(bc,tag,grid,elast)
 
-  use prop_mat, only : matpro_elem_type, MAT_getProp
-  use time_evol, only: timescheme_type, TIME_getCoefA2Vrhs
-  use constants, only : NDIME, TINY_XABS
-  use bc_periodic, only : bc_periodic_type,BC_PERIO_intersects
-  use stdio, only: IO_abort
+  use elastic, only : elast_type, ELAST_inquire
 
   type(bc_abso_type) , intent(inout) :: bc
   type(sem_grid_type), intent(in)    :: grid
-  type(matpro_elem_type), intent(in) :: mat(:)
+  type(elast_type)   , intent(in)    :: elast
   integer            , intent(in)    :: tag
-  type(timescheme_type), intent(in) :: tim
-  double precision, intent(inout) :: M(:,:)
-  type(source_type), pointer :: src(:)
-  type(bc_periodic_type), pointer :: perio
 
-  double precision :: CoefIntegr
-  double precision, dimension(NDIME,NDIME) :: xjac
-  double precision :: rho,c(2)
-  integer :: i,j,k,e,bck,LocDimTan,GeoDimTan,GeoDimNor &
-            ,ngll,ndof,bc_nelem,bc_npoin,ebulk,itab(grid%ngll),jtab(grid%ngll)
-  logical :: is_wave
+  double precision, allocatable :: a15(:,:)
+  double precision :: CoefIntegr,CoefStacey,sign
+  double precision, target :: ijac(ndime,ndime),jac(ndime,ndime)
+  double precision, pointer :: DxiDt,DxiDn,DetaDt,DetaDn
+  double precision :: c(2)
+  integer :: i,j,k,e,LocDimTanToEdge,GeoDimTanToSide,GeoDimNorToSide &
+            ,ngll,bc_nelem,ebulk,itab(grid%ngll),jtab(grid%ngll)
 
   !-- bc%topo => grid%bounds(i) corresponding to TAG
   call BC_inquire( grid%bounds, tag = tag, bc_topo_ptr = bc%topo )
 
-  bc%periodic = BC_PERIO_intersects(bc%topo,perio)
+  ngll         = grid%ngll
+  bc_nelem     = bc%topo%nelem
 
-  ndof      = size(M,2)
-  ngll      = grid%ngll
-  bc_nelem  = bc%topo%nelem
-  bc_npoin  = bc%topo%npoin
+  allocate(bc%Cx_DetaDn(ngll,bc_nelem))
+  allocate(bc%Cx_DxiDn(ngll,bc_nelem))
+  allocate(bc%Cz_DetaDn(ngll,bc_nelem))
+  allocate(bc%Cz_DxiDn(ngll,bc_nelem))
 
-  allocate(bc%B(bc_npoin), bc%n(bc_npoin,2))
-  call BC_get_normal_and_weights(bc%topo,grid,bc%n,bc%B, bc%periodic)
+  call storearray('bc%Cx_DetaDn',ngll*bc_nelem,idouble)
+  call storearray('bc%Cx_DxiDn',ngll*bc_nelem,idouble)
+  call storearray('bc%Cz_DetaDn',ngll*bc_nelem,idouble)
+  call storearray('bc%Cz_DxiDn',ngll*bc_nelem,idouble)
 
- ! check that the boundary is flat, vertical or horizontal:
- ! if horizontal:
-  if (all( abs(bc%n(:,1))<TINY_XABS) ) then
-    bc%is_flat = .true.
-    GeoDimTan = 1 ! Coordinate component (x,z) tangent to domain side
-    GeoDimNor = 2 ! Coordinate component (x,z) normal to domain side
- ! if vertical:
-  elseif (all( abs(bc%n(:,2))<TINY_XABS) ) then
-    bc%is_flat = .true.
-    GeoDimTan = 2
-    GeoDimNor = 1
- ! if not flat:
-  else
-    bc%is_flat = .false.
-    GeoDimTan = 2
-    GeoDimNor = 1
-!    call IO_abort('BC_ABSO_init: boundary is not vertical or horizontal')
-  endif
-  
-  allocate(bc%C(bc_npoin,ndof))
-  call storearray('bc%C',bc_npoin*ndof,idouble)
-  bc%C = 0d0
-
-! NOTE: Stacey only implemented for flat boundaries, for inplane mode 
-  bc%stacey = bc%stacey .and. (ndof==2) .and. bc%is_flat
   if (bc%stacey) then
-    allocate(bc%K(ngll,ndof,bc_nelem))
-    call storearray('bc%K',ngll*ndof*bc_nelem,idouble)
+
+    allocate(bc%Cx_DxiDt(ngll,bc_nelem))
+    allocate(bc%Cx_DetaDt(ngll,bc_nelem))
+    bc%Cz_DxiDt  => bc%Cx_DxiDt
+    bc%Cz_DetaDt => bc%Cx_DetaDt
+    call storearray('bc%Cx_DxiDt',ngll*bc_nelem,idouble)
+    call storearray('bc%Cx_DetaDt',ngll*bc_nelem,idouble)
+
   endif
+
+  allocate(a15(ngll,bc_nelem)) 
 
   do e =1,bc_nelem
 
-    ebulk = bc%topo%elem(e)
+    ebulk = bc%topo%bulk_element(e)
 
-    call SE_inquire(grid, edge=bc%topo%edge(e) &
-                   ,itab=itab, jtab=jtab, dim_t=LocDimTan)
-   ! LocDimTan = local dimension (xi,eta) tangent to the edge
+    call SE_inquire(grid, edge=bc%topo%element_edge(e) &
+                   ,itab=itab, jtab=jtab, dim_t=LocDimTanToEdge)
+   ! LocDimTanToEdge = local dimension (xi,eta) tangent to the edge
+
+    select case(bc%side)
+      case(side_U,side_D)
+        GeoDimTanToSide = 1 ! Geographical dimension (x,z) tangent to domain side
+        GeoDimNorToSide = 2 ! Geographical dimension (x,z) normal to domain side
+      case(side_L,side_R)
+        GeoDimTanToSide = 2
+        GeoDimNorToSide = 1
+    end select
+    select case(bc%side)
+      case(side_U,side_R); sign = -1.d0
+      case(side_D,side_L); sign =  1.d0
+    end select
 
     do k = 1,ngll
 
       i = itab(k)
       j = jtab(k)
 
-      call MAT_getProp(rho,mat(ebulk),'rho',i,j)
-      call MAT_getProp(c(GeoDimNor),mat(ebulk),'cp',i,j)
-      call MAT_getProp(c(GeoDimTan),mat(ebulk),'cs',i,j)
+      call ELAST_inquire(elast,i,j,ebulk, cp=c(GeoDimNorToSide), cs=c(GeoDimTanToSide))
 
-      xjac  = SE_Jacobian(grid,ebulk,i,j)        ! xjac  = DGlobDLoc
-      CoefIntegr = grid%wgll(k)*sqrt( xjac(1,LocDimTan)**2 + xjac(2,LocDimTan)**2 ) 
+     ! ijac = DLocDGlob
+     ! jac  = DGlobDLoc
+      call SE_inquire(grid,element=ebulk,igll=i,jgll=j, inv_jacobian=ijac, jacobian=jac)
 
-      bck = bc%topo%ibool(k,e)
-      if (ndof==1) then
-        bc%C(bck,1)  = bc%C(bck,1) + rho*c(GeoDimTan)*CoefIntegr
-      else
-        bc%C(bck,:)  = bc%C(bck,:) + rho*c*CoefIntegr
-      endif
+      DxiDt   => ijac(1,GeoDimTanToSide)
+      DxiDn   => ijac(1,GeoDimNorToSide)
+      DetaDt  => ijac(2,GeoDimTanToSide)
+      DetaDn  => ijac(2,GeoDimNorToSide)
 
+     ! the differential length has this simplified expression for
+     ! vertical or horizontal edges:
+      CoefIntegr       = grid%wgll(k)*abs(jac(GeoDimTanToSide,LocDimTanToEdge))
+
+      a15(k,e)         = CoefIntegr
+
+      bc%Cx_DxiDn(k,e)  = sign*c(1)*CoefIntegr*DxiDn
+      bc%Cx_DetaDn(k,e) = sign*c(1)*CoefIntegr*DetaDn
+
+      bc%Cz_DxiDn(k,e)  = sign*c(2)*CoefIntegr*DxiDn
+      bc%Cz_DetaDn(k,e) = sign*c(2)*CoefIntegr*DetaDn
+      
       if (bc%stacey) then
-! P3. T_t = - rho*Cs * V_t + mu/Cs*(2*Cs-Cp) * U_n,t
-!     T_n = - rho*Cp * V_n - mu/Cs*(2*Cs-Cp) * U_t,t
-        xjac = SE_InverseJacobian(grid,ebulk,i,j) ! xjac = DLocDGlob
-        bc%K(k,1,e)  = CoefIntegr * xjac(LocDimTan,GeoDimTan) &
-          * rho*c(GeoDimTan)*(2d0*c(GeoDimTan)-c(GeoDimNor))
+        CoefStacey = c(GeoDimNorToSide)-c(GeoDimTanToSide)  ! Cp - Cs
+        bc%Cx_DxiDt(k,e)  = sign*CoefIntegr*DxiDt*CoefStacey
+        bc%Cx_DetaDt(k,e) = sign*CoefIntegr*DetaDt*CoefStacey
       endif
 
     enddo
   enddo
 
-  if (bc%stacey) then
-    bc%K(:,2,:)  = bc%K(:,1,:)
-    bc%K(:,GeoDimTan,:) = - bc%K(:,GeoDimTan,:)
-    bc%Ht => grid%hTprime
+!--- assemble damping diagonal matrix
+  allocate(bc%cdamp(bc%topo%npoin))
+  call storearray('bc%cdamp',bc%topo%npoin,idouble)
+  bc%cdamp = 0.d0
+  do e=1,bc_nelem
+    bc%cdamp( bc%topo%ibool(:,e) ) = bc%cdamp( bc%topo%ibool(:,e) ) + a15(:,e)
+  enddo
+  if (bc%periodic) then
+    bc%cdamp(1) = bc%cdamp(1) + bc%cdamp(bc%topo%npoin)
+    bc%cdamp(bc%topo%npoin) = bc%cdamp(1)
   endif
 
-! NOTE: periodic only possible for flat boundaries
-  if (bc%periodic .and. bc%is_flat) then
-    bc%C(1,:) = bc%C(1,:) + bc%C(bc_npoin,:)
-    bc%C(bc_npoin,:) = bc%C(1,:)
-  endif
-
- ! Modify the mass matrix for implicit treatment of C*v :
- ! NOTE: Only for flat boundaries. 
- !       Non-flat boundaries are usually circular boundaries far away and combined with mesh coarsening,
-!        so the elements are usually large and the explicit scheme is stable.
- !
- !   M*a_(n+1) = -K*d_pre_(n+alpha) -C*v_(n+alpha)
- ! with  v_(n+alpha) = v_pre_(n+alpha) + coefA2Vrhs*a_(n+1)
- ! and coefA2Vrhs depends on the time scheme
- !
- ! => (M+coefA2Vrhs*C)*a_(n+1) = -K*d_pre_(n+alpha) -C*v_pre_(n+alpha)
- !
-  if (bc%is_flat) M(bc%topo%node,:) = M(bc%topo%node,:)  + TIME_getCoefA2Vrhs(tim)*bc%C
-
- ! search for a wave source, pick the first found
- ! NOTE: incident waves only implemented for flat boundaries
-  if (.not. bc%is_flat) bc%let_wave=.false.
-  if (bc%let_wave .and. associated(src)) then
-    do i=1,size(src)
-      call SO_inquire(src(i),is_wave=is_wave)
-      if (is_wave ) then
-        bc%wav => src(i)
-        exit
-      endif
-    enddo
-  endif
- ! if a wave source was found:
-  if (associated(bc%wav)) then
-    allocate(bc%coord(2,bc_npoin)) 
-    bc%coord = grid%coord(:,bc%topo%node)
-  else
-    deallocate(bc%B)
-    if (bc%is_flat) deallocate(bc%n)
-  endif
+  deallocate(a15)
 
   end subroutine BC_ABSO_init
 
@@ -268,67 +282,81 @@ contains
 
 !=====================================================================
 !
-! NOTE: for Stacey conditions we assume vertical or horizontal boundaries
-!       otherwise C and K are 2x2 matrices
-!
-!  D => fields%displ_alpha
-!  V => fields%veloc_alpha
-!  MxA => fields%accel
-!
-! If there is an incident wave the total field = incident + diffracted
-!     T = T_i + T_d
-!     V = V_i + V_d
-! and the absorbing conditions apply only to the diffracted field
-!     T = T_i - C*V_d
-!       = T_i - C*( V-V_i )
+  subroutine BC_ABSO_set(bc,grid,fields,src,time)
 
-  subroutine BC_ABSO_set(bc,D,V,MxA,time)
+  use sources, only : source_type,SO_WAVE_veloc,SO_WAVE_accel,SO_inquire
+  use fields_class, only : fields_type
 
   type(bc_abso_type) , intent(in)    :: bc
-  double precision, intent(inout) :: MxA(:,:)
-  double precision, intent(in) :: D(:,:),V(:,:), time
+  type(sem_grid_type), intent(in)    :: grid
+  type(fields_type)  , intent(inout) :: fields
+  type(source_type)  , pointer       :: src
+  double precision   , intent(in)    :: time
 
-  double precision, dimension(:,:), allocatable :: KxD, Vin, Tin, Vn
-  integer, pointer :: nodes(:)
-  integer :: e,i,k(bc%topo%ngnod),ndof
+  double precision, dimension(bc%topo%ngll,bc%topo%nelem) ::  &
+    dUx_dxi,dUz_dxi,dUx_deta,dUz_deta
+  double precision :: Uloc(bc%topo%ngll,bc%topo%ngll,ndime) &
+                     ,Floc(bc%topo%ngll,bc%topo%nelem,ndime) &
+                     ,Fglob(bc%topo%npoin,ndime)
+  integer :: i,j,k,iglob,d,itab(bc%topo%ngll),jtab(bc%topo%ngll)
+  logical :: anywave
 
-  nodes => bc%topo%node
-  ndof=size(MxA,2)
-
-  if (associated(bc%wav)) then
-    allocate( Vin(bc%topo%npoin,ndof), Tin(bc%topo%npoin,ndof) )
-    call SO_WAVE_get_VT( Vin, Tin, time,bc%coord,bc%n,bc%wav)
-    do i=1,ndof
-      MxA(nodes,i) = MxA(nodes,i) - bc%C(:,i)*( V(nodes,i) - Vin(:,i) ) +bc%B*Tin(:,i)
-    enddo
-    deallocate(Vin,Tin)
+  if (associated(src)) then
+    call SO_inquire(src,is_wave=anywave)
   else
-    if (bc%is_flat .or. ndof==1) then
-      MxA(nodes,:) = MxA(nodes,:) - bc%C*V(nodes,:)
-    else
-      allocate( Vn(bc%topo%npoin,ndof) )
-      Vn(:,2) = ( V(nodes,1)*bc%n(:,1) + V(nodes,2)*bc%n(:,2) ) ! tmp dot product V.n
-      Vn(:,1) = Vn(:,2)*bc%n(:,1)
-      Vn(:,2) = Vn(:,2)*bc%n(:,2)
-      MxA(nodes,1) = MxA(nodes,1) - bc%C(:,1)*Vn(:,1) - bc%C(:,2)*( V(nodes,1)-Vn(:,1) )
-      MxA(nodes,2) = MxA(nodes,2) - bc%C(:,1)*Vn(:,2) - bc%C(:,2)*( V(nodes,2)-Vn(:,2) )
-      deallocate(Vn)
-    endif
+    anywave = .false.
   endif
 
-  if (bc%stacey) then
-    allocate( KxD(bc%topo%npoin,2) )
-    KxD = 0d0
-    do e=1,bc%topo%nelem
-      k = bc%topo%ibool(:,e)
-      KxD(k,:) = KxD(k,:) + bc%K(:,:,e) * matmul( bc%Ht, D(nodes(k),:) )
+  do k=1,bc%topo%nelem
+    
+    do j=1,bc%topo%ngll
+    do i=1,bc%topo%ngll
+      iglob = grid%ibool(i,j,bc%topo%bulk_element(k))
+      Uloc(i,j,:) = fields%veloc(iglob,:)
+      if (anywave) Uloc(i,j,:) = Uloc(i,j,:) - SO_WAVE_veloc(time,grid%coord(:,iglob),src)
     enddo
-    if (bc%periodic) then
-      KxD(1,:) = KxD(1,:)+KxD(bc%topo%npoin,:)
-      KxD(bc%topo%npoin,:) = KxD(1,:)
-    endif 
-    MxA(nodes,:) = MxA(nodes,:) - KxD 
-    deallocate(KxD)
+    enddo
+
+    call SE_inquire(grid,edge = bc%topo%element_edge(k),itab=itab,jtab=jtab)
+    do i= 1,bc%topo%ngll
+      dUx_dxi(i,k)  = dot_product( Uloc(:,jtab(i),1), grid%hprime(:,itab(i)) )
+      dUz_dxi(i,k)  = dot_product( Uloc(:,jtab(i),2), grid%hprime(:,itab(i)) )
+      dUx_deta(i,k) = dot_product( Uloc(itab(i),:,1), grid%hprime(:,jtab(i)) )
+      dUz_deta(i,k) = dot_product( Uloc(itab(i),:,2), grid%hprime(:,jtab(i)) )
+    enddo
+
+  enddo
+
+  if (bc%stacey) then
+! P3. Stacey, second order:
+!   V_t = - Cs * U_t,n + (Cp-Cs) * U_n,t
+!   V_n = - Cp * U_n,n + (Cp-Cs) * U_t,t
+    Floc(:,:,1) = bc%Cx_DetaDn*dUx_deta + bc%Cx_DxiDn *dUx_dxi &
+                + bc%Cx_DxiDt *dUz_dxi  + bc%Cx_DetaDt*dUz_deta
+    Floc(:,:,2) = bc%Cz_DetaDn*dUz_deta + bc%Cz_DxiDn *dUz_dxi &
+                + bc%Cz_DxiDt *dUx_dxi  + bc%Cz_DetaDt*dUx_deta
+  else
+! P1. Clayton and Engquist, first order:
+!   V_t = - Cs * U_t,n
+!   V_n = - Cp * U_n,n
+    Floc(:,:,1) = bc%Cx_DetaDn*dUx_deta + bc%Cx_DxiDn*dUx_dxi
+    Floc(:,:,2) = bc%Cz_DetaDn*dUz_deta + bc%Cz_DxiDn*dUz_dxi
+  endif
+
+ ! assemblage des contributions
+  Fglob = 0.d0 
+  do k=1,bc%topo%nelem
+    Fglob(bc%topo%ibool(:,k),:) = Fglob(bc%topo%ibool(:,k),:) + Floc(:,k,:)
+  enddo
+
+  fields%accel(bc%topo%bulk_node,1) = Fglob(:,1) / bc%cdamp 
+  fields%accel(bc%topo%bulk_node,2) = Fglob(:,2) / bc%cdamp 
+
+  if (anywave) then
+    do i= 1,bc%topo%npoin
+      iglob = bc%topo%bulk_node(i)
+      fields%accel(iglob,:) = fields%accel(iglob,:) + SO_WAVE_accel(time,grid%coord(:,iglob),src)
+    enddo
   endif
 
   end subroutine BC_ABSO_set

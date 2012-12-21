@@ -1,3 +1,43 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module input
 
   implicit none
@@ -15,7 +55,8 @@ contains
   use stdio, only : IO_new_unit,IO_abort
 
   use time_evol, only : TIME_read
-  use mat_gen, only : MAT_read
+  use echo, only : ECHO_read,echo_input,iout
+  use elastic, only : ELAST_read
   use bc_gen, only : BC_read
   use mesh_gen, only : MESH_read
   use sources, only : SO_read
@@ -31,8 +72,10 @@ contains
 !-----------------------------------------------------------------------
 
   iin  = IO_new_unit()
-  open (iin,file=input_file,status='old',action='read')
+  open (iin,file=input_file)
   
+  call ECHO_read(iin)
+
   call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,iin)
 
  !---- mesh generation parameters     
@@ -42,19 +85,19 @@ contains
   call TIME_read(pb%time,iin)
 
  !---- material properties
-  call MAT_read(pb%matinp,iin)
+  call ELAST_read(pb%elast,iin)
 
  !---- boundary conditions properties     
   call BC_read(pb%bc,iin) 
  
  !---- Collocated forces or pressure sources
-  call SO_read(pb%src,iin, pb%fields%ndof)
+  call SO_read(pb%src,iin)
 
  !---- receivers 
   call REC_read(pb%rec,iin)
 
  !---- plots settings
-  call read_plot_gen(iin, pb%fields%ndof)
+  call read_plot_gen(iin)
 
  !---- close input file
   close(iin)
@@ -67,96 +110,60 @@ contains
 !
 ! NAME   : GENERAL
 ! PURPOSE: General parameters
-! SYNTAX : &GENERAL iexec, ngll, fmax, title, verbose, itInfo /
+! SYNTAX : &GENERAL iexec,ngll,fmax /
 !
 ! ARG: iexec    [int] [0] Run level:
 !                       0 = just check
 !                       1 = solve
 ! ARG: ngll     [int] [9] Number of GLL nodes per edge on each spectral element
-!                ( polynomial order +1 ). Usually 5 to 9.
-! ARG: fmax     [dble] [1.d0] The code checks if this maximum frequency is
-!                well resolved by the mesh and issues a warning if not. 
-!                This parameter is not used in computations, only for checking.
-!                To improve the resolution for a given fmax you must increase ngll 
-!                (but you will have to use shorter timesteps) or refine the mesh.
-! ARG: ndof     [int] [2] Number of degrees of freedom per node
-!                       1 = SH waves, anti-plane
-!                       2 = P-SV waves, in-plane
-! ARG: title    [word] [none] Title of the simulation
-! ARG: verbose  [char(4)] ['1101'] Print progress information during each phase:
-!                       verbose(1) = input phase
-!                       verbose(2) = initialization phase
-!                       verbose(3) = check phase
-!                       verbose(4) = solver phase
-!                Example: '0001' is verbose only during solver.
-! ARG: itInfo   [int] [100] Frequency (in number of timesteps) for printing
-!                progress information during the solver phase.
+!               ( polynomial order +1 ). Usually 5 to 9.
+! ARG: fmax     [dble] [0.d0] Maximum frequency to be well resolved. Mandatory.
+!               This is a target frequency, the code will check if it is
+!               compatible with the mesh and eventually issue a warning. To
+!               improve the resolution for a given fmax you must increase ngll 
+!               (but you will have to use shorter timesteps) or refine/redesign 
+!               the mesh.
 !
 ! END INPUT BLOCK
 
   subroutine read_gen(iexec,ndof,ngll,fmax,iin)
 
-  use echo
+  use echo, only : echo_input,iout
   use stdio, only : IO_abort
 
   integer, intent(in) :: iin
+  !integer, intent(inout) :: ndof,ngll
   integer  :: iexec,ndof,ngll
   double precision :: fmax
-  character(10) :: iexecname
-  character(4) :: verbose
 
-  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo
+  NAMELIST / GENERAL / iexec,ngll,fmax
 
   iexec = 0
-  ndof = 2
+  ndof = 2 ! WARNING: for the moment only 2 degrees of freedom (P-SV)
   ngll = 9
-  fmax = 1d0
-  title   = ''
-  verbose = '1101'
-  itInfo  = 100
+  fmax = 0.d0
 
   rewind(iin)
   read(iin,GENERAL,END=100)
 
-  if (ndof>2 .or. ndof<1) call IO_abort('GENERAL input block: ndof must be 1 or 2 (SH or P-SV)')
-  if (ngll <= 0) call IO_abort('GENERAL input block: ngll must be positive')
-  if (fmax <= 0.d0) call IO_abort('GENERAL input block: fmax must be positive')
-  if (itInfo<=0) call IO_abort('GENERAL input block: itInfo must be positive')
-
-  if (iexec==0) then
-    iexecname = 'check'
-  else
-    iexecname = 'solve'
-  endif
+!  if (ndof /= 2) call IO_abort('GENERAL: only ndof = 2 implemented')
+  if (ngll <= 0) call IO_abort('GENERAL: ngll must be positive')
+  if (fmax <= 0.d0) call IO_abort('GENERAL: fmax null or missing')
   
-  call ECHO_set(verbose)
-
-  if (echo_input) then
-    write(iout,*)
-    write(iout,'(a)') '***********************************************'
-    write(iout,'(a)') '*            I n p u t   p h a s e            *'
-    write(iout,'(a)') '***********************************************'
-    write(iout,*)
-    write(iout,200) iexecname,ngll,ndof,fmax, &
-      echo_input,echo_init,echo_check,echo_run,itInfo
-  endif
+  if (echo_input) write(iout,200) iexec,ngll,fmax
 
   return
 
 100   call IO_abort('Input: GENERAL parameters not found')
-200   format(//1x,'G e n e r a l   P a r a m e t e r s', &
-  /1x,35('='),//5x,&
-  'Execution mode . . . . . . . . . . . . . . . (iexec) = ',a/ 5x, &
+200   format(//1x,'G e n e r a l   P a r a m e t e r s   C o n t r o l   c a r d', &
+  /1x,34('='),//5x,&
+  'Execution mode . . . . . . . . . . . . . . . (iexec) =',I0/ 5x, &
+  '        ==  0     data check only                     ',  / 5x, &
+  '        ==  1     resolution                          ',  / 5x, &
   'Number of nodes per edge . . . . . . . . . . .(ngll) = ',I0/5x, &
-  'Number of d.o.f per node . . . . . . . . . . .(ndof) = ',I0/5x, &
-  'Highest frequency to be resolved . . . . . . .(fmax) = ',EN12.3/5x, &
-  'Print progress information during ',/5x, &
-  '            input phase  . . . . . . . .(verbose(1)) = ',L1/ 5x, &
-  '            initialization phase . . . .(verbose(2)) = ',L1/ 5x, &
-  '            checking phase . . . . . . .(verbose(3)) = ',L1/ 5x, &
-  '            solver phase . . . . . . . .(verbose(4)) = ',L1/ 5x, &
-  'Frequency for solver progress information  .(itInfo) = ',I0/ 5x)
+  'Highest frequency to be resolved . . . . . . .(fmax) = ',EN12.3)
 
+!  'Number of d.o.f per node . . . . . . . . . . .(ndof) = ',I0/5x, &
   end subroutine read_gen
 
 end module input

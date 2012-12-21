@@ -1,37 +1,89 @@
+! SEM2DPACK version 2.2.3 -- A Spectral Element Method tool for 2D wave propagation
+!                            and earthquake source dynamics
+! 
+! Copyright (C) 2003 Jean-Paul Ampuero
+! All Rights Reserved
+! 
+! Jean-Paul Ampuero
+! 
+! ETH Zurich (Swiss Federal Institute of Technology)
+! Institute of Geophysics
+! Seismology and Geodynamics
+! ETH Hönggerberg (HPP)
+! CH-8093 Zürich
+! Switzerland
+! 
+! ampuero@erdw.ethz.ch
+! +41 1 633 2197 (office)
+! +41 1 633 1065 (fax)
+! 
+! http://www.sg.geophys.ethz.ch/geodynamics/ampuero/
+! 
+! 
+! This software is freely available for scientific research purposes. 
+! If you use this software in writing scientific papers include proper 
+! attributions to its author, Jean-Paul Ampuero.
+! 
+! This program is free software; you can redistribute it and/or
+! modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation; either version 2
+! of the License, or (at your option) any later version.
+! 
+! This program is distributed in the hope that it will be useful,
+! but WITHOUT ANY WARRANTY; without even the implied warranty of
+! MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+! GNU General Public License for more details.
+! 
+! You should have received a copy of the GNU General Public License
+! along with this program; if not, write to the Free Software
+! Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+! 
 module sources
 
-  use src_moment
+  use src_explo
   use src_force
   use src_wave
-  use stf_gen
 
-  use constants, only: NDIME
+  use ricker_functions
+  use butterworth_filter
 
   implicit none
   private
 
+  integer, parameter :: ndime = 2
+
+  type src_timef_type
+    private
+    integer :: kind = 0
+    type (ricker_type), pointer :: ricker => null()
+    type (butter_type), pointer :: butter => null()
+  end type src_timef_type
+
   type src_mechanism_type
     private
     integer :: kind = 0
-    type (so_moment_type), pointer :: moment => null()
+    type (so_explo_type), pointer :: explo => null()
     type (so_force_type), pointer :: force => null()
     type (src_wave_type), pointer :: wave  => null()
   end type src_mechanism_type
 
   type source_type
     private
-    double precision :: coord(NDIME)
-    double precision :: tdelay = 0d0, ampli = 1d0
-    type (stf_type), pointer  :: stf
+    double precision :: coord(ndime) = 0.d0
+    integer :: relocate_to = 0
+    type (src_timef_type) :: time
     type (src_mechanism_type) :: mech
   end type source_type
 
-  integer, parameter :: tag_moment = 1 &
+  integer, parameter :: tag_explo  = 1 &
                        ,tag_force  = 2 &
                        ,tag_wave   = 3
 
+  integer, parameter :: tag_ricker = 1 &
+                       ,tag_butter = 2
+
   public :: source_type,SO_check,SO_read,SO_init,SO_add &
-           ,SO_WAVE_get_VT,SO_inquire
+           ,SO_WAVE_veloc,SO_WAVE_accel,SO_inquire
 
 contains
 
@@ -40,8 +92,8 @@ contains
 !
   subroutine SO_inquire(src,coord,is_wave)
 
-  type(source_type) :: src
-  double precision, intent(out), optional :: coord(NDIME)
+  type(source_type), pointer :: src
+  double precision, intent(out), optional :: coord(ndime)
   logical, intent(out), optional :: is_wave
 
   if ( present(coord) )  coord = src%coord
@@ -58,154 +110,107 @@ contains
 !
 ! NAME   : SRC_DEF
 ! PURPOSE: Define the sources.
-! SYNTAX : &SRC_DEF stf, mechanism, coord /
-!          &SRC_DEF stf, mechanism, file /
-!          followed by one SOURCE TIME FUNCTION block (STF_XXXX)
-!          and one SOURCE MECHANISM block (SRC_XXXX) 
+! SYNTAX : &SRC_DEF   TimeFunction,mechanism,coord,relocate_to /
+!          Immediately followed by SRC_TIMEFUNCTION then SRC_MECHANISM blocks
 !
-! ARG: stf        [name] [none] Name of the source time function:
-!                  'RICKER', 'TAB', 'HARMONIC', 'BRUNE' or 'USER'
-! ARG: mechanism  [name] [none] Name of the source mechanism:
-!                  'FORCE', 'EXPLOSION', 'DOUBLE_COUPLE', 'MOMENT' or 'WAVE'
-! ARG: coord      [dble(2)] [huge] Location (x,z) of the source (m). 
-! ARG: file       [name] ['none'] Name of file containing source parameters.
-!                  The file format is ASCII with one line per source and
-!                  2, 3 or 4 columns per line:
-!                    (1) X position (in m)
-!                    (2) Z position (in m)
-!                    (3) time delay (in seconds)
-!                    (4) relative amplitude
-!                  If column 4 is absent, amplitude = 1.
-!                  If columns 3 and 4 are absent, delay = 0 and amplitude = 1.
-!
+! ARG: TimeFunction    [name] [none]   The name of the source time function:
+!                        'RICKER' or 'BUTTERWORTH'
+! ARG: mechanism        [name] [none]   The name of the source mechanism:
+!                        'EXPLOSION','WAVE' or 'FORCE'
+! ARG: coord            [dble] [huge]   Location of the source (m). 
+! ARG: relocate_to      [int] [0]       The coordinates can be relocated (projected)
+!                        to a boundary if you give here one of the "tags" read in
+!                        the DEF_BC input blocks. Usually 1 for the free surface.
+
 ! END INPUT BLOCK
 
-  subroutine SO_read(so,iin,ndof)
+  subroutine SO_read(so,iin)
 
-  use stdio, only : IO_abort,IO_new_unit, IO_file_length, IO_file_columns
+  use stdio, only : IO_abort
   use echo , only : echo_input,iout
 
-  integer, intent(in) :: iin,ndof
-  type(source_type), pointer :: so(:)
+  integer, intent(in) :: iin
+  type(source_type), pointer :: so
 
-  double precision :: coord(NDIME),init_double
-  integer :: i,n, iin2, ncol
-  character(15) :: stf,mechanism
-  character(50) :: file
+  double precision :: coord(ndime),init_double
+  integer :: relocate_to
+  character(15) :: TimeFunction,mechanism
 
-  NAMELIST / SRC_DEF / stf,mechanism,coord,file
+  NAMELIST / SRC_DEF / TimeFunction,mechanism,coord,relocate_to
 
   init_double = huge(init_double)
 
 !-- read general parameters
 
-  stf = ' '
-  mechanism    = ' '
-  coord        = init_double
-  file         = 'none'
+  TimeFunction = ' '
+  mechanism     = ' '
+  coord         = init_double
+  relocate_to   = 0
 
   rewind(iin)
   read(iin,SRC_DEF,END=200)
 
-  if (stf == ' ')  &
-    call IO_abort('SO_read: stf not set')
+  if (TimeFunction == ' ')  &
+    call IO_abort('SO_read: You must set the "TimeFunction" ')
   if (mechanism == ' ') &
-    call IO_abort('SO_read: mechanism not set')
-  if (any(coord == init_double) .and. file == 'none') &
-    call IO_abort('SO_read: coord not set')
+    call IO_abort('SO_read: You must set the "mechanism" ')
+  if (any(coord == init_double)) &
+    call IO_abort('SO_read: You must set "coord" ')
+  if (relocate_to /= 0 .and. mechanism == 'EXPLOSION') &
+    call IO_abort('SO_read: cannot relocate explosion on a boundary')
 
-  if (echo_input) then
-    if (file == 'none') then
-      write(iout,100) coord
-    else
-      write(iout,105) file
-    endif
+  if(echo_input) then
+    write(iout,100) coord
+    if (relocate_to /= 0) write(iout,110) relocate_to
   endif
 
 !-- store data 
-  if (file == 'none') then
-    n=1
-    allocate(so(1))
-    so(1)%coord = coord
-
-  else
-    n = IO_file_length(file)
-    ncol = IO_file_columns(file)
-    allocate(so(n))
-    iin2 = IO_new_unit()
-    open(iin2,file=file)
-    select case (ncol)
-      case (2)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:)
-        enddo
-      case (3)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:), so(i)%tdelay
-        enddo
-      case(4)
-        do i=1,n
-          read(iin2,*) so(i)%coord(:), so(i)%tdelay, so(i)%ampli
-        enddo
-      case default
-        call IO_abort('SO_read: inappropriate number of columns in file')
-    end select
-    close(iin2)
-  endif
-
-  do i=1,n
+  allocate(so)
+  so%relocate_to = relocate_to
+  so%coord       = coord 
+  nullify(so%time%butter,so%time%ricker)
   
-   !-- read source time function parameters
-    if (i==1) then
-      allocate(so(i)%stf)
-      call STF_read(stf,so(i)%stf,iin)
-    else
-     ! NOTE: all sources share the same source time function
-      so(i)%stf => so(1)%stf
-    endif
+!-- read time function parameters
+  select case (TimeFunction)
+    case('BUTTERWORTH')
+      so%time%kind = tag_butter
+      allocate(so%time%butter)
+      call BUTTER_read(so%time%butter,iin)
+    case('RICKER')
+      so%time%kind = tag_ricker
+      allocate(so%time%ricker)
+      call RICKER_read(so%time%ricker,iin)
+    case default
+      call IO_abort('SO_read: unknown TimeFunction ')
+  end select
 
-   !-- read mechanism
-    if (i==1) rewind(iin)
-    select case (mechanism)
-    case('MOMENT','EXPLOSION','DOUBLE_COUPLE')
-        so(i)%mech%kind = tag_moment
-        allocate(so(i)%mech%moment)
-        if (i==1) then
-          call SRC_MOMENT_read(so(i)%mech%moment,iin,mechanism,ndof)
-        else
-          so(i)%mech%moment = so(1)%mech%moment
-        endif
-      case('FORCE')
-        so(i)%mech%kind = tag_force
-        allocate(so(i)%mech%force)
-        if (i==1) then
-          call FORCE_read(so(i)%mech%force,iin)
-        else
-          so(i)%mech%force = so(1)%mech%force
-        endif
-      case('WAVE')
-        so(i)%mech%kind = tag_wave
-        allocate(so(i)%mech%wave)
-        if (i==1) then
-          call WAVE_read(so(i)%mech%wave,iin)
-        else
-          so(i)%mech%wave = so(1)%mech%wave
-        endif
-      case default
-        call IO_abort('SO_read: unknown mechanism ')
-    end select
-
-  enddo
+!-- read mechanism
+  select case (mechanism)
+    case('EXPLOSION')
+      so%mech%kind = tag_explo
+      allocate(so%mech%explo)
+      call EXPLO_read()
+    case('FORCE')
+      so%mech%kind = tag_force
+      allocate(so%mech%force)
+      call FORCE_read(so%mech%force,iin)
+    case('WAVE')
+      so%mech%kind = tag_wave
+      allocate(so%mech%wave)
+      call WAVE_read(so%mech%wave,iin)
+    case default
+      call IO_abort('SO_read: unknown Mechanism ')
+  end select
 
  return
 
 !---- formats and escapes
 
-  100   format(//,' S o u r c e s',/1x,13('='),//5x, &
-     'X-position (meters). . . . .(coord(1)) = ',EN12.3,/5x, &
-     'Y-position (meters). . . . .(coord(2)) = ',EN12.3)
-  105   format(//,' S o u r c e s',/1x,13('='),//5x, &
-     'Source location file . . . . . .(file) = ',A)
+  100   format(//,' S o u r c e  F u n c t i o n s',/1x,28('='),//5x, &
+     'X-position (meters). . . . . . . . . . =',EN12.3,/5x, &
+     'Y-position (meters). . . . . . . . . . =',EN12.3)
+  110   format(5x, &
+     'Relocated on boundary tagged by. . . . =',I0)
   200   nullify(so) ; return
 
          
@@ -213,71 +218,62 @@ end subroutine SO_read
 
 !=====================================================================
 !
-  subroutine SO_init(so,grid,mat)
+  subroutine SO_init(so,grid,KD,fields,elast)
 
   use spec_grid, only : sem_grid_type, SE_find_nearest_node
-  use echo, only: iout,echo_init
-  use prop_mat, only : matpro_elem_type
+  use fields_class, only : fields_type
+  use elastic, only: elast_type
 
-  type(source_type), intent(inout) :: so(:)
+  type(source_type), intent(inout) :: so
   type(sem_grid_type), intent(in)  :: grid
-  type(matpro_elem_type), intent(in)  :: mat(:)
+  type(fields_type), intent(inout) :: fields
+  type(elast_type), intent(in) :: elast
+  double precision, pointer :: KD(:,:)
   
-  double precision :: coord(NDIME),dist,distmax
-  integer :: iglob,k
+  double precision :: coord(ndime)
+  integer :: iglob,i,j,e
 
-  distmax = 0.d0
-  if (echo_init) write(iout,200)
+  if (so%relocate_to /= 0) then
+    !-- find the nearest node on a BC
+    call SE_find_nearest_node(so%coord,grid,iglob,i,j,e,coord &
+                             ,bound = so%relocate_to)
+  else
+    call SE_find_nearest_node(so%coord,grid,iglob,i,j,e,coord &
+                           ,inner = so%mech%kind == tag_explo)
+    !-- if explosion source the node must be inside the e
+  endif
+   
+  select case (so%mech%kind)
+    case(tag_explo)
+      call EXPLO_init(so%mech%explo,i,j,e,grid,KD)
+    case(tag_force)
+      call FORCE_init(so%mech%force,KD,iglob)
+    case(tag_wave)
+      call WAVE_init(so%mech%wave,so%time%ricker,fields,grid,elast &
+                   ,i,j,e,so%coord)
+  end select
 
-  do k=1,size(so)
-
-    call SE_find_nearest_node(so(k)%coord,grid,iglob,coord,dist)
-    
-    select case (so(k)%mech%kind)
-      case(tag_moment)
-        call SRC_MOMENT_init(so(k)%mech%moment,iglob,grid)
-      case(tag_force)
-        call FORCE_init(so(k)%mech%force,iglob)
-      case(tag_wave)
-        call WAVE_init(so(k)%mech%wave,grid,mat,coord)
-    end select
+  so%coord = coord
   
-    if (echo_init) then
-      write(iout,150) k,so(k)%coord,coord,dist
-      distmax = max(dist,distmax)
-    endif
-    
-    so(k)%coord = coord
-  
-  enddo
-
-  if (echo_init) write(iout,160) distmax
-
- 150   format(2x,i7,5(1x,EN12.3))
- 160   format(/2x,'Maximum distance between requested and real =',EN12.3)
- 200  format(//1x,'S o u r c e s'/1x,13('=')// &
-  ' Sources have been relocated to the nearest GLL node'// &
-  '   Source  x-requested  z-requested   x-obtained   z-obtained     distance'/)
-
   end subroutine SO_init
 
 !=====================================================================
 !
-! WARNING: output only for first source
   subroutine SO_check(so,dt,nt) 
 
   use stdio, only : IO_new_unit,IO_abort
   
-  type(source_type), intent(inout) :: so(:)
+  type(source_type), intent(inout) :: so
   double precision, intent(in) :: dt
   integer, intent(in) :: nt
  
   integer :: it,fid
+  double precision :: ampli
 
   fid = IO_new_unit()  
   open(unit=fid,file='SourcesTime_sem2d.tab',status='unknown')
   do it=1,nt
-    write(fid,*) real(it*dt),real( STF_get(so(1)%stf,it*dt-so(1)%tdelay) )
+    write(fid,*) real(it*dt),real( SO_get_F(so,it*dt) )
   enddo
   close(fid)
 
@@ -286,56 +282,78 @@ end subroutine SO_read
 
 !=====================================================================
 !
-! adds point sources (not incident wave)
-  subroutine SO_add(so,t, MxA)
+  subroutine SO_add(so,t)
 
-  type(source_type), pointer :: so(:)
+  type(source_type), intent(inout) :: so
   double precision, intent(in) :: t
-  double precision, intent(inout) :: MxA(:,:)
   
   double precision :: ampli
-  integer :: k
 
-  if (.not. associated(so)) return
-
-  do k=1,size(so)
-
-   ! get source amplitude
-    ampli = STF_get(so(k)%stf,t-so(k)%tdelay)
-    ampli = ampli * so(k)%ampli
-  
-   ! add source term
-    select case (so(k)%mech%kind)
-      case(tag_moment)
-        call SRC_MOMENT_add(so(k)%mech%moment,ampli,MxA)
-      case(tag_force)
-        call FORCE_add(so(k)%mech%force,ampli,MxA)
-    end select
-
-  enddo
+  ampli = SO_get_F(so,t)
+  call SO_add_F(so,ampli)
 
   end subroutine SO_add
 
 
 !=====================================================================
-! incident plane wave
-subroutine SO_WAVE_get_VT( Vin, Tin, time,coord,n,src)
+!
+  subroutine SO_add_F(so,ampli)
 
-  double precision, intent(out) :: Vin(:,:), Tin(:,:)
-  double precision, intent(in) :: coord(:,:),n(:,:),time
+  type (source_type), intent(inout) :: so
+  double precision, intent(in) :: ampli
+
+  select case (so%mech%kind)
+    case(tag_explo)
+      call EXPLO_add(so%mech%explo,ampli)
+    case(tag_force)
+      call FORCE_add(so%mech%force,ampli)
+  end select
+
+  end subroutine SO_add_F
+
+
+!=====================================================================
+! compute amplitude of source time function
+!
+  double precision function SO_get_F(so,t)
+
+  type(source_type), intent(in) :: so
+  double precision , intent(in) :: t
+
+  select case (so%time%kind)
+    case(tag_ricker)
+      SO_get_F = ricker(t,so%time%ricker)
+    case(tag_butter)
+      SO_get_F = butter(so%time%butter,t)
+  end select
+
+  end function SO_get_F
+
+
+!=====================================================================
+! For incident plane wave
+
+function SO_wave_veloc(time,coord,src)
+
   type (source_type), intent(in) :: src
+  double precision, intent(in) :: coord(ndime),time
+  double precision :: SO_wave_veloc(ndime)
 
-  double precision :: ampli,phase
-  integer :: k
+  SO_wave_veloc = WAVE_veloc(time,coord,src%mech%wave,src%time%ricker)
 
-  call SRC_WAVE_get_VT(Vin,Tin, n,src%mech%wave)
-  do k=1,size(coord,2)
-    phase = SRC_WAVE_get_phase(src%mech%wave,time,coord(:,k)) -src%tdelay
-    ampli = STF_get(src%stf, phase )
-    Vin(k,:) = ampli*Vin(k,:)
-    Tin(k,:) = ampli*Tin(k,:)
-  enddo
+end function SO_wave_veloc
 
-end subroutine SO_WAVE_get_VT
+!-----------------------------------------------------------------------------
+
+function SO_wave_accel(time,coord,src)
+
+  type (source_type), intent(in) :: src
+  double precision, intent(in) :: coord(ndime),time
+  double precision :: SO_wave_accel(ndime)
+
+  SO_wave_accel = WAVE_accel(time,coord,src%mech%wave,src%time%ricker)
+  
+end function SO_wave_accel
+  
 
 endmodule sources
