@@ -30,6 +30,7 @@ nelset=0;
 nsurf = 0;
 [line,kw] = search_next_keyword(stream);
 quit = 0;
+m.bnds = [];
 while ~quit
   switch kw
     case 'ELSET'
