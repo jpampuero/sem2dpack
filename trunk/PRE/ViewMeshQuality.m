@@ -11,7 +11,7 @@
 %			defined as
 % 			R = minimum S wave speed / length of the largest element edge
 %		RI(:)	a logarithmic "resolution index" defined for each element as
-%  			RI = log(R/median(R))
+%  			RI = log10(R/median(R))
 % 			where the median is taken over the whole mesh.
 %		S(:)	a measure of the stability of each element:
 % 			S = minimum (GLL node spacing / P wave velocity)

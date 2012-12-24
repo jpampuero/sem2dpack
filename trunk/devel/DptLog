@@ -1,5 +1,12 @@
 
 ------------------------------------------------------------------------
+Fri Dec 21 15:19:03 PST 2012
+
+*** This is the last entry in this file ***
+Moved the whole package to the SourceForge SVN server.
+Changes will now be logged automatically in SVN.
+
+------------------------------------------------------------------------
 Thu Sep 20 00:52:05 PDT 2012
 
 bc_dynflt.f90	[1]	opening dislocation with free shear stress
