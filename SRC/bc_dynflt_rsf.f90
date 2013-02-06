@@ -176,7 +176,30 @@ contains
 
   end function rsf_mu_no_direct
 
+!---------------------------------------------------------------------
+! Derivative of Friction coefficient function wrt slip velocity
+  function drsf_dv_mu(v,f) result(mu)
+
+  double precision, dimension(:), intent(in) :: v
+  type(rsf_type), intent(in) :: f
+  double precision :: mu(size(v))
+
+  select case(f%kind)
+    case(1) 
+      ! DEVEL: is this case ever used/needed?
+      mu = f%a*f%Vstar/(v+f%Vstar)**2
+    case(2,3) 
+      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
+      ! mu = f%a*/v 
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+      mu = exp((f%mus+b*log(f%Vstar*f%theta/f%Dc))/f%a)/(2*f%Vstar)
+      mu = mu*(f%a)/(sqrt(1+(mu*v)**2))
+  end select
+
+  end function drsf_dv_mu
+
 !=====================================================================
+!       --------------- RSF_SOLVER subroutine -----------------
 ! Two passes:
 !      1. update theta using Vold from the previous time step
 !      2. solve for Vnew
@@ -189,14 +212,16 @@ contains
   type(rsf_type), intent(inout) :: f
 
   double precision, dimension(size(v)) :: v_new,theta_new
-
+  ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
+  f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
+  ! Second pass:
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new),f)
+  f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
-
+  
   v = v_new
-  f%theta = theta_new
 
   end subroutine rsf_solver
 
@@ -230,7 +255,6 @@ contains
 
   end function rsf_update_theta
 
-
 !---------------------------------------------------------------------
 ! Update slip velocity assuming theta is known
 ! The constraints are
@@ -251,9 +275,9 @@ contains
   double precision, dimension(:), intent(in) :: tau_stick,sigma,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
-
   double precision :: tmp(size(tau_stick))
-
+  
+  integer :: it
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
 
@@ -264,40 +288,50 @@ contains
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
  
-    case(2) 
-      call IO_abort('rsf_solve: case 2 not implemented yet')
-     !DEVEL: should call Newton-Raphson solver
-
-    case(3) 
-      call IO_abort('rsf_solve: case 3 not implemented yet')
-     !DEVEL: should call Newton-Raphson solver
+    case(2,3) 
+     ! "Aging Law and Slip Law"
+     !WARNING: This is an untested portion !!!
+     ! Find each element's velocity:
+     do it=1,size(tau_stick)
+       !DEVEL: What are the accepted tolerances and bounds? User-input? 
+       !       These values for the tolerances and bounds are based off
+       !       of S.Somala's experience with the code:
+       v(it)=nr_solver(nr_fric_func,0,v(it)+5,1e-5,f,tau_stick(it),sigma(it),Z(it))
+       !DEVEL: nr_fric_func has to be set up for friction law
+     enddo     
 
   end select
 
   end function rsf_update_V
 
-
 !==================================================================
 !         Newton-Raphson algorithm with bisection step         
 ! from  Numerical Recipes in Fortran 90 by Press et al.  (1996)
-! finds a roots to 0=func_x bounded by [x1, x2] w/ error < x_acc
 
-! generalized N-R method, must provide function (func_x) that gives
+! N-R method, must provide a function (nr_fric_func) that gives
 ! the value of the function and the value of the derivative of the 
-! function at a point 
+! function at a point and it finds a root to 0=nr_fric_func bounded 
+! by [x1, x2] w/ error < x_acc
 
-  function nr_solver(func_x, x1, x2, x_acc)
+  function nr_solver(nr_fric_func, x1, x2, x_acc, f, tau_stick, sigma, Z) result(x_est)
+  !WARNING: This is an untested portion !!!
  
   integer, parameter :: maxIteration=200
-  real :: x_est, x_left, x_right, x_acc
-  external :: func_x
   integer :: it
-  real :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
-  real :: temp
+  
+  double precision, intent(in) :: x1, x2, x_acc
+  double precision :: x_est
+  external :: nr_fric_func
+  double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
+  double precision :: temp
+  
+  ! Friction parameters:
+  type(rsf_type), intent(in) :: f
+  double precision, intent(in) :: tau_stick, sigma, Z
 
   ! Find initial function estimates (dfunc_dx not needed yet)
-  call func_x(x1, f_low, dfunc_dx)
-  call func_x(x2, f_high, dfunc_dx)
+  call nr_fric_func(x1, f_low, dfunc_dx, f, tau_stick, sigma, Z)
+  call nr_fric_func(x2, f_high, dfunc_dx, f, tau_stick, sigma, Z)
  
   ! Safety checks:
   if ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0)) then
@@ -327,10 +361,10 @@ contains
   ! The last step:
   dx=dx_old
   
-  call func_x(x_est,func_x,dfunc_dx)
+  call nr_fric_func(x_est,func_x,dfunc_dx, f, tau_stick, sigma, Z)
   ! Loop over allowed iterations:
   do it=1,maxIteration
- 
+   
     ! Biset if N-R out of range, or not decreasing fast enough:
     if( (((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x))>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
       dxold=dx
@@ -353,7 +387,7 @@ contains
     if (abs(dx)<x_acc) return
   
     ! Evaluate function with new estimate of x
-    call func_x(x_est,func_x,dfunc_dx)
+    call nr_fric_func(x_est,func_x,dfunc_dx, f, tau_stick, sigma, Z)
     
     ! Redefine the bounds for the next loop
     if (f<0) then
@@ -364,6 +398,30 @@ contains
   enddo
   call IO_abort('NR_Solver has exceeded the maximum iterations (200)')
   return
-  end function
+  end function nr_solver
+
+!---------------------------------------------------------------------
+!-----------Friction function for Newton Raphson method---------------
+! This function returns the value of the friction function and its 
+! derivative evaluated at a particular velocity.  
+
+function nr_fric_func(v, func_v, dfunc_dv, f, tau_stick, sigma, Z)
+  !WARNING: This is an untested portion!
+  double precision, intent(out) :: func_v, dfunc_dv
+  double precision, intent(in) :: tau_stick,sigma,Z
+  type(rsf_type), intent(in) :: f
+  double precision :: v
+
+  select case(f%kind)
+    case(1) 
+      !DEVEL: What should be done here?
+      !       as its written, this is never implemented.
+    case(2,3) 
+      func_v = Z*v - tau_stick + sigma*rsf_mu(f,v)
+      dfunc_dv = Z + sigma*drsf_dv_m(f,v)
+  end select
+  
+end function nr_fric_function
+
 
 end module bc_dynflt_rsf
