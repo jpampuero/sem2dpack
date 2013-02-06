@@ -590,26 +590,11 @@ contains
   call normal_update(bc%normal,T(:,2),dV(:,1)) 
  !DEVEL: maybe need here a second loop to obtain second order
 
- ! Update friction
+ ! Update friction and shear stress
  !WARNING: during opening the friction state variable should not evolve
- !-- slip weakening
-  if (associated(bc%swf)) then
-   ! For time schemes that update displacements explicitly 
-   ! (i.e. displacement at time n+1 is independent of velocity and acceleration at time n+1)
-   ! update the slip-dependent friction coefficient using the updated slip.
-   ! Otherwise, use the slip from the previous time step (one-timestep delay)
-    if (bc%CoefA2D==0d0) then
-      call swf_update_state(dD(:,1),dV(:,1),bc%swf)
-    else
-      call swf_set_state(bc%D(:,1), bc%swf)
-    endif
-    bc%MU = swf_mu(bc%swf)
-
-   ! superimposed time-weakening
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
 
  !-- velocity and state dependent friction 
-  elseif (associated(bc%rsf)) then
+  if (associated(bc%rsf)) then
     call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
    !DEVEL combined with time-weakening
@@ -618,18 +603,38 @@ contains
    ! superimposed time-weakening
     if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
 
- !-- pure time-weakening
-  elseif (associated(bc%twf)) then
-    bc%MU = twf_mu(bc%twf,bc%coord,time)
+    strength = - bc%MU * normal_getSigma(bc%normal)
+    T(:,1) = sign( strength, T(:,1))
+
+  else
+   !-- slip weakening
+    if (associated(bc%swf)) then
+     ! For time schemes that update displacements explicitly 
+     ! (i.e. displacement at time n+1 is independent of velocity and acceleration at time n+1)
+     ! update the slip-dependent friction coefficient using the updated slip.
+     ! Otherwise, use the slip from the previous time step (one-timestep delay)
+      if (bc%CoefA2D==0d0) then
+        call swf_update_state(dD(:,1),dV(:,1),bc%swf)
+      else
+        call swf_set_state(bc%D(:,1), bc%swf)
+      endif
+      bc%MU = swf_mu(bc%swf)
+  
+     ! superimposed time-weakening
+      if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
+
+   !-- pure time-weakening
+    elseif (associated(bc%twf)) then
+      bc%MU = twf_mu(bc%twf,bc%coord,time)
+    endif
+
+   ! Update strength
+    strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
+
+   ! Solve for shear stress
+    T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
 
   endif
-
-
-! Update strength
-  strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
-
-! Solve for shear stress
-  T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
 
 ! Subtract initial stress
   T = T - bc%T0
