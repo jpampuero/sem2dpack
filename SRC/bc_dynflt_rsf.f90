@@ -147,8 +147,13 @@ contains
   double precision :: mu(size(v))
 
   select case(f%kind)
-    case(1); mu = f%mus +f%a*v/(v+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
-    case(2,3); mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
+    case(1) 
+      mu = f%mus +f%a*v/(v+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
+    case(2,3) 
+      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
+      ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+      mu = (f%a)*asinh((v/(2*f%Vstar))*exp((f%mus+b*log(f%Vstar*f%theta/f%Dc))/f%a))
   end select
 
   end function rsf_mu
@@ -162,8 +167,11 @@ contains
   double precision :: mu(size(f%mus))
 
   select case(f%kind)
-    case(1); mu = f%mus - f%b*f%theta/(f%theta+f%Dc) 
-    case(2,3); mu = f%mus + f%b*log(f%theta*f%Vstar/f%Dc) 
+    case(1)
+      mu = f%mus - f%b*f%theta/(f%theta+f%Dc) 
+    case(2,3) 
+      !  Kaneko et al (2008) Eq. 12
+      mu = f%mus + f%b*log(f%theta*f%Vstar/f%Dc) 
   end select
 
   end function rsf_mu_no_direct
@@ -209,12 +217,12 @@ contains
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
 
     case(2) 
-     ! Kaneko et al (2008) eq 19
+     ! Kaneko et al (2008) eq 19 - "Aging Law"
      ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
       theta_new = f%Dc/abs(v)
       theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
     case(3) 
-     ! Kaneko et al (2008) eq 20
+     ! Kaneko et al (2008) eq 20 - "Slip Law"
      ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
       theta_new = f%Dc/abs(v)
       theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
@@ -248,10 +256,10 @@ contains
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
-  v = (tau_stick +sigma*rsf_mu_no_direct(f))/Z ! if v<0 will stop
 
   select case(f%kind)
     case(1) 
+      v = (tau_stick +sigma*rsf_mu_no_direct(f))/Z ! if v<0 will stop
       tmp = v -f%Vstar +sigma*f%a/Z
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
@@ -267,5 +275,95 @@ contains
   end select
 
   end function rsf_update_V
+
+
+!==================================================================
+!         Newton-Raphson algorithm with bisection step         
+! from  Numerical Recipes in Fortran 90 by Press et al.  (1996)
+! finds a roots to 0=func_x bounded by [x1, x2] w/ error < x_acc
+
+! generalized N-R method, must provide function (func_x) that gives
+! the value of the function and the value of the derivative of the 
+! function at a point 
+
+  function nr_solver(func_x, x1, x2, x_acc)
+ 
+  integer, parameter :: maxIteration=200
+  real :: x_est, x_left, x_right, x_acc
+  external :: func_x
+  integer :: it
+  real :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
+  real :: temp
+
+  ! Find initial function estimates (dfunc_dx not needed yet)
+  call func_x(x1, f_low, dfunc_dx)
+  call func_x(x2, f_high, dfunc_dx)
+ 
+  ! Safety checks:
+  if ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0)) then
+    call IO_abort('nr_solver - root must be bracketed! ')
+ 
+  ! Lucky guesses: 
+  if (f_low==0)  then
+    x_est=x1
+    return
+  else if (f_high==0) then
+    x_est=x2
+    return
+   
+  ! Orient the search so that func_x(x_low) < 0
+  else if (f_low<0) then 
+    x_low=x1
+    x_high=x2
+  else 
+    x_high=x1
+    x_low=x2
+  endif
+
+  ! Initialize the guess and step sizes:
+  x_est=.5*(x1+x2)
+  ! The stepsize before last
+  dx_old=abs(x2-x1)
+  ! The last step:
+  dx=dx_old
+  
+  call func_x(x_est,func_x,dfunc_dx)
+  ! Loop over allowed iterations:
+  do it=1,maxIteration
+ 
+    ! Biset if N-R out of range, or not decreasing fast enough:
+    if( (((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x))>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
+      dxold=dx
+      dx=0.5*(x_high-x_low)
+      x_est=x_low+dx
+      !  Check if change is negligible:
+      if (x_low==x_est) return
+
+    ! The Newton step is acceptable, move forward with algorithm:
+    else
+      dxold=dx
+      dx=func_x/dfunc_dx
+      temp=x_est
+      x_est=x_est-dx
+      !  Check if change is negligible:
+      if (temp==x_est) return
+    endif
+  
+    ! Check convergence criterion:
+    if (abs(dx)<x_acc) return
+  
+    ! Evaluate function with new estimate of x
+    call func_x(x_est,func_x,dfunc_dx)
+    
+    ! Redefine the bounds for the next loop
+    if (f<0) then
+      x_low=x_est
+    else 
+      x_high=x_est
+    endif
+  enddo
+  call IO_abort('NR_Solver has exceeded the maximum iterations (200)')
+  return
+  end function
 
 end module bc_dynflt_rsf
