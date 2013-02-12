@@ -365,7 +365,6 @@ contains
 ! so the stability condition is
 !       CFL < Omega_max * 3/7/sqrt(D) 
 ! Example: 2D leapfrog CFL <~ 0.6
-
   critical_CFL = t%Omega_max * 3d0/7d0/sqrt(2d0) 
 
   if (t%courant > critical_CFL) then
@@ -380,7 +379,6 @@ contains
     write(iout,*)
 
   endif
-
 
   return
 

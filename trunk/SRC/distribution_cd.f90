@@ -70,7 +70,6 @@ contains
   logical, optional :: keep_cd
 
   logical :: destroy
-
   if (.not.associated(F)) allocate( F(size(Coord,2)) )
 
   if (present(keep_cd)) then
@@ -78,7 +77,7 @@ contains
   else
     destroy = .true.
   endif
-
+  
   if (DIST_CD_isDist(CD)) then
     call DIST_generate(F,Coord,CD%d)
     if (destroy) call DIST_destructor(CD%d)

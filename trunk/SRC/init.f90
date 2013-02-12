@@ -57,7 +57,7 @@ subroutine init_main(pb,InitFile)
   call PLOT_init(pb%grid)
   call CHECK_grid(pb%grid,pb%matpro,pb%fields%ndof,grid_cfl)
   call TIME_init(pb%time,grid_cfl) ! define time evolution coefficients
-
+                 
  ! define work arrays and data
   call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
 
@@ -118,7 +118,6 @@ subroutine init_main(pb,InitFile)
  ! macroscopic outputs
   if (COMPUTE_ENERGIES) call energy_init(pb%energy)
   if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
-
 end subroutine init_main
 
 !=======================================================================
