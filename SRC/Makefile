@@ -8,13 +8,13 @@ EXEC = $(HOME)/bin/sem2dsolve
 # GNU 
 #F90 = g95
 #OPT = 
-#F90 = gfortran
-#OPT = -O3 -Wall
+F90 = gfortran
+OPT = -O3 -Wall
 #OPT = -O3 
 
 #-- Intel Fortran --
-F90 = ifort
-OPT = -O3 -ip -ipo -unroll
+#F90 = ifort
+#OPT = -O3 -ip -ipo -unroll
 #-no-inline-factor
 #OPT = -O3
 #OPT = -O0 -warn all -C
