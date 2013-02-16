@@ -10,7 +10,7 @@ module bc_dynflt_rsf
   private
 
   type rsf_input_type
-    type(cd_type) :: dc, mus, a, b, Vstar
+    type(cd_type) :: dc, mus, a, b, Vstar, theta
   end type rsf_input_type
 
   type rsf_type
@@ -45,6 +45,7 @@ contains
 ! ARG: a        [dble] [0.01d0] Direct effect coefficient
 ! ARG: b        [dble] [0.02d0] Evolution effect coefficient
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
+! ARG: theta    [dble] [1d0] State variable
 !
 ! END INPUT BLOCK
 
@@ -60,24 +61,26 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar
-  character(20) :: DcH,MuSH,aH,bH,VstarH
+  double precision :: Dc,MuS,a,b,Vstar,theta
+  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH
   integer :: kind
   character(20) :: kind_txt
 
-  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,DcH,MuSH,aH,bH,VstarH
+  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,DcH,MuSH,aH,bH,VstarH,thetaH
 
   kind = 1
   Dc = 0.5d0
   MuS = 0.6d0
   a = 0.01d0
   b = 0.02d0
-  Vstar = 1d0;
+  Vstar = 1d0
+  theta = 0d0;
   DcH = ''
   MuSH = ''
   aH = ''
   bH = ''
-  VstarH = '';
+  VstarH = ''
+  thetaH = '';
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
@@ -95,8 +98,9 @@ contains
   call DIST_CD_Read(rsf%input%a,a,aH,iin,aH)
   call DIST_CD_Read(rsf%input%b,b,bH,iin,bH)
   call DIST_CD_Read(rsf%input%Vstar,Vstar,VstarH,iin,VstarH)
+  call DIST_CD_Read(rsf%input%theta,theta,thetaH,iin,thetaH)
 
-  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH
+  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH
 
   return
 
@@ -106,7 +110,8 @@ contains
             /5x,'  Static friction coefficient . . . .(MuS) = ',A,&
             /5x,'  Direct effect coefficient . . . . . .(a) = ',A,&
             /5x,'  Evolution effect coefficient  . . . .(b) = ',A,&
-            /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A)
+            /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A,&
+            /5x,'  State variable  . . . . . . . . .(theta) = ',A)
 
   end subroutine rsf_read
 
@@ -124,14 +129,12 @@ contains
   call DIST_CD_Init(rsf%input%a,coord,rsf%a)
   call DIST_CD_Init(rsf%input%b,coord,rsf%b)
   call DIST_CD_Init(rsf%input%Vstar,coord,rsf%Vstar)
-
+  call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
+  
   n = size(coord,2)
-  allocate(rsf%theta(n))
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
- !WARNING: theta initialization should be more general for Dieterich-Ruina rsf
- !         Also needs option for input by user
-  rsf%theta = 0d0 
+                                              
   rsf%Tc = rsf%dc / rsf%Vstar
   rsf%coeft = exp(-dt/rsf%Tc)
   rsf%dt = dt
@@ -147,12 +150,12 @@ contains
 
   select case(f%kind)
     case(1) 
-      mu = f%mus +f%a*v/(v+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
+      mu = f%mus +f%a*abs(v)/(abs(v)+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
     case(2,3) 
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = (f%a)*asinh((v/(2*f%Vstar))*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+      mu = (f%a)*asinh((abs(v)/(2*f%Vstar))*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
   end select
 
   end function rsf_mu
@@ -190,15 +193,22 @@ contains
 
   double precision, dimension(size(v)) :: v_new,theta_new
   ! First pass: 
+  print*,' First pass: '
+  print*,'Max velocity on fault',maxval(abs(v))
   theta_new = rsf_update_theta(f%theta,v,f)
+  print*,'Max theta: ',maxval(abs(theta_new))
   f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
   ! Second pass:
+  print*,' Second pass: '
+  print*,'Max velocity on fault',maxval(abs(v+v_new))
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new),f)
+  print*,'Max theta: ',maxval(abs(theta_new))
   f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
   
   v = v_new
+  print*,'Final max velocity on fault',maxval(abs(v))
 
   end subroutine rsf_solver
 
@@ -252,7 +262,7 @@ contains
   double precision, dimension(:), intent(in) :: tau_stick,sigma,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
-  double precision :: tmp(size(tau_stick)), lowerBound, tolerance
+  double precision :: tmp(size(tau_stick)), lowerBound, upperBound, tolerance
   
   integer :: it
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
@@ -276,8 +286,17 @@ contains
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
        !       These values for the tolerances and bounds are based off
        !       of S.Somala's experience with the code:
-       v(it)=nr_solver(nr_fric_func,lowerBound,v(it)+5.0,tolerance,f,it,tau_stick(it),sigma(it),Z(it))
+       print*,'Element ',it
+       upperBound=abs(v(it))+50.0
+       !upperBound=500.0 
+       print*,'Velocity',abs(v(it))
+       print*,'Theta',f%theta(it)
+       v(it)=nr_solver(nr_fric_func,lowerBound,upperBound,tolerance,f,it,tau_stick(it),sigma(it),Z(it))
+       print*,'Velocity =',v(it)
+       print*,''
      enddo     
+     
+     print*,''
 
   end select
 
@@ -315,6 +334,8 @@ contains
  
   ! Safety checks:
   if ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0)) then
+    !print*,'f_low(',x1,') = ',f_low
+    !print*,'f_high(',x2,') = ',f_high
     call IO_abort('nr_solver - root must be bracketed! ')
   endif
  
@@ -343,10 +364,11 @@ contains
   dx=dx_old
   
   call nr_fric_func(x_est,func_x,dfunc_dx, f, it, tau_stick, sigma, Z)
+
   ! Loop over allowed iterations:
   do is=1,maxIteration
    
-    ! Biset if N-R out of range, or not decreasing fast enough:
+    ! Bisect if N-R out of range, or not decreasing fast enough:
     if( (((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x))>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
       dx_old=dx
       dx=0.5*(x_high-x_low)
@@ -375,7 +397,7 @@ contains
   
     ! Evaluate function with new estimate of x
     call nr_fric_func(x_est,func_x,dfunc_dx, f, it, tau_stick, sigma, Z)
-    
+
     ! Redefine the bounds for the next loop
     if (func_x<0) then
       x_low=x_est
@@ -410,15 +432,18 @@ subroutine nr_fric_func(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = (f%a(it))*asinh((v/(2*f%Vstar(it)))*exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)))
-      func_v = Z*v - tau_stick + sigma*mu
+      mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
+      mu = (f%a(it))*asinh((abs(v)/(2*f%Vstar(it)))*exp(mu))
+      print*,'f(',abs(v),')=',tau_stick,'-',Z,'*',abs(v),'-',sigma,'*',mu
+      func_v = -Z*abs(v) + tau_stick - sigma*mu
+      print*,'f(',abs(v),')=',func_v
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
-      dmu_dv = dmu_dv*(f%a(it))/(sqrt(1+(dmu_dv*v)**2))
-      dfunc_dv = Z + sigma*dmu_dv
+      dmu_dv = dmu_dv*(f%a(it))/(sqrt(1+(dmu_dv*abs(v))**2))
+      dfunc_dv = -Z - sigma*dmu_dv
   end select
   
 end subroutine nr_fric_func
