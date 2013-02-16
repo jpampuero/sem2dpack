@@ -80,7 +80,7 @@ contains
     allocate(field(npoin,fields%ndof))
     call storearray(name,size(field),idouble)
     field = 0.d0
-  
+    
     end subroutine FIELD_init
 
 end subroutine FIELDS_init

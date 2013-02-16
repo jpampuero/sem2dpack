@@ -12,7 +12,7 @@ module bc_dynflt
   private
 
   type bc_dynflt_input_type
-    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion
+    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion,V
   end type bc_dynflt_input_type
 
   type bc_dynflt_type
@@ -83,6 +83,7 @@ contains
 !                The default resets oxi(2) = last fault node
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
+! ARG: V        [dble] [1d-12] Initial velocity (needed for RSF)
 !
 ! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
@@ -100,9 +101,9 @@ contains
 
   type(bc_dynflt_type), intent(out) :: bc
   integer, intent(in) :: iin
-  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz
+  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V
   character(20) :: TtH,TnH, SxxH,SxyH,SxzH,SyzH,SzzH &
-                  ,dt_txt,oxi2_txt, cohesionH
+                  ,dt_txt,oxi2_txt, cohesionH, VH
   character(3) :: friction(2)
   integer :: i,oxi(3)
   logical :: opening,osides
@@ -110,7 +111,7 @@ contains
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH &
                          ,ot1,otd,oxi,osides, friction, opening &
-                         ,cohesion, cohesionH
+                         ,cohesion, cohesionH, V, VH
 
   Tt = 0d0
   Tn = 0d0
@@ -128,6 +129,9 @@ contains
   SyzH = ''
   SzzH = ''
 
+  V = 1d-12
+  VH = ''
+
   ot1 = 0.d0
   otd = 0.d0
   oxi(1) = 1
@@ -140,7 +144,7 @@ contains
 
   cohesion = 0d0
   cohesionH = ''
-
+  
   opening = .true.
 
   read(iin,BC_DYNFLT,END=100)
@@ -160,6 +164,7 @@ contains
   call DIST_CD_Read(bc%input%Sxz,Sxz,SxzH,iin,SxzH)
   call DIST_CD_Read(bc%input%Syz,Syz,SyzH,iin,SyzH)
   call DIST_CD_Read(bc%input%Szz,Szz,SzzH,iin,SzzH)
+  call DIST_CD_Read(bc%input%V,V,VH,iin,VH)
 
   bc%allow_opening = opening
 
@@ -174,8 +179,8 @@ contains
     else
       write(oxi2_txt,'(I0)') oxi(2)
     endif
-    write(iout,200) TnH,TtH,SxxH,SxyH,SxzH,SyzH,SzzH,cohesionH,opening &
-                   ,ot1,dt_txt,oxi(1),oxi2_txt,oxi(3),osides 
+    write(iout,200) TnH,TtH,SxxH,SxyH,SxzH,SyzH,SzzH,VH, & 
+                    cohesionH,opening,ot1,dt_txt,oxi(1),oxi2_txt,oxi(3),osides
   endif
 
   do i=1,2
@@ -206,6 +211,7 @@ contains
             /5x,'               xz . . . . . . . . . .(Sxz) = ',A,&
             /5x,'               yz . . . . . . . . . .(Syz) = ',A,&
             /5x,'               zz . . . . . . . . . .(Szz) = ',A,&
+            /5x,'Initial velocity on boundary . . . . . (V) = ',A,&
             /5x,'Cohesion  . . . . . . . . . . . (cohesion) = ',A,&
             /5x,'Allow opening . . . . . . . . . .(opening) = ',L1,&
             /5x,'Output first time . . . . . . . . . .(ot1) = ',EN13.3,&
@@ -236,6 +242,7 @@ contains
   type(bc_periodic_type), pointer :: perio
 
   double precision, dimension(:), pointer :: Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz
+  double precision, dimension(:), pointer :: V
   double precision, pointer :: tmp_n1(:,:), tmp_B(:)
   double precision :: dt
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
@@ -355,7 +362,10 @@ contains
   allocate(bc%V(npoin,ndof))
   bc%T = 0d0
   bc%D = 0d0
-  bc%V = 0d0
+  !bc%V = 0d0  ! DEVEL: RSF can't have zero slip velocity !
+  call DIST_CD_Init(bc%input%V,bc%coord,V)
+  bc%V(:,1)=V
+  deallocate(V)
 
 ! Initial stress
   allocate(bc%T0(npoin,2))
@@ -597,6 +607,7 @@ contains
   if (associated(bc%rsf)) then
     call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
+    print*,'Maximum Mu = ',maxval(bc%MU)
    !DEVEL combined with time-weakening
    !DEVEL WARNING: slip rate is updated later, but theta is not
 
@@ -604,6 +615,7 @@ contains
     if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
 
     strength = - bc%MU * normal_getSigma(bc%normal)
+                                         
     T(:,1) = sign( strength, T(:,1))
 
   else
@@ -630,10 +642,10 @@ contains
 
    ! Update strength
     strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
-
+                                         
    ! Solve for shear stress
     T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
-
+                                  
   endif
 
 ! Subtract initial stress
