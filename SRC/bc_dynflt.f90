@@ -607,7 +607,7 @@ contains
   if (associated(bc%rsf)) then
     call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
-    print*,'Maximum Mu = ',maxval(bc%MU)
+                                        
    !DEVEL combined with time-weakening
    !DEVEL WARNING: slip rate is updated later, but theta is not
 
