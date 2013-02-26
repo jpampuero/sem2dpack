@@ -155,7 +155,7 @@ contains
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = (f%a)*asinh((abs(v)/(2*f%Vstar))*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+      mu = (f%a)*asinh(abs(v)/(2*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
   end select
 
   end function rsf_mu
@@ -190,25 +190,20 @@ contains
   double precision, dimension(:), intent(inout) :: v
   double precision, dimension(:), intent(in) :: tau_stick,sigma,Z
   type(rsf_type), intent(inout) :: f
+  integer :: it
 
   double precision, dimension(size(v)) :: v_new,theta_new
   ! First pass: 
-  print*,' First pass: '
-  print*,'Max velocity on fault',maxval(abs(v))
   theta_new = rsf_update_theta(f%theta,v,f)
-  print*,'Max theta: ',maxval(abs(theta_new))
   f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
+
   ! Second pass:
-  print*,' Second pass: '
-  print*,'Max velocity on fault',maxval(abs(v+v_new))
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new),f)
-  print*,'Max theta: ',maxval(abs(theta_new))
   f%theta = theta_new ! use new state variable estimate in friction law
   v_new = rsf_update_V(tau_stick, sigma, f, Z)
   
-  v = v_new
-  print*,'Final max velocity on fault',maxval(abs(v))
+  v = abs(v_new)
 
   end subroutine rsf_solver
 
@@ -262,9 +257,10 @@ contains
   double precision, dimension(:), intent(in) :: tau_stick,sigma,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
-  double precision :: tmp(size(tau_stick)), lowerBound, upperBound, tolerance
-  
+  double precision :: tmp(size(tau_stick))
+  double precision :: lowerBound, upperBound, tolerance
   integer :: it
+
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
 
@@ -277,27 +273,17 @@ contains
  
     case(2,3) 
      ! "Aging Law and Slip Law"
-     !WARNING: This is an untested portion !!!
-     ! Find each element's velocity:
-     lowerBound=0
-     tolerance=1e-5
+                                              
+     !DEVEL: What are the accepted tolerances and bounds? User-input? 
+     lowerBound=-50.0
+     tolerance=1e-6
+     upperBound=50.0
 
+     ! Find each element's velocity:
      do it=1,size(tau_stick)
-       !DEVEL: What are the accepted tolerances and bounds? User-input? 
-       !       These values for the tolerances and bounds are based off
-       !       of S.Somala's experience with the code:
-       print*,'Element ',it
-       upperBound=abs(v(it))+50.0
-       !upperBound=500.0 
-       print*,'Velocity',abs(v(it))
-       print*,'Theta',f%theta(it)
        v(it)=nr_solver(nr_fric_func,lowerBound,upperBound,tolerance,f,it,tau_stick(it),sigma(it),Z(it))
-       print*,'Velocity =',v(it)
-       print*,''
      enddo     
      
-     print*,''
-
   end select
 
   end function rsf_update_V
@@ -312,7 +298,7 @@ contains
 ! by [x1, x2] w/ error < x_acc
 
   function nr_solver(nr_fric_func, x1, x2, x_acc, f, it, tau_stick, sigma, Z) result(x_est)
-  !WARNING: This is an untested portion !!!
+  !WARNING: This is not a well tested portion !!!
  
   integer, parameter :: maxIteration=200
   integer :: is
@@ -334,8 +320,6 @@ contains
  
   ! Safety checks:
   if ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0)) then
-    !print*,'f_low(',x1,') = ',f_low
-    !print*,'f_high(',x2,') = ',f_high
     call IO_abort('nr_solver - root must be bracketed! ')
   endif
  
@@ -417,7 +401,7 @@ contains
 ! derivative evaluated at a particular velocity.  
 
 subroutine nr_fric_func(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z) 
-  !WARNING: This is an untested portion!
+  !WARNING: This is not a well tested portion!
   double precision, intent(out) :: func_v, dfunc_dv
   double precision, intent(in) :: tau_stick,sigma,Z
   type(rsf_type), intent(in) :: f
@@ -433,16 +417,14 @@ subroutine nr_fric_func(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-      mu = (f%a(it))*asinh((abs(v)/(2*f%Vstar(it)))*exp(mu))
-      print*,'f(',abs(v),')=',tau_stick,'-',Z,'*',abs(v),'-',sigma,'*',mu
-      func_v = -Z*abs(v) + tau_stick - sigma*mu
-      print*,'f(',abs(v),')=',func_v
+      mu = (f%a(it))*asinh(((v)/(2*f%Vstar(it)))*exp(mu))
+      func_v = tau_stick - Z*(v) - sigma*mu
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
-      dmu_dv = dmu_dv*(f%a(it))/(sqrt(1+(dmu_dv*abs(v))**2))
+      dmu_dv = dmu_dv*(f%a(it))/(sqrt(1+(dmu_dv*(v))**2))
       dfunc_dv = -Z - sigma*dmu_dv
   end select
   
