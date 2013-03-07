@@ -193,17 +193,17 @@ contains
   integer :: it
 
   double precision, dimension(size(v)) :: v_new,theta_new
-  print*,'first pass'
+  !print*,'first pass'
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
-  f%theta = theta_new ! use new state variable estimate in friction law
-  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, Z)
-  print*,'second pass'
+  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
+  !print*,'second pass'
   ! Second pass:
-  theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new),f)
-  f%theta = theta_new ! use new state variable estimate in friction law
-  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, Z)
+  theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
+  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
   
+  ! store new velocity and state variable estimate in friction law 
+  f%theta = theta_new 
   v = abs(v_new)
 
   end subroutine rsf_solver
@@ -253,12 +253,12 @@ contains
 !          We should allow here for any sign of v
 !          Exploit the fact that sign(tau)=sign(tau_stick) (because mu>0)
 
-  function rsf_update_V(tau_stick,tau,tau0,sigma,f,Z) result(v)
+  function rsf_update_V(tau_stick,tau,tau0,sigma,f,theta,Z) result(v)
    
-  double precision, dimension(:), intent(in) :: tau_stick,tau,tau0,sigma,Z
+  double precision, dimension(:), intent(in) :: tau_stick,tau,tau0,sigma,theta,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
-  double precision :: tmp(size(tau_stick)), tolerance, estimate, zero
+  double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
   integer :: it
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
@@ -277,14 +277,14 @@ contains
      do it=1,size(tau_stick)
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
        tolerance=0.001*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
-       zero = tau(it) 
-       estimate=tau0(it)
+       estimateLow = -10.0 
+       estimateHigh = 10.0
        
-       print*,'tau = ',tau(it),', tau0 = ',tau0(it),'tau_stick = ',tau_stick(it)
+       !print*,'tau = ',tau(it),', tau0 = ',tau0(it),'tau_stick = ',tau_stick(it)
  
-       v(it)=nr_solver(nr_fric_func_tau,zero,estimate,tolerance,f,it,tau_stick(it),sigma(it),Z(it))
-       print*,'velocity at',it,'=',v(it)
-       print*,''
+       v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
+       !print*,'velocity at',it,'=',v(it)
+       !print*,''
      enddo     
         
   end select
@@ -300,60 +300,61 @@ contains
 ! function at a point and it finds a root to 0=nr_fric_func bounded 
 ! by [x1, x2] w/ error < x_acc
 
-  function nr_solver(nr_fric_func_tau, x1, x2, x_acc, f, it, tau_stick, sigma, Z) result(v)
+  function nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z) result(v)
   !WARNING: This is not a well tested portion !!!
  
   integer, parameter :: maxIteration=200
   integer :: is
   
-  double precision, intent(in) :: x1, x2, x_acc
-  double precision :: x_est, v
+  double precision, intent(in) :: xL, xR, x_acc
+  double precision :: xLeft, xRight, x_est, v
   double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
   double precision :: temp
   
   ! Friction parameters:
   external nr_fric_func_tau
   type(rsf_type), intent(in) :: f
-  double precision, intent(in) :: tau_stick, sigma, Z
+  double precision, intent(in) :: theta, tau_stick, sigma, Z
   integer, intent(in) :: it
 
   ! Find initial function estimates (dfunc_dx not needed yet)
-  print*,'low call'
-  call nr_fric_func_tau(x1, f_low, dfunc_dx, v, f, it, tau_stick, sigma, Z)
-  print*,'high call'
-  call nr_fric_func_tau(x2, f_high, dfunc_dx, v, f, it, tau_stick, sigma, Z)
-  
-  ! Safety checks:
-  if ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0)) then
-    print*,'f(',x1,') = ',f_low
-    print*,'f(',x2,') = ',f_high
-    call IO_abort('nr_solver - root must be bracketed! ')
-  endif
+  call nr_fric_func_tau(xL, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  call nr_fric_func_tau(xR, f_high, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  xLeft = xL
+  xRight = xR  
+
+  ! Ensure zero is bounded:
+  do while ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0))
+    xLeft = xLeft*100
+    xRight = xRight*100
+    call nr_fric_func_tau(xLeft, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+    call nr_fric_func_tau(xRight, f_high, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  enddo
  
   ! Lucky guesses: 
   if (f_low==0)  then
-    x_est=x1
+    x_est=xLeft
     return
   else if (f_high==0) then
-    x_est=x2
+    x_est=xRight
     return
   ! Orient the search so that func_x(x_low) < 0
   else if (f_low<0) then 
-    x_low=x1
-    x_high=x2
+    x_low=xLeft
+    x_high=xRight
   else 
-    x_high=x1
-    x_low=x2
+    x_high=xLeft
+    x_low=xRight
   endif
 
   ! Initialize the guess and step sizes:
-  x_est=.5*(x1+x2)
+  x_est=.5*(xLeft+xRight)
   ! The stepsize before last
-  dx_old=abs(x2-x1)
+  dx_old=abs(xRight-xLeft)
   ! The last step:
   dx=dx_old
   
-  call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, it, tau_stick, sigma, Z)
+  call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
 
   ! Loop over allowed iterations:
   do is=1,maxIteration
@@ -386,8 +387,9 @@ contains
     endif
   
     ! Evaluate function with new estimate of x
-    call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, it, tau_stick, sigma, Z)
-    print*,'f(',x_est,') = ',func_x
+    call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+    !print*,'f(',x_est,') = ',func_x
+    v = abs(v)
 
     ! Redefine the bounds for the next loop
     if (func_x<0) then
@@ -408,7 +410,7 @@ contains
 ! uses NR algorithm from Kaneko's code used in 2011 paper, steps by
 ! delta to specified tolerance
 
-  function nr_solver_Kaneko(nr_fric_func_tau, x_est, x_acc, f, it, tau_stick, sigma, Z) result(v)
+  function nr_solver_Kaneko(nr_fric_func_tau, x_est, x_acc, f, theta, it, tau_stick, sigma, Z) result(v)
   !WARNING: This is not a well tested portion !!!
  
   integer, parameter :: maxIteration=10
@@ -423,11 +425,11 @@ contains
   ! Friction parameters:
   external nr_fric_func_tau
   type(rsf_type), intent(in) :: f
-  double precision, intent(in) :: tau_stick, sigma, Z
+  double precision, intent(in) :: tau_stick, sigma, Z, theta
   integer, intent(in) :: it
 
   ! Find initial function estimates 
-  call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, it, tau_stick, sigma, Z)
+  call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
   
   ! Loop over allowed iterations:
   do is=1,maxIteration
@@ -438,7 +440,7 @@ contains
     if (temp==x_est) return
     ! Check convergence criterion:
     if (abs(dx)<abs(x_acc)) then
-      call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, it, tau_stick, sigma, Z)
+      call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
       return
     endif
  
@@ -450,7 +452,7 @@ contains
       call IO_abort('NR_Solver fails to converge')
     endif
     ! Evaluate function with new estimate of x
-    call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, it, tau_stick, sigma, Z)
+    call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
   enddo
   
   print*,'v = ',v
@@ -464,10 +466,10 @@ contains
 ! This function returns the value of the friction function and its 
 ! derivative evaluated at a particular shear stress.  
 
-subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, it, tau_stick, sigma, Z) 
+subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stick, sigma, Z) 
   !WARNING: This is not a well tested portion!
   double precision, intent(out) :: func_tau, dfunc_dtau, v
-  double precision, intent(in) ::  tau_stick,sigma,Z,tau
+  double precision, intent(in) ::  tau_stick,sigma,Z,tau,theta
   type(rsf_type), intent(in) :: f
   double precision :: dv_dtau, limit
   integer, intent(in) :: it
@@ -477,25 +479,25 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, it, tau_stick, sigm
       !DEVEL: What should be done here?
       !       as its written, this is never implemented.
     case(2,3) 
-      limit = 1 + (f%Vstar(it)/10**9)*f%Dc(it)/(f%theta(it)*f%Vstar(it))
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v
-      v = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-      v = 2*f%Vstar(it)*sinh(limit*tau/(sigma*f%a(it)))*exp(-v)
-      func_tau = tau_stick - Z*abs(v) - tau
+      v = (f%mus(it)+f%b(it)*log(f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
+      v = 2*f%Vstar(it)*sinh(tau/(sigma*f%a(it)))*exp(-v)
+      func_tau = tau_stick - Z*v - tau
       print*,'tau_stick = ',tau_stick
-      print*,'Z*abs(v) = ',Z,'*',abs(v),'=',(Z*abs(v))
+      print*,'Z*v = ',Z,'*',v,'=',(Z*v)
       print*,'tau = ',tau
-
+      print*,'func_tau = ',func_tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
-      dv_dtau = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-      dv_dtau = 2*f%Vstar(it)*limit*cosh(limit*tau/(sigma*f%a(it)))*exp(-dv_dtau)/(sigma*f%a(it))
+      dv_dtau = (f%mus(it)+f%b(it)*log(f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
+      dv_dtau = 2*f%Vstar(it)*cosh(tau/(sigma*f%a(it)))*exp(-dv_dtau)/(sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1
+      print*,'dfunc_dtau = ',dfunc_dtau
   end select
   
 end subroutine nr_fric_func_tau
