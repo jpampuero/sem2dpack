@@ -155,7 +155,7 @@ contains
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = (f%a)*asinh(abs(v)/(2*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+      mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
   end select
 
   end function rsf_mu
@@ -185,6 +185,9 @@ contains
 !      2. solve for Vnew
 !      3. update theta again, now using V=(Vnew+Vold)/2
 !      4. solve again for Vnew
+!
+! Note: most often sigma is negative (compressive) 
+!
   subroutine rsf_solver(v,tau_stick,tau,tau0,sigma,f,Z)
 
   double precision, dimension(:), intent(inout) :: v
@@ -204,7 +207,7 @@ contains
   
   ! store new velocity and state variable estimate in friction law 
   f%theta = theta_new 
-  v = abs(v_new)
+  v = v_new
 
   end subroutine rsf_solver
 
@@ -324,7 +327,7 @@ contains
   xRight = xR  
 
   ! Ensure zero is bounded:
-  do while ((f_low>0 .and. f_high>0) .or. (f_low<0 .and. f_high<0))
+  do while (f_low*f_high>0)
     xLeft = xLeft*100
     xRight = xRight*100
     call nr_fric_func_tau(xLeft, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
@@ -348,7 +351,7 @@ contains
   endif
 
   ! Initialize the guess and step sizes:
-  x_est=.5*(xLeft+xRight)
+  x_est=.5d0*(xLeft+xRight)
   ! The stepsize before last
   dx_old=abs(xRight-xLeft)
   ! The last step:
@@ -360,14 +363,12 @@ contains
   do is=1,maxIteration
    
     ! Bisect if N-R out of range, or not decreasing fast enough:
-    if( (((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x))>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
+    if( ((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x)>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
       dx_old=dx
       dx=0.5*(x_high-x_low)
       x_est=x_low+dx
       !  Check if change is negligible:
-      if (x_low==x_est) then
-        return
-      endif
+      if (x_low==x_est) return
 
     ! The Newton step is acceptable, move forward with algorithm:
     else
@@ -376,20 +377,15 @@ contains
       temp=x_est
       x_est=x_est-dx
       !  Check if change is negligible:
-      if (temp==x_est) then
-        return
-      endif
+      if (temp==x_est) return
     endif
   
     ! Check convergence criterion:
-    if (abs(dx)<abs(x_acc)) then
-      return
-    endif
+    if (abs(dx)<abs(x_acc)) return
   
     ! Evaluate function with new estimate of x
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
     !print*,'f(',x_est,') = ',func_x
-    v = abs(v)
 
     ! Redefine the bounds for the next loop
     if (func_x<0) then
@@ -471,34 +467,28 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
   double precision, intent(out) :: func_tau, dfunc_dtau, v
   double precision, intent(in) ::  tau_stick,sigma,Z,tau,theta
   type(rsf_type), intent(in) :: f
-  double precision :: dv_dtau, limit
+  double precision :: dv_dtau, tmp
   integer, intent(in) :: it
 
-  select case(f%kind)
-    case(1) 
-      !DEVEL: What should be done here?
-      !       as its written, this is never implemented.
-    case(2,3) 
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
-      !  mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
-      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+      !  mu = mus +a*log(v/Vstar) + b*log(theta*Vstar/Dc) 
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Lapusta et al. (2000))
       !  solved in terms of v
-      v = (f%mus(it)+f%b(it)*log(f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
-      v = 2*f%Vstar(it)*sinh(tau/(sigma*f%a(it)))*exp(-v)
+      tmp = f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it) )
+      tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
+      v = sinh(tau/(-sigma*f%a(it)))*tmp
       func_tau = tau_stick - Z*v - tau
       print*,'tau_stick = ',tau_stick
-      print*,'Z*v = ',Z,'*',v,'=',(Z*v)
+      print*,'Z*v = ',Z,'*',v,'=',Z*v
       print*,'tau = ',tau
       print*,'func_tau = ',func_tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
-      dv_dtau = (f%mus(it)+f%b(it)*log(f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
-      dv_dtau = 2*f%Vstar(it)*cosh(tau/(sigma*f%a(it)))*exp(-dv_dtau)/(sigma*f%a(it))
-      dfunc_dtau = -Z*dv_dtau - 1
+      dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
+      dfunc_dtau = -Z*dv_dtau - 1d0
       print*,'dfunc_dtau = ',dfunc_dtau
-  end select
   
 end subroutine nr_fric_func_tau
 
@@ -510,25 +500,19 @@ subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
   double precision :: v, mu, dmu_dv
   integer, intent(in) :: it
 
-  select case(f%kind)
-    case(1) 
-      !DEVEL: What should be done here?
-      !       as its written, this is never implemented.
-    case(2,3) 
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-      mu = (f%a(it))*asinh(((v)/(2*f%Vstar(it)))*exp(mu))
-      func_v = tau_stick - Z*(v) - sigma*mu
+      mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
+      func_v = tau_stick - Z*v - sigma*mu
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
-      dmu_dv = dmu_dv*(f%a(it))/(sqrt(1+(dmu_dv*(v))**2))
+      dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
       dfunc_dv = -Z - sigma*dmu_dv
-  end select
   
 end subroutine nr_fric_func_v
 
