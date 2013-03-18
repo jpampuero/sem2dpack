@@ -1,0 +1,45 @@
+# Velocity weakening state-rate friction rupture pulse like in Kaneko 2008
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , ndof=1 ,
+  title = 'Velocity weakening fault', verbose='1011' , ItInfo = 100/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+
+&MESH_CART xlim=0d3,45d3, zlim=0d3,15d3, nelem=270,90, fztag=2/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST' /
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=2.673d3, cp=6d3, cs=3.464d3 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1,   kind = 'DYNFLT' /
+&BC_DYNFLT friction='RSF', Tn=-120d6, TtH='ORDER0', V=1.00d-3 /
+&DIST_ORDER0 xn=3,zn=1 / # Initial shear stress
+     1.5d3    10.0d3
+81.6d6   70.0d6   1.0d4  
+
+&BC_DYNFLT_RSF kind=3, Dc=3.7d-2, MuS=0.6d0, a=0.0125d0, b=0.0172d0, Vstar=1.00d-6, thetaH='ORDER0' /
+&DIST_ORDER0 xn=2,zn=1 / # Initial state variable
+       10.0d3
+92.713d0   4.0036d-14
+
+&BC_DEF  tag = 3,   kind = 'ABSORB' /
+
+&BC_DEF  tag = 2 , kind = 'DIRNEU' / 
+&BC_DIRNEU h='N'/
+
+&BC_DEF  tag = 4 , kind = 'DIRNEU' / 
+&BC_DIRNEU h='N'/
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=4d0, Courant=0.6d0, kind='newmark' /
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 10, first = 0.0d3,0.0d3, last = 22.5d3,0.0d3, isamp=5, field='V' / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=100, fields ='DVS',bin=T,ps=T /
