@@ -196,11 +196,9 @@ contains
   integer :: it
 
   double precision, dimension(size(v)) :: v_new,theta_new
-  !print*,'first pass'
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
   v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
-  !print*,'second pass'
   ! Second pass:
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
   v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
@@ -385,7 +383,6 @@ contains
   
     ! Evaluate function with new estimate of x
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
-    !print*,'f(',x_est,') = ',func_x
 
     ! Redefine the bounds for the next loop
     if (func_x<0) then
@@ -478,17 +475,12 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       v = sinh(tau/(-sigma*f%a(it)))*tmp
       func_tau = tau_stick - Z*v - tau
-      print*,'tau_stick = ',tau_stick
-      print*,'Z*v = ',Z,'*',v,'=',Z*v
-      print*,'tau = ',tau
-      print*,'func_tau = ',func_tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
       dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1d0
-      print*,'dfunc_dtau = ',dfunc_dtau
   
 end subroutine nr_fric_func_tau
 
