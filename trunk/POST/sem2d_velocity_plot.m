@@ -27,7 +27,17 @@ end
 del=max(delta);
 isel1=find(d.x > (point - del));
 isel2=find(d.x < (point + del));
-k=max(intersect(isel1,isel2));
+isel=size(intersect(isel1,isel2));
+if isel(1,1)==3
+    k=median(intersect(isel1,isel2));
+elseif isel(1,1)==2
+    k=min(intersect(isel1,isel2));
+elseif isel(1,1)==1
+    k=intersect(isel1,isel2);
+else
+    sprintf('Cannot locate %f along fault',point)
+    return
+end
 %--------------------------------------
 
 %---Plot velocity at point-------------

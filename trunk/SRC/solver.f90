@@ -27,14 +27,15 @@ subroutine solve(pb)
       call solve_Newmark(pb)
     case ('HHT-alpha')
       call solve_HHT_alpha(pb)
+    case ('quasi-static')
+      call solve_quasi_static(pb)
     case default
       call solve_symplectic(pb)
   end select
 
-end subroutine solve
-
-
-!=====================================================================
+  end subroutine solv
+  a = pb%fields%accel
+  f = pb%fields%accel
 ! SOLVE: advance ONE time step
 !        using single predictor-corrector Newmark (explicit)
 !        in acceleration form
@@ -192,6 +193,54 @@ subroutine solve_symplectic(pb)
   
   
 end subroutine solve_symplectic
+
+!=====================================================================
+! SOLVE: advance ONE time step
+!        using quasi-static algorithm defined in Kaneko, et. al. 2011
+!        in acceleration form
+subroutine solve_quasi_static(pb)
+  type(problem_type), intent(inout) :: pb
+  !type(problem_type), pointer :: pb_pointer
+  double precision, dimension(:,:) :: d, d_medium, d_fault, v, f
+  double precision :: tolerance
+  
+  ! make prediction of all displacements 
+  v = pb%fields%veloc
+  d = pb%fields%displ + pb%time%dt*v
+
+  ! set displacements in medium to be zero
+  !call BC_zero(pb, d, d_medium) 
+  d_fault = d - d_medium
+
+  ! solve for forces, finding K_{21}d^f
+  compute_Fint(f, d_fault, pb%fields%veloc, pb)
+  !        Output  Input       Input       Input
+  f = -f
+
+  ! use previous displacements as initial guess for displacements in medium 
+  ! and compute resulting forces 
+  !call BC_zero(pb, pb%fields%displ, d_medium)
+
+  ! input the initial guess and the function that computes K*d into the
+  ! (preconditioned) conjugate gradient method solver
+  tolerance = 10.0d-5
+  call cg_solve(d_medium, compute_Fint, f, tolerance)
+  ! call pcg_solve(d_medium, compute_Fint, pb%diagK, f, tolerance)
+  
+  ! combine displacements and calculate forces
+  d = d_fault + d_medium
+  compute_Fint(f, d, pb%fields%veloc, pb)
+  !        Output Input       Input   Input
+
+  ! apply boundary conditions
+  BC_set(pb%bc, pb%time%time, pb%fields, f)
+
+  ! calculate final displacements 
+  d = pb%fields%displ + 0.5d0*pb%time%dt*(v + pb%fields%veloc)
+
+  
+
+end subroutine solve_quasi_static
 
 !=====================================================================
 !
