@@ -79,7 +79,11 @@ contains
   
     allocate(field(npoin,fields%ndof))
     call storearray(name,size(field),idouble)
+    !if (name == 'veloc') then 
+    !  field = 0.5d-3 ! For testing benchmark against Kaneko 2008
+    !else 
     field = 0.d0
+    !endif
     
     end subroutine FIELD_init
 
