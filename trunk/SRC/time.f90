@@ -4,7 +4,7 @@ module time_evol
 
   type timescheme_type
     !private !devel: main and solver need it public
-    character(10) :: kind
+    character(12) :: kind
     double precision :: dt,courant,time,total,alpha,beta,gamma,Omega_max
     double precision, dimension(:), pointer :: a,b 
     integer :: nt,nstages
@@ -28,6 +28,7 @@ contains
 !                'symp_PV'       Position Verlet
 !                'symp_PFR'      Position Forest-Ruth (4th order)
 !                'symp_PEFRL'    Extended PFR (4th order)
+!		 'quasi-static'  Quasi-static (Kaneko, et al, 2011)
 ! ARG: Dt        [dble] [none] Timestep (in seconds)
 ! ARG: Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
 !                stability number (CFL), defined as
@@ -129,7 +130,7 @@ contains
   double precision :: alpha,beta,gamma,dt,courant,TotalTime,rho &
                      ,xi,lambda,chi,theta
   integer :: NbSteps,n
-  character(10) :: kind
+  character(12) :: kind
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime
   NAMELIST / TIME_NEWMARK / beta,gamma
@@ -198,7 +199,7 @@ contains
 
   select case (kind)
 
-   case ('leapfrog')
+   case ('leapfrog','quasi-static')
     t%Omega_max = 2d0
 
    case ('newmark')
@@ -427,7 +428,7 @@ contains
 
   select case (t%kind)
     case ('newmark','HHT-alpha'); c = t%beta * t%dt**2
-    case ('leapfrog'); c = 0d0
+    case ('leapfrog','quasi-static'); c = 0d0
     case default
       c=0d0
       call IO_abort('TIME_getCoefA2D: unknown time scheme')
@@ -445,7 +446,7 @@ contains
 
   select case (t%kind)
     case ('newmark','HHT-alpha'); c = t%gamma * t%dt
-    case ('leapfrog'); c = t%dt
+    case ('leapfrog','quasi-static'); c = t%dt
     case default
       c=0d0
       call IO_abort('TIME_getCoefA2D: unknown time scheme')
@@ -468,7 +469,7 @@ contains
 
   select case (t%kind)
     case ('newmark','HHT-alpha'); c = t%alpha * TIME_getCoefA2V(t)
-    case ('leapfrog'); c = 0.5d0 * TIME_getCoefA2V(t)
+    case ('leapfrog','quasi-static'); c = 0.5d0 * TIME_getCoefA2V(t)
  ! NOTE: for the leapfrog time scheme, v_rhs = v_(n+1)
  !	 but the velocity field is stored at n+1/2, 
  !       v_rhs = v_(n+1/2) + 1/2*dt*a_(n+1)

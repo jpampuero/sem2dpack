@@ -49,7 +49,7 @@ module bc_gen
                         IS_DYNFLT = 6
                         !! IS_USER = 7
 
-  public :: bc_type,bc_read,bc_set,bc_init,bc_write
+  public :: bc_type,bc_read,bc_set,bc_init,bc_write,bc_zero
 
 contains
 
@@ -334,5 +334,60 @@ subroutine BC_write(bc,itime,d,v)
   enddo
 
 end subroutine BC_write
+
+!=======================================================================
+!! Sets the displacements along the boundary to be zero
+subroutine bc_zero(bc,fields,field_out)
+
+  use sources, only: source_type
+  use fields_class, only: fields_type
+
+  type(bc_type), pointer :: bc(:)
+  type (fields_type), intent(in) :: fields
+  double precision, dimension(:,:), intent(out) :: field_out
+
+  integer :: i
+
+  if (.not. associated(bc)) return
+ ! apply first periodic, then absorbing, then the rest
+ ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
+  do i = 1,size(bc)
+    if ( bc(i)%kind == IS_PERIOD) call bc_zero_single(bc(i))
+  enddo
+  do i = 1,size(bc)
+    if ( bc(i)%kind == is_absorb) call bc_zero_single(bc(i))
+  enddo
+  do i = 1,size(bc)
+    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_zero_single(bc(i))
+  enddo
+    
+contains
+
+  subroutine bc_zero_single(bc)
+
+    type(bc_type), intent(inout) :: bc
+
+    select case(bc%kind)
+      case(IS_DIRNEU)
+        !call bc_DIRNEU_zero(bc%dirneu,field,time)
+      case(IS_KINFLT)
+        !call bc_KINFLT_zero(bc%kinflt,fields%accel,fields%veloc,time)
+      case(IS_ABSORB)
+        !call BC_ABSO_zero(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
+      case(IS_PERIOD)
+        !call bc_perio_zero(bc%perio,field)
+      case(IS_LISFLT)
+        !call BC_LSF_zero(bc%lsf,fields%accel,fields%displ_alpha)
+      case(IS_DYNFLT)
+        call BC_DYNFLT_zero(bc%dynflt,fields%displ,field_out)
+!!      case(IS_USER)
+!!        call BC_USER_zero(bc%user, ... )
+    end select
+
+  end subroutine bc_zero_single
+  
+end subroutine bc_zero
+
+
 
 end module bc_gen

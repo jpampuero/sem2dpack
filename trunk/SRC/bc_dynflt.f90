@@ -35,7 +35,7 @@ module bc_dynflt
     logical :: osides
   end type bc_dynflt_type
 
-  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_set, BC_DYNFLT_write
+  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_set, BC_DYNFLT_write, BC_DYNFLT_zero
 
 contains
 
@@ -788,6 +788,22 @@ contains
   endif
 
   end subroutine export_side
+
+!=====================================================================
+  ! Sets the displacement on the boundary to be zero
+
+  subroutine BC_DYNFLT_zero(bc,D,D_zero)
+   
+  use stdio, only: IO_abort
+  
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, intent(in) :: D(:,:)
+  double precision, dimension(:,:), intent(out) :: D_zero
+  
+  field_out = D
+  field_out(bc%node1,:) = 0.0d0
+
+  end subroutine BC_DYNFLT_zero
 
 !=====================================================================
   function BC_DYNFLT_potency(bc,d) result(p)
