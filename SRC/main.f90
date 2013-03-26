@@ -29,7 +29,6 @@
 !*************  i n i t i a l i z a t i o n   p h a s e  ***************
 
   call init_main(pb)
-
   pb%time%time = 0.d0
 
   !-- store seismograms at time = 0
@@ -57,9 +56,9 @@
 
   Time_Loop: do it=1,nt
     pb%time%time = it*pb%time%dt
-    
+
     call solve(pb)
-    
+
   !-- CPU time info -----------------------------------------------------
 
     if (it == NT_CHECK) then
