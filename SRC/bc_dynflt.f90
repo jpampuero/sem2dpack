@@ -800,8 +800,8 @@ contains
   double precision, intent(in) :: D(:,:)
   double precision, dimension(:,:), intent(out) :: D_zero
   
-  field_out = D
-  field_out(bc%node1,:) = 0.0d0
+  D_zero = D
+  D_zero(bc%node1,:) = 0.0d0
 
   end subroutine BC_DYNFLT_zero
 

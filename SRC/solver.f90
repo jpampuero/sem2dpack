@@ -210,21 +210,20 @@ subroutine solve_quasi_static(pb)
   ! set displacements in medium to be zero
   call BC_zero(pb%bc, pb%fields, d_medium)
   d_fault = d - d_medium
-
+                
   ! solve for forces, finding K_{21}d^f
   call compute_Fint(f, d_fault, pb%fields%veloc, pb)
-  !        Output  Input       Input       Input
   f = -f
 
   ! use previous displacements as initial guess for displacements in medium 
   ! and compute resulting forces 
   call BC_zero(pb%bc, pb%fields, d_medium)
-
+  
   ! input the initial guess and the function that computes K*d into the
   ! (preconditioned) conjugate gradient method solver
   tolerance = 10.0d-5
-  ! call cg_solve(d_medium, compute_Fint, f, tolerance)
-  ! call pcg_solve(d_medium, compute_Fint, pb%diagK, f, tolerance)
+  call cg_solver(d_medium, compute_Fint, f, pb, tolerance)
+  ! call pcg_solver(d_medium, compute_Fint, f, pb, tolerance)
   
   ! combine displacements and calculate forces
   d = d_fault + d_medium
@@ -233,6 +232,7 @@ subroutine solve_quasi_static(pb)
 
   ! apply boundary conditions
   call BC_set(pb%bc, pb%time%time, pb%fields, f)
+  ! this will return the velocity 
 
   ! calculate final displacements 
   d = pb%fields%displ + 0.5d0*pb%time%dt*(v + pb%fields%veloc)
@@ -291,5 +291,48 @@ subroutine compute_Fint(f,d,v,pb)
 ! enddo
 
 end subroutine compute_Fint
+
+!=====================================================================
+!
+subroutine cg_solver(d,stiffness, f, pb, tolerance)
+  use stdio, only : IO_Abort
+  double precision, dimension(:,:), intent(inout) :: d
+  double precision, dimension(:,:), intent(in) :: f
+  double precision, intent(in) :: tolerance
+  type(problem_type), intent(in) :: pb
+  external stiffness
+
+  ! internal variables
+  double precision, dimension(pb%grid%ngll,pb%fields%ndof) :: r_new, r_old, p, K_p
+  double precision :: alpha, beta
+  integer, parameter :: maxIterations=4000
+  integer :: it  
+
+  r_new = f
+  r_old = f
+  p = r_new
+
+  do it=1,maxIterations
+    ! compute stiffness*p for later steps
+    call stiffness(K_p,p,pb%fields%veloc,pb)
+    ! find step length
+    !alpha = dot_product(r_new,r_new)/dot_product(p,K_p)
+    ! determine approximate solution
+    d = d + alpha*K_p
+    ! test if within tolerance
+    if (norm2(d)/norm2(f) < tolerance) return
+    ! find the residual
+    r_new = r_new - alpha*K_p
+    ! improve the step
+    !beta = dot_product(r_new,r_new)/dot_product(r_old,r_old)
+    ! search direction
+    p = r_new + beta*p
+    ! store old residual
+    r_old = r_new  
+  enddo
+  
+  call IO_Abort('Conjugate Gradient does not converge')
+
+end subroutine cg_solver
 
 end module solver
