@@ -21,6 +21,7 @@ subroutine init_main(pb,InitFile)
   use bc_gen, only : BC_init
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work
+  use mat_elastic, only : MAT_IsElastic, MAT_diag_stiffness_init
   use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
   use plot_gen, only : PLOT_init
   use receivers, only : REC_init,REC_inquire
@@ -57,7 +58,7 @@ subroutine init_main(pb,InitFile)
   call PLOT_init(pb%grid)
   call CHECK_grid(pb%grid,pb%matpro,pb%fields%ndof,grid_cfl)
   call TIME_init(pb%time,grid_cfl) ! define time evolution coefficients
-                 
+ 
  ! define work arrays and data
   call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
 
@@ -118,6 +119,10 @@ subroutine init_main(pb,InitFile)
  ! macroscopic outputs
   if (COMPUTE_ENERGIES) call energy_init(pb%energy)
   if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
+
+ ! required for quasi-static solution
+ ! DEVEL only implemented in elastic material              
+ if (pb%time%kind =='quasi-static') call MAT_diag_stiffness_init(pb%invKDiag,pb)
 end subroutine init_main
 
 !=======================================================================

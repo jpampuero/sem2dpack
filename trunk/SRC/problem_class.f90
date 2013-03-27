@@ -35,6 +35,8 @@ module problem_class
     type(fields_type) :: fields
    ! inverse mass matrix (diagonal)
     double precision, pointer :: rmass(:,:) => null()
+   ! inverse stiffness matrix (diagonal)
+    double precision, pointer :: invKdiag(:,:) => null()
    ! time integration coefficients
     type(timescheme_type) :: time
    ! data for sources

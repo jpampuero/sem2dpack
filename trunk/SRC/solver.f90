@@ -4,6 +4,7 @@ module solver
 !         M.a = - K.d + F
 
   use problem_class
+  use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_set, BC_zero
 
@@ -142,9 +143,9 @@ subroutine solve_leapfrog(pb)
   v_mid => pb%fields%veloc
   a => pb%fields%accel
   f => a
-
+                       
   d = d + pb%time%dt * v_mid
-
+   
   call compute_Fint(f,d,v_mid,pb)
   call SO_add(pb%src, pb%time%time, f)
   call BC_set(pb%bc,pb%time%time,pb%fields,f)
@@ -204,25 +205,31 @@ subroutine solve_quasi_static(pb)
   double precision :: tolerance
   
   ! make prediction of all displacements 
+  print*,'v',size(pb%fields%veloc,1),'x',size(pb%fields%veloc,2)
   v = pb%fields%veloc
+  print*,'v',size(v,1),'x',size(v,2)
   d = pb%fields%displ + pb%time%dt*v
   
   ! set displacements in medium to be zero
+  print*,'bczero'
   call BC_zero(pb%bc, pb%fields, d_medium)
   d_fault = d - d_medium
                 
   ! solve for forces, finding K_{21}d^f
+  print*,'computefint'
   call compute_Fint(f, d_fault, pb%fields%veloc, pb)
   f = -f
 
   ! use previous displacements as initial guess for displacements in medium 
   ! and compute resulting forces 
+  print*,'bczero'
   call BC_zero(pb%bc, pb%fields, d_medium)
   
   ! input the initial guess and the function that computes K*d into the
   ! (preconditioned) conjugate gradient method solver
   tolerance = 10.0d-5
-  call cg_solver(d_medium, compute_Fint, f, pb, tolerance)
+  print*,'cg_solver()'
+  call cg_solver(d_medium, f, pb, tolerance)
   ! call pcg_solver(d_medium, compute_Fint, f, pb, tolerance)
   
   ! combine displacements and calculate forces
@@ -262,7 +269,6 @@ subroutine compute_Fint(f,d,v,pb)
   pb%energy%sgp  = 0d0
 
   do e = 1,pb%grid%nelem
-
     dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
     vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
     call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
@@ -294,39 +300,48 @@ end subroutine compute_Fint
 
 !=====================================================================
 !
-subroutine cg_solver(d,stiffness, f, pb, tolerance)
-  use stdio, only : IO_Abort
+subroutine cg_solver(d, f, pb, tolerance)
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(in) :: f
   double precision, intent(in) :: tolerance
-  type(problem_type), intent(in) :: pb
-  external stiffness
+  type(problem_type), intent(inout) :: pb
 
   ! internal variables
-  double precision, dimension(pb%grid%ngll,pb%fields%ndof) :: r_new, r_old, p, K_p
-  double precision :: alpha, beta
-  integer, parameter :: maxIterations=4000
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p
+  double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
+  double precision :: norm_f
+  integer, parameter :: maxIterations=20000
   integer :: it  
-
+ 
+  norm_f = norm2(f)
   r_new = f
   r_old = f
   p = r_new
 
   do it=1,maxIterations
+    print*,it
     ! compute stiffness*p for later steps
-    call stiffness(K_p,p,pb%fields%veloc,pb)
+    call compute_Fint(K_p,p,pb%fields%veloc,pb)
     ! find step length
-    !alpha = dot_product(r_new,r_new)/dot_product(p,K_p)
+    alpha_n = matmul(transpose(r_new),r_new)
+    alpha_d = matmul(transpose(p),K_p)
+    alpha = alpha_n/alpha_d
+    print*,'alpha',alpha
     ! determine approximate solution
-    d = d + alpha*K_p
+    d = d + matmul(K_p,alpha)
     ! test if within tolerance
-    if (norm2(d)/norm2(f) < tolerance) return
+    print*,'|r_new|',norm2(r_new)
+    print*,'|f|',norm_f
+    print*,'|r_new|/|f|',norm2(r_new)/norm_f
+    if (norm2(r_new)/norm_f < tolerance) return
     ! find the residual
-    r_new = r_new - alpha*K_p
+    r_new = r_new - matmul(K_p,alpha)
     ! improve the step
-    !beta = dot_product(r_new,r_new)/dot_product(r_old,r_old)
+    beta_d = matmul(transpose(r_old),r_old)
+    beta = alpha_n/beta_d
+    print*,'beta',beta
     ! search direction
-    p = r_new + beta*p
+    p = r_new + matmul(p,beta)
     ! store old residual
     r_old = r_new  
   enddo
@@ -334,5 +349,62 @@ subroutine cg_solver(d,stiffness, f, pb, tolerance)
   call IO_Abort('Conjugate Gradient does not converge')
 
 end subroutine cg_solver
+
+! DEVEL: not finished yet!  - invKDiag needs to be integrated.
+subroutine pcg_solver(d, f, pb, tolerance)
+  double precision, dimension(:,:), intent(inout) :: d
+  double precision, dimension(:,:), intent(in) :: f
+  double precision, intent(in) :: tolerance
+  type(problem_type), intent(inout) :: pb
+
+  ! internal variables
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p, z_new, z_old
+  double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
+  double precision :: norm_f
+  integer, parameter :: maxIterations=4000
+  integer :: it  
+
+  norm_f = norm2(f)
+  call compute_Fint(K_p,d,pb%fields%veloc,pb)
+  r_new = f - K_p
+  r_old = r_new 
+  z_new = matmul(pb%invKDiag,r_new)
+  z_old = z_new
+  p = z_new
+
+  do it=1,maxIterations
+    print*,it
+    ! compute stiffness*p for later steps
+    call compute_Fint(K_p,p,pb%fields%veloc,pb)
+    ! find step length
+    alpha_n = matmul(transpose(r_new),z_new)
+    alpha_d = matmul(transpose(p),K_p)
+    alpha = alpha_n/alpha_d
+    print*,'alpha',alpha
+    ! determine approximate solution
+    d = d + matmul(K_p,alpha)
+    ! test if within tolerance
+    print*,'|r_new|',norm2(r_new)
+    print*,'|f|',norm_f
+    print*,'|r_new|/|f|',norm2(r_new)/norm_f
+    if (norm2(r_new)/norm_f < tolerance) return
+    ! find the residual
+    r_new = r_new - matmul(K_p,alpha)
+    z_new = matmul(pb%invKDiag,r_new)
+    ! improve the step
+    beta_d = matmul(transpose(z_old),r_old)
+    beta = alpha_n/beta_d
+    print*,'beta',beta
+    ! search direction
+    p = r_new + matmul(p,beta)
+    ! store old residual
+    r_old = r_new  
+    z_old = z_new
+  enddo
+  
+  call IO_Abort('Conjugate Gradient does not converge')
+  
+
+end subroutine pcg_solver
 
 end module solver
