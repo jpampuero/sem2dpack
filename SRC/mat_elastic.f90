@@ -1,8 +1,9 @@
 module mat_elastic
 ! Linear elasticity
 ! Isotropic or transverse anisotropic
-
+  
   use prop_mat
+  use memory_info
 
   implicit none
   private
@@ -28,7 +29,8 @@ module mat_elastic
           , MAT_ELAST_read &
           , MAT_ELAST_init_elem_prop, MAT_ELAST_init_elem_work &
           , MAT_ELAST_f, MAT_ELAST_stress &
-          , MAT_ELAST_memwrk, MAT_ELAST_mempro
+          , MAT_ELAST_memwrk, MAT_ELAST_mempro &
+          , MAT_diag_stiffness_init
 
 contains
 
@@ -675,5 +677,42 @@ contains
     end subroutine stress_anisotropic
 
   end subroutine MAT_ELAST_stress
+
+!=======================================================================
+! finds the diagonal of the stiffness matrix, and stores its inverse
+
+  subroutine MAT_diag_stiffness_init(invKDiag,pb)
+    use problem_class, only : problem_type
+    use mat_gen, only : matwrk_elem_type
+    double precision, dimension(:,:), pointer, intent(inout) :: invKDiag
+    type(problem_type), intent(in) :: pb    
+
+    integer :: e, i, j, k, dof
+    type(matwrk_elem_type) :: m
+    double precision, dimension(pb%fields%npoin,pb%fields%npoin,pb%fields%ndof) :: d,f
+    double precision, dimension(pb%grid%nelem,pb%fields%ndof) :: KDiag
+
+    allocate(invKDiag(pb%fields%npoin,pb%fields%ndof))
+    call storearray('invKDiag',size(invKDiag),idouble)
+    invKDiag = 0.d0
+   
+    do e=1,pb%grid%nelem
+      do i=1,pb%grid%ngll
+        do j=1,pb%grid%ngll
+          k = pb%grid%ibool(i,j,e)
+          do dof=1,pb%fields%ndof
+             d = 0d0
+             d(i,j,dof) = 1.0d0
+             m = pb%matwrk(e)
+             ! DEVEL: why error in types?  Passing matwrk_elast_type to matwrk_elast_type!
+             !call MAT_ELAST_f(f,d,m%elast,pb%grid%hprime,pb%grid%hTprime,pb%grid%ngll,pb%fields%ndof)
+             KDiag(k,dof) = KDiag(k,dof) + f(i,j,dof)
+          enddo
+        enddo
+      enddo
+      invKDiag(k,dof) = 1/KDiag(k,dof)
+    enddo
+
+  end subroutine MAT_diag_stiffness_init
 
 end module mat_elastic
