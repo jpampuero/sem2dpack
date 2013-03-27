@@ -366,22 +366,23 @@ contains
   subroutine bc_zero_single(bc)
 
     type(bc_type), intent(inout) :: bc
-
+    ! DEVEL these other zero functions will have to be created 
+    ! in their respective files.
     select case(bc%kind)
       case(IS_DIRNEU)
-        !call bc_DIRNEU_zero(bc%dirneu,field,time)
+        !call bc_DIRNEU_zero(bc%dirneu,fields%displ,field_out)
       case(IS_KINFLT)
-        !call bc_KINFLT_zero(bc%kinflt,fields%accel,fields%veloc,time)
+        !call bc_KINFLT_zero(bc%kinflt,fields%displ,field_out)
       case(IS_ABSORB)
-        !call BC_ABSO_zero(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
+        !call BC_ABSO_zero(bc%abso,fields%displ,field_out)
       case(IS_PERIOD)
-        !call bc_perio_zero(bc%perio,field)
+        !call bc_perio_zero(bc%perio,fields%displ,field_out)
       case(IS_LISFLT)
-        !call BC_LSF_zero(bc%lsf,fields%accel,fields%displ_alpha)
+        !call BC_LSF_zero(bc%lsf,fields%displ,field_out)
       case(IS_DYNFLT)
         call BC_DYNFLT_zero(bc%dynflt,fields%displ,field_out)
 !!      case(IS_USER)
-!!        call BC_USER_zero(bc%user, ... )
+!!        call BC_USER_zero(bc%user,fields%displ,field_out)
     end select
 
   end subroutine bc_zero_single
