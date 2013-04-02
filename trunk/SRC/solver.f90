@@ -201,50 +201,56 @@ end subroutine solve_symplectic
 subroutine solve_quasi_static(pb)
   type(problem_type), intent(inout) :: pb
   !type(problem_type), pointer :: pb_pointer
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d, d_medium, d_fault, v, f
-  double precision :: tolerance
-  
-  ! make prediction of all displacements 
-  print*,'v',size(pb%fields%veloc,1),'x',size(pb%fields%veloc,2)
-  v = pb%fields%veloc
-  print*,'v',size(v,1),'x',size(v,2)
-  d = pb%fields%displ + pb%time%dt*v
-  
-  ! set displacements in medium to be zero
-  print*,'bczero'
-  call BC_zero(pb%bc, pb%fields, d_medium)
-  d_fault = d - d_medium
-                
-  ! solve for forces, finding K_{21}d^f
-  print*,'computefint'
-  call compute_Fint(f, d_fault, pb%fields%veloc, pb)
-  f = -f
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v, v_f0, v_f1
+  double precision :: tolerance, v_plate
+  integer :: i
+ 
+  ! store initial 
+  v_plate = (2.0d-3)/(365*24*60*60)
+  v_pre = pb%fields%veloc
+  d_pre = pb%fields%displ
 
-  ! use previous displacements as initial guess for displacements in medium 
-  ! and compute resulting forces 
-  print*,'bczero'
-  call BC_zero(pb%bc, pb%fields, d_medium)
+  v_f0 = v_pre + v_plate
+  pb%fields%veloc = v_f0
   
-  ! input the initial guess and the function that computes K*d into the
-  ! (preconditioned) conjugate gradient method solver
-  tolerance = 10.0d-5
-  print*,'cg_solver()'
-  call cg_solver(d_medium, f, pb, tolerance)
-  ! call pcg_solver(d_medium, compute_Fint, f, pb, tolerance)
+  do i = 1,2
+    ! make prediction of all displacements 
+    d = pb%fields%displ + pb%time%dt*v_pre
+    
+    ! set displacements in medium to be zero
+    call BC_zero(pb%bc, pb%fields, d_medium)
+    d_fault = d - d_medium
+                  
+    ! solve for forces, finding K_{21}d^f
+    call compute_Fint(f, d_fault, v_pre, pb)
+    f = -f
+
+    ! use previous displacements as initial guess for displacements in medium 
+    ! and compute resulting forces 
+    call BC_zero(pb%bc, pb%fields, d_medium)
+    
+    ! input the initial guess and the function that computes K*d into the
+    ! (preconditioned) conjugate gradient method solver
+    tolerance = 10.0d-5
+    !call cg_solver(d_medium, f, pb, tolerance)
+    print*,'pcg'
+    call pcg_solver(d_medium, f, pb, tolerance)
+    
+    ! combine displacements and calculate forces
+    d = d_fault + d_medium
+    call compute_Fint(f, d, v_pre, pb)
+
+    ! apply boundary conditions
+    call BC_set(pb%bc, pb%time%time, pb%fields, f)
+    
+    ! correct estimate of velocity
+    pb%fields%veloc = (v_f0 + pb%fields%veloc)/2
+
+    ! calculate final displacements 
+    d = pb%fields%displ + 0.5d0*pb%time%dt*(v_f1 + pb%fields%veloc)
   
-  ! combine displacements and calculate forces
-  d = d_fault + d_medium
-  call compute_Fint(f, d, pb%fields%veloc, pb)
-  !        Output Input       Input   Input
-
-  ! apply boundary conditions
-  call BC_set(pb%bc, pb%time%time, pb%fields, f)
-  ! this will return the velocity 
-
-  ! calculate final displacements 
-  d = pb%fields%displ + 0.5d0*pb%time%dt*(v + pb%fields%veloc)
-
-  
+  enddo
 
 end subroutine solve_quasi_static
 
@@ -310,7 +316,7 @@ subroutine cg_solver(d, f, pb, tolerance)
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p
   double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
   double precision :: norm_f
-  integer, parameter :: maxIterations=20000
+  integer, parameter :: maxIterations=4000
   integer :: it  
  
   norm_f = norm2(f)
@@ -331,7 +337,6 @@ subroutine cg_solver(d, f, pb, tolerance)
     d = d + matmul(K_p,alpha)
     ! test if within tolerance
     print*,'|r_new|',norm2(r_new)
-    print*,'|f|',norm_f
     print*,'|r_new|/|f|',norm2(r_new)/norm_f
     if (norm2(r_new)/norm_f < tolerance) return
     ! find the residual
@@ -373,14 +378,6 @@ subroutine pcg_solver(d, f, pb, tolerance)
   p = z_new
 
   do it=1,maxIterations
-    print*,it
-    ! compute stiffness*p for later steps
-    call compute_Fint(K_p,p,pb%fields%veloc,pb)
-    ! find step length
-    alpha_n = matmul(transpose(r_new),z_new)
-    alpha_d = matmul(transpose(p),K_p)
-    alpha = alpha_n/alpha_d
-    print*,'alpha',alpha
     ! determine approximate solution
     d = d + matmul(K_p,alpha)
     ! test if within tolerance
@@ -404,7 +401,6 @@ subroutine pcg_solver(d, f, pb, tolerance)
   
   call IO_Abort('Conjugate Gradient does not converge')
   
-
 end subroutine pcg_solver
 
 end module solver
