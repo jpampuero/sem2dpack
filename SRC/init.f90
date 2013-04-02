@@ -20,8 +20,8 @@ subroutine init_main(pb,InitFile)
   use spec_grid, only : SE_init
   use bc_gen, only : BC_init
   use mat_mass, only : MAT_MASS_init
-  use mat_gen, only : MAT_init_prop, MAT_init_work
-  use mat_elastic, only : MAT_IsElastic, MAT_diag_stiffness_init
+  use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init
+  use mat_elastic, only : MAT_IsElastic
   use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
   use plot_gen, only : PLOT_init
   use receivers, only : REC_init,REC_inquire
@@ -122,7 +122,12 @@ subroutine init_main(pb,InitFile)
 
  ! required for quasi-static solution
  ! DEVEL only implemented in elastic material              
- if (pb%time%kind =='quasi-static') call MAT_diag_stiffness_init(pb%invKDiag,pb)
+ if (pb%time%kind =='quasi-static') then
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
+    write(iout,'(a)') '***********************************************'
+    call MAT_diag_stiffness_init(pb%invKDiag,pb)
+ endif
 end subroutine init_main
 
 !=======================================================================

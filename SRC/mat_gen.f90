@@ -28,6 +28,7 @@ module mat_gen
 !!  6. Re-compile (make)
 
   use prop_mat
+  use memory_info
 
 !! List here all material modules:
   use mat_mass
@@ -69,7 +70,8 @@ module mat_gen
   public :: matwrk_elem_type, &
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
-            MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces
+            MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
+            MAT_diag_stiffness_init
 
 contains
 
@@ -836,5 +838,40 @@ end subroutine MAT_stress_dv
   endif
 
   end function MAT_forces
+
+!=======================================================================
+! finds the diagonal of the stiffness matrix, and stores its inverse
+
+  subroutine MAT_diag_stiffness_init(invKDiag,pb)
+    use problem_class, only : problem_type
+    double precision, dimension(:,:), pointer, intent(inout) :: invKDiag
+    type(problem_type), intent(in) :: pb    
+
+    integer :: e, i, j, k, dof
+    double precision, dimension(pb%fields%npoin,pb%fields%npoin,pb%fields%ndof) :: d,f
+    double precision, dimension(pb%grid%nelem,pb%fields%ndof) :: KDiag
+    
+    allocate(invKDiag(pb%fields%npoin,pb%fields%ndof))
+    call storearray('invKDiag',size(invKDiag),idouble)
+    invKDiag = 0.d0
+
+    do e=1,pb%grid%nelem
+      print*,e,'     of',pb%grid%nelem
+      do i=1,pb%grid%ngll
+        do j=1,pb%grid%ngll
+          k = pb%grid%ibool(i,j,e)
+          do dof=1,pb%fields%ndof
+             ! DEVEL: This causes a segmentation fault if the problem is too big!
+             d(:,:,:) = 0.0d0
+             d(i,j,dof) = 1.0d0
+             call MAT_ELAST_f(f,d,pb%matwrk(e)%elast,pb%grid%hprime,pb%grid%hTprime,pb%grid%ngll,pb%fields%ndof)
+             KDiag(k,dof) = KDiag(k,dof) + f(i,j,dof)
+          enddo
+          invKDiag(k,dof) = 1/KDiag(k,dof)
+        enddo
+      enddo
+    enddo
+
+  end subroutine MAT_diag_stiffness_init
 
 end module mat_gen
