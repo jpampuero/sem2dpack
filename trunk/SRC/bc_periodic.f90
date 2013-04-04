@@ -10,13 +10,13 @@ module bc_periodic
     type(bnd_grid_type), pointer :: master,slave
   end type bc_periodic_type
 
-  interface BC_PERIO_set
+  interface BC_PERIO_apply
     module procedure BC_PERIO_set_field &
                     ,BC_PERIO_set_scal
   end interface
 
   public :: bc_periodic_type,BC_PERIO_read &
-           ,BC_PERIO_set,BC_PERIO_init,BC_PERIO_intersects
+           ,BC_PERIO_apply,BC_PERIO_init,BC_PERIO_intersects
 
 contains
 

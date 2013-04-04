@@ -847,30 +847,29 @@ end subroutine MAT_stress_dv
     double precision, dimension(:,:), pointer, intent(inout) :: invKDiag
     type(problem_type), intent(in) :: pb    
 
+    double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: d,f
     integer :: e, i, j, k, dof
-    double precision, dimension(pb%fields%npoin,pb%fields%npoin,pb%fields%ndof) :: d,f
-    double precision, dimension(pb%grid%nelem,pb%fields%ndof) :: KDiag
     
     allocate(invKDiag(pb%fields%npoin,pb%fields%ndof))
     call storearray('invKDiag',size(invKDiag),idouble)
     invKDiag = 0.d0
+    d = 0.0d0
 
     do e=1,pb%grid%nelem
-      print*,e,'     of',pb%grid%nelem
       do i=1,pb%grid%ngll
         do j=1,pb%grid%ngll
           k = pb%grid%ibool(i,j,e)
           do dof=1,pb%fields%ndof
-             ! DEVEL: This causes a segmentation fault if the problem is too big!
-             d(:,:,:) = 0.0d0
              d(i,j,dof) = 1.0d0
              call MAT_ELAST_f(f,d,pb%matwrk(e)%elast,pb%grid%hprime,pb%grid%hTprime,pb%grid%ngll,pb%fields%ndof)
-             KDiag(k,dof) = KDiag(k,dof) + f(i,j,dof)
+             invKDiag(k,dof) = invKDiag(k,dof) + f(i,j,dof)
+             d(i,j,dof) = 0.0d0
           enddo
-          invKDiag(k,dof) = 1/KDiag(k,dof)
         enddo
       enddo
     enddo
+
+    invKDiag = 1/invKDiag
 
   end subroutine MAT_diag_stiffness_init
 

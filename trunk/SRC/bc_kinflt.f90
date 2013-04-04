@@ -26,7 +26,7 @@ module bc_kinflt
     integer :: comp,oit,oitd,ounit,oix1,oixn,oixd
   end type 
 
-  public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_set, BC_kinflt_write
+  public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_apply, BC_kinflt_write
 
 contains
 
@@ -262,7 +262,7 @@ end subroutine bc_kinflt_init
 
 !=======================================================================
 !
-! Subroutine bc_kinflt_set 
+! Subroutine bc_kinflt_apply 
 !
 ! PURPOSE:	compute the fault boundary term B*T 
 ! 		with fault tractions T satisfying kinematic source boundary conditions,
@@ -278,9 +278,9 @@ end subroutine bc_kinflt_init
 !		Updated internal forces:
 !			MxA = MxA_pre + B*T
 !
-! SEE ALSO:	bc_dynflt::bc_dynflt_set
+! SEE ALSO:	bc_dynflt::bc_dynflt_apply
 !   
-subroutine bc_kinflt_set(bc,MxA,v,time)
+subroutine bc_kinflt_apply(bc,MxA,v,time)
 
   type(bc_kinflt_type), intent(inout) :: bc
   double precision, intent(in) :: v(:,:)
@@ -301,7 +301,7 @@ subroutine bc_kinflt_set(bc,MxA,v,time)
   MxA(bc%topo%node,ic) = MxA(bc%topo%node,ic) + bc%B*bc%T(:,ic)
  ! Tz component is assumed null
 
-end subroutine bc_kinflt_set
+end subroutine bc_kinflt_apply
 
 
 !=====================================================================

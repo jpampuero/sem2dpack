@@ -6,7 +6,7 @@ module bc_gen
 !!     It should contain the following:
 !!      . subroutine BC_USER_read : reads boundary condition parameters from main input file
 !!      . subroutine BC_USER_init : initializes properties and data
-!!      . subroutine BC_USER_set : applies the boundary condition during the solver phase
+!!      . subroutine BC_USER_apply : applies the boundary condition during the solver phase
 !!   2. Modify bc_gen.f90 (this file) following the instructions
 !!      and templates in the comments that start by "!!"
 !!   3. Modify the file Makefile.depend
@@ -49,7 +49,7 @@ module bc_gen
                         IS_DYNFLT = 6
                         !! IS_USER = 7
 
-  public :: bc_type,bc_read,bc_set,bc_init,bc_write,bc_zero
+  public :: bc_type,bc_read,bc_apply,bc_init,bc_write,bc_set
 
 contains
 
@@ -253,7 +253,7 @@ end subroutine bc_init
 
 !=======================================================================
 !! Applies the boundary condition
-subroutine bc_set(bc,time,fields,field)
+subroutine bc_apply(bc,time,fields,field)
 
   use sources, only: source_type
   use fields_class, only: fields_type
@@ -270,41 +270,41 @@ subroutine bc_set(bc,time,fields,field)
  ! apply first periodic, then absorbing, then the rest
  ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
   do i = 1,size(bc)
-    if ( bc(i)%kind == IS_PERIOD) call bc_set_single(bc(i))
+    if ( bc(i)%kind == IS_PERIOD) call bc_apply_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind == IS_ABSORB) call bc_set_single(bc(i))
+    if ( bc(i)%kind == IS_ABSORB) call bc_apply_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_set_single(bc(i))
+    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_apply_single(bc(i))
   enddo
     
 contains
 
-  subroutine bc_set_single(bc)
+  subroutine bc_apply_single(bc)
 
     type(bc_type), intent(inout) :: bc
 
     select case(bc%kind)
       case(IS_DIRNEU)
-        call bc_DIRNEU_set(bc%dirneu,field,time)
+        call bc_DIRNEU_apply(bc%dirneu,field,time)
       case(IS_KINFLT)
-        call bc_KINFLT_set(bc%kinflt,fields%accel,fields%veloc,time)
+        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
       case(IS_ABSORB)
-        call BC_ABSO_set(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
+        call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
-        call bc_perio_set(bc%perio,field)
+        call bc_perio_apply(bc%perio,field)
       case(IS_LISFLT)
-        call BC_LSF_set(bc%lsf,fields%accel,fields%displ_alpha)
+        call BC_LSF_apply(bc%lsf,fields%accel,fields%displ_alpha)
       case(IS_DYNFLT)
-        call BC_DYNFLT_set(bc%dynflt,fields%accel,fields%veloc,fields%displ,time)
+        call BC_DYNFLT_apply(bc%dynflt,fields%accel,fields%veloc,fields%displ,time)
 !!      case(IS_USER)
-!!        call BC_USER_set(bc%user, ... )
+!!        call BC_USER_apply(bc%user, ... )
     end select
 
-  end subroutine bc_set_single
+  end subroutine bc_apply_single
   
-end subroutine bc_set
+end subroutine bc_apply
 
 
 !=======================================================================
@@ -336,14 +336,15 @@ subroutine BC_write(bc,itime,d,v)
 end subroutine BC_write
 
 !=======================================================================
-!! Sets the displacements along the boundary to be zero
-subroutine bc_zero(bc,fields,field_out)
+!! Sets the field along the boundary to a specific value
+subroutine bc_set(bc,field_in,input,field_out)
 
   use sources, only: source_type
   use fields_class, only: fields_type
 
   type(bc_type), pointer :: bc(:)
-  type (fields_type), intent(in) :: fields
+  double precision, intent(in) :: input
+  double precision, dimension(:,:), intent(in) :: field_in
   double precision, dimension(:,:), intent(out) :: field_out
 
   integer :: i
@@ -352,42 +353,42 @@ subroutine bc_zero(bc,fields,field_out)
  ! apply first periodic, then absorbing, then the rest
  ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
   do i = 1,size(bc)
-    if ( bc(i)%kind == IS_PERIOD) call bc_zero_single(bc(i))
+    if ( bc(i)%kind == IS_PERIOD) call bc_set_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind == is_absorb) call bc_zero_single(bc(i))
+    if ( bc(i)%kind == is_absorb) call bc_set_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_zero_single(bc(i))
+    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_set_single(bc(i))
   enddo
     
 contains
 
-  subroutine bc_zero_single(bc)
+  subroutine bc_set_single(bc)
 
     type(bc_type), intent(inout) :: bc
-    ! DEVEL these other zero functions will have to be created 
+    ! DEVEL these other set functions will have to be created 
     ! in their respective files.
     select case(bc%kind)
       case(IS_DIRNEU)
-        !call bc_DIRNEU_zero(bc%dirneu,fields%displ,field_out)
+        !call bc_DIRNEU_set(bc%dirneu,field_in,input,field_out)
       case(IS_KINFLT)
-        !call bc_KINFLT_zero(bc%kinflt,fields%displ,field_out)
+        !call bc_KINFLT_set(bc%kinflt,field_in,input,field_out)
       case(IS_ABSORB)
-        !call BC_ABSO_zero(bc%abso,fields%displ,field_out)
+        !call BC_ABSO_set(bc%abso,field_in,input,field_out)
       case(IS_PERIOD)
-        !call bc_perio_zero(bc%perio,fields%displ,field_out)
+        !call bc_perio_set(bc%perio,field_in,input,field_out)
       case(IS_LISFLT)
-        !call BC_LSF_zero(bc%lsf,fields%displ,field_out)
+        !call BC_LSF_set(bc%lsf,field_in,input,field_out)
       case(IS_DYNFLT)
-        call BC_DYNFLT_zero(bc%dynflt,fields%displ,field_out)
+        call BC_DYNFLT_set(bc%dynflt,field_in,input,field_out)
 !!      case(IS_USER)
-!!        call BC_USER_zero(bc%user,fields%displ,field_out)
+!!        call BC_USER_set(bc%user,field_in,input,field_out)
     end select
 
-  end subroutine bc_zero_single
+  end subroutine bc_set_single
   
-end subroutine bc_zero
+end subroutine bc_set
 
 
 

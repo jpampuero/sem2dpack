@@ -35,7 +35,7 @@ module bc_dynflt
     logical :: osides
   end type bc_dynflt_type
 
-  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_set, BC_DYNFLT_write, BC_DYNFLT_zero
+  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set
 
 contains
 
@@ -555,7 +555,7 @@ contains
 !! DEVEL: This subroutine needs significant modifications and refactoring
 !! for rate-and-state friction: a two-loop solver for second order accuracy
 
-  subroutine BC_DYNFLT_set(bc,MxA,V,D,time)
+  subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
 
   use stdio, only: IO_abort
   use constants, only : PI
@@ -666,7 +666,7 @@ contains
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
 
-  end subroutine BC_DYNFLT_set
+  end subroutine BC_DYNFLT_apply
 
 !---------------------------------------------------------------------
   function get_jump (bc,v) result(dv)
@@ -790,20 +790,21 @@ contains
   end subroutine export_side
 
 !=====================================================================
-  ! Sets the displacement on the boundary to be zero
+  ! Sets the displacement on the boundary to a specific value
 
-  subroutine BC_DYNFLT_zero(bc,D,D_zero)
+  subroutine BC_DYNFLT_set(bc,field_in,input,field_out)
    
   use stdio, only: IO_abort
   
   type(bc_dynflt_type), intent(in) :: bc
-  double precision, intent(in) :: D(:,:)
-  double precision, dimension(:,:), intent(out) :: D_zero
+  double precision, intent(in) :: field_in(:,:)
+  double precision, intent(in) :: input
+  double precision, dimension(:,:), intent(out) :: field_out
   
-  D_zero = D
-  D_zero(bc%node1,:) = 0.0d0
+  field_out = field_in
+  field_out(bc%node1,:) = input
 
-  end subroutine BC_DYNFLT_zero
+  end subroutine BC_DYNFLT_set
 
 !=====================================================================
   function BC_DYNFLT_potency(bc,d) result(p)

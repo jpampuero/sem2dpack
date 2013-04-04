@@ -6,7 +6,7 @@ module solver
   use problem_class
   use stdio, only : IO_Abort
   use sources, only : SO_add
-  use bc_gen , only : BC_set, BC_zero
+  use bc_gen , only : BC_apply, BC_set
 
   implicit none
   private
@@ -68,10 +68,10 @@ subroutine solve_Newmark(pb)
   call SO_add(pb%src, pb%time%time, f)
 
  !-- Apply boundary conditions
-  call BC_set(pb%bc,pb%time%time,pb%fields,f)
+  call BC_apply(pb%bc,pb%time%time,pb%fields,f)
 
  ! NOTE: if a source is an incident wave, it is not added during
- !       "call SO_add" but during "call BC_set"
+ !       "call SO_add" but during "call BC_apply"
  !       Incident waves must be used with absorbing boundaries
 
  !-- Divide by mass matrix
@@ -115,7 +115,7 @@ subroutine solve_HHT_alpha(pb)
   call compute_Fint(f,d_alpha,v_alpha,pb)
   t_alpha = pb%time%time +(alpha-1.d0)*dt
   call SO_add(pb%src, t_alpha, f)
-  call BC_set(pb%bc,t_alpha,pb%fields,f)
+  call BC_apply(pb%bc,t_alpha,pb%fields,f)
   a = f*pb%rmass
 
   v = v + gamma*dt*a
@@ -148,7 +148,7 @@ subroutine solve_leapfrog(pb)
    
   call compute_Fint(f,d,v_mid,pb)
   call SO_add(pb%src, pb%time%time, f)
-  call BC_set(pb%bc,pb%time%time,pb%fields,f)
+  call BC_apply(pb%bc,pb%time%time,pb%fields,f)
 
   a = pb%rmass * f
   v_mid = v_mid + pb%time%dt * a 
@@ -200,58 +200,62 @@ end subroutine solve_symplectic
 !        in acceleration form
 subroutine solve_quasi_static(pb)
   type(problem_type), intent(inout) :: pb
-  !type(problem_type), pointer :: pb_pointer
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v, v_f0, v_f1
-  double precision :: tolerance, v_plate
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
+  double precision, parameter :: tolerance = 10.0d-5
+  double precision :: plate_rate
   integer :: i
  
   ! store initial 
-  v_plate = (2.0d-3)/(365*24*60*60)
+  plate_rate = (2.0d-3)/(365*24*60*60) !DEVEL Trevor: ad hoc 
   v_pre = pb%fields%veloc
   d_pre = pb%fields%displ
-
-  v_f0 = v_pre + v_plate
-  pb%fields%veloc = v_f0
+ 
+  ! create field with plate velocity on fault, zeros in medium
+  call BC_set(pb%bc, v_pre, 0.0d0, v_plate)
+  v_f0 = v_pre - v_plate 
+  call BC_set(pb%bc, v_f0, plate_rate, v_plate)
   
-  do i = 1,2
+  ! add plate velocity to fault
+  pb%fields%veloc = pb%fields%veloc + v_plate 
+  v_f0 = pb%fields%veloc
+
+  do i=1,2
+    ! correct velocity for improved estimate and
     ! make prediction of all displacements 
-    d = pb%fields%displ + pb%time%dt*v_pre
-    
+    pb%fields%veloc = 0.5*(v_f0 + pb%fields%veloc)
+    d = d_pre + pb%time%dt*pb%fields%veloc
+   
     ! set displacements in medium to be zero
-    call BC_zero(pb%bc, pb%fields, d_medium)
+    call BC_set(pb%bc, d, 0.0d0, d_medium)
     d_fault = d - d_medium
                   
-    ! solve for forces, finding K_{21}d^f
-    call compute_Fint(f, d_fault, v_pre, pb)
+    ! solve for forces created by d_fault, finding K_{21}d^f 
+    ! (v_pre doesn't influence force, just energy, which isn't used)
+    call compute_Fint(f, d_fault, pb%fields%veloc, pb)
     f = -f
 
-    ! use previous displacements as initial guess for displacements in medium 
-    ! and compute resulting forces 
-    call BC_zero(pb%bc, pb%fields, d_medium)
-    
-    ! input the initial guess and the function that computes K*d into the
-    ! (preconditioned) conjugate gradient method solver
-    tolerance = 10.0d-5
-    !call cg_solver(d_medium, f, pb, tolerance)
-    print*,'pcg'
-    call pcg_solver(d_medium, f, pb, tolerance)
+    ! inputting the previous displacements as the initial guess into
+    ! (preconditioned) conjugate gradient method solver for the 
+    ! displacements in the medium
+    call BC_set(pb%bc, pb%fields%displ, 0.0d0, d_medium)
+    call cg_solver(d_medium, f, pb, tolerance)
     
     ! combine displacements and calculate forces
     d = d_fault + d_medium
-    call compute_Fint(f, d, v_pre, pb)
+    call compute_Fint(f, d, pb%fields%veloc, pb)
 
-    ! apply boundary conditions
-    call BC_set(pb%bc, pb%time%time, pb%fields, f)
+    ! apply boundary conditions 
+    call BC_apply(pb%bc, pb%time%time, pb%fields, f)
     
-    ! correct estimate of velocity
-    pb%fields%veloc = (v_f0 + pb%fields%veloc)/2
-
-    ! calculate final displacements 
-    d = pb%fields%displ + 0.5d0*pb%time%dt*(v_f1 + pb%fields%veloc)
-  
   enddo
 
+  ! subtract plate velocity from fault for delta v 
+  pb%fields%veloc = pb%fields%veloc - v_plate
+
+  ! store final displacements
+  pb%fields%displ = d
+  
 end subroutine solve_quasi_static
 
 !=====================================================================
@@ -316,7 +320,7 @@ subroutine cg_solver(d, f, pb, tolerance)
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p
   double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
   double precision :: norm_f
-  integer, parameter :: maxIterations=4000
+  integer, parameter :: maxIterations=10000
   integer :: it  
  
   norm_f = norm2(f)
@@ -325,26 +329,26 @@ subroutine cg_solver(d, f, pb, tolerance)
   p = r_new
 
   do it=1,maxIterations
-    print*,it
+    !print*,it ! DEVEL Trevor: temp print-out
     ! compute stiffness*p for later steps
     call compute_Fint(K_p,p,pb%fields%veloc,pb)
     ! find step length
     alpha_n = matmul(transpose(r_new),r_new)
     alpha_d = matmul(transpose(p),K_p)
     alpha = alpha_n/alpha_d
-    print*,'alpha',alpha
+    !print*,'alpha',alpha ! DEVEL Trevor: temp print-out
     ! determine approximate solution
     d = d + matmul(K_p,alpha)
     ! test if within tolerance
-    print*,'|r_new|',norm2(r_new)
-    print*,'|r_new|/|f|',norm2(r_new)/norm_f
+    !print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
+    !print*,'|r_new|/|f|',norm2(r_new)/norm_f ! DEVEL Trevor: temp print-out
     if (norm2(r_new)/norm_f < tolerance) return
     ! find the residual
     r_new = r_new - matmul(K_p,alpha)
     ! improve the step
     beta_d = matmul(transpose(r_old),r_old)
     beta = alpha_n/beta_d
-    print*,'beta',beta
+    !print*,'beta',beta ! DEVEL Trevor: temp print-out
     ! search direction
     p = r_new + matmul(p,beta)
     ! store old residual
@@ -355,7 +359,7 @@ subroutine cg_solver(d, f, pb, tolerance)
 
 end subroutine cg_solver
 
-! DEVEL: not finished yet!  - invKDiag needs to be integrated.
+! DEVEL: not finished yet!
 subroutine pcg_solver(d, f, pb, tolerance)
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(in) :: f
@@ -373,25 +377,34 @@ subroutine pcg_solver(d, f, pb, tolerance)
   call compute_Fint(K_p,d,pb%fields%veloc,pb)
   r_new = f - K_p
   r_old = r_new 
-  z_new = matmul(pb%invKDiag,r_new)
+  z_new = matmul(transpose(pb%invKDiag),r_new)
   z_old = z_new
   p = z_new
-
+  
   do it=1,maxIterations
+    print*,it ! DEVEL Trevor: temp print-out
+    ! compute stiffness*p for later steps
+    call compute_Fint(K_p,p,pb%fields%veloc,pb)
+    ! find step length
+    alpha_n = matmul(transpose(r_new),r_new)
+    alpha_d = matmul(transpose(p),K_p)
+    alpha = alpha_n/alpha_d
+    print*,'alpha',alpha ! DEVEL Trevor: temp print-out
     ! determine approximate solution
     d = d + matmul(K_p,alpha)
     ! test if within tolerance
-    print*,'|r_new|',norm2(r_new)
-    print*,'|f|',norm_f
-    print*,'|r_new|/|f|',norm2(r_new)/norm_f
+    print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
+    print*,'|f|',norm_f ! DEVEL Trevor: temp print-out
+    print*,'|r_new|/|f|',norm2(r_new)/norm_f! DEVEL Trevor: temp print-out
     if (norm2(r_new)/norm_f < tolerance) return
+    if (norm2(r_new)/norm_f > 10.0d10) call IO_Abort('Preconditioned Conjugate Gradient does not converge')
     ! find the residual
     r_new = r_new - matmul(K_p,alpha)
-    z_new = matmul(pb%invKDiag,r_new)
+    z_new = matmul(transpose(pb%invKDiag),r_new)
     ! improve the step
     beta_d = matmul(transpose(z_old),r_old)
     beta = alpha_n/beta_d
-    print*,'beta',beta
+    print*,'beta',beta ! DEVEL Trevor: temp print-out
     ! search direction
     p = r_new + matmul(p,beta)
     ! store old residual
@@ -399,7 +412,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
     z_old = z_new
   enddo
   
-  call IO_Abort('Conjugate Gradient does not converge')
+  call IO_Abort('Preconditioned Conjugate Gradient does not converge')
   
 end subroutine pcg_solver
 
