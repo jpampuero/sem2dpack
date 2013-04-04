@@ -20,7 +20,7 @@ module bc_dirneu
 
   integer,parameter :: IS_NEUMANN=1, IS_DIRICHLET=2
 
-  public :: BC_DIRNEU_type, BC_DIRNEU_read, BC_DIRNEU_init, BC_DIRNEU_set
+  public :: BC_DIRNEU_type, BC_DIRNEU_read, BC_DIRNEU_init, BC_DIRNEU_apply
 
 contains
 
@@ -144,7 +144,7 @@ end subroutine bc_DIRNEU_init
 
 !=======================================================================
 !
-subroutine bc_DIRNEU_set(bc,field,t)
+subroutine bc_DIRNEU_apply(bc,field,t)
 
   type(bc_DIRNEU_type), intent(in) :: bc
   double precision, intent(inout) :: field(:,:)
@@ -164,6 +164,6 @@ subroutine bc_DIRNEU_set(bc,field,t)
     field(bc%topo%node,2) = field(bc%topo%node,2) + STF_get(bc%vstf,t)*bc%B
   endif
 
-end subroutine bc_DIRNEU_set
+end subroutine bc_DIRNEU_apply
 
 end module bc_DIRNEU

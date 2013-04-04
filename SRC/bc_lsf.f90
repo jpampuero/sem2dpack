@@ -14,7 +14,7 @@ module bc_lsf
 
   double precision, parameter :: inf = huge(inf)
 
-  public :: BC_LSF_type, BC_LSF_read, BC_LSF_init, BC_LSF_set
+  public :: BC_LSF_type, BC_LSF_read, BC_LSF_init, BC_LSF_apply
 
 contains
 
@@ -155,7 +155,7 @@ contains
 ! NOTE: possible periodicity does not need to be enforced at this level
 !       because it is assumed that MxA and D are already periodic
 !
-  subroutine BC_LSF_set(bc,MxA,D)
+  subroutine BC_LSF_apply(bc,MxA,D)
 
   type(bc_lsf_type), intent(in) :: bc
   double precision, intent(in) :: D(:,:)
@@ -194,7 +194,7 @@ contains
   MxA(bc%bc1%node,:) = MxA(bc%bc1%node,:) + bc%B*T
   MxA(bc%bc2%node,:) = MxA(bc%bc2%node,:) - bc%B*T
 
-  end subroutine BC_LSF_set
+  end subroutine BC_LSF_apply
 
 
 !---------------------------------------------------------------------

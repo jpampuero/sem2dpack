@@ -44,7 +44,7 @@ module bc_abso
     logical :: stacey,periodic,let_wave,is_flat
   end type
 
-  public :: BC_ABSO_type, BC_ABSO_read, BC_ABSO_init, BC_ABSO_set
+  public :: BC_ABSO_type, BC_ABSO_read, BC_ABSO_init, BC_ABSO_apply
     
 contains
 
@@ -282,7 +282,7 @@ contains
 !     T = T_i - C*V_d
 !       = T_i - C*( V-V_i )
 
-  subroutine BC_ABSO_set(bc,D,V,MxA,time)
+  subroutine BC_ABSO_apply(bc,D,V,MxA,time)
 
   type(bc_abso_type) , intent(in)    :: bc
   double precision, intent(inout) :: MxA(:,:)
@@ -331,6 +331,6 @@ contains
     deallocate(KxD)
   endif
 
-  end subroutine BC_ABSO_set
+  end subroutine BC_ABSO_apply
 
 end module bc_abso
