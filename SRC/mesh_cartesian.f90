@@ -15,8 +15,9 @@ module mesh_cartesian
 
   type mesh_cart_type
     private
-    double precision :: xmin,xmax,zmin,zmax
+    double precision :: xmin,xmax,zmin,zmax,splitD
     integer :: ndom,nz,nx,ezflt,fztag,fznz
+    logical :: split
     type (domain_type), pointer :: domains(:) 
   end type mesh_cart_type
 
@@ -48,15 +49,17 @@ contains
 ! ARG: fztag    [int][0] fault zone tag for elements close to the fault
 !                Useful to set a damping layer near the fault.
 !                If ezflt=0, a fault is assumed at the bottom boundary
+! ARG: split    [log][F] splits the bottom boundary into two segments.
+! ARG: splitD   [dble(2)][none] X distance that splits bottom boundary
 ! ARG: fznz     [int][1] vertical size (number of elements) of near-fault layer
-! ARG: FaultX   [log] [F] Same as ezflt=-1. Obsolete (will be deprecated) 
+! ARG: FaultX   [log][F] Same as ezflt=-1. Obsolete (will be deprecated) 
 !
 ! NOTE: the following tags are automatically assigned to the boundaries: 
-!               1       Bottom 
+!               1       Bottom or Bottom Right
 !               2       Right        
 !               3       Top  
 !               4       Left
-!               5       Fault, bottom side
+!               5       Fault, bottom side or Bottom Left
 !               6       Fault, top side
 !
 ! END INPUT BLOCK
@@ -88,11 +91,11 @@ subroutine CART_read(mesh,iin)
   type(mesh_cart_type), intent(out) :: mesh
   integer, intent(in) :: iin
 
-  double precision :: init_double,xlim(2),zlim(2)
+  double precision :: init_double,xlim(2),zlim(2), splitD
   integer :: nelem(2),ezflt,nx,nz,tag,ex(2),ez(2),n_domains,i,fztag,fznz
-  logical :: FaultX
+  logical :: FaultX,split
 
-  NAMELIST / MESH_CART /  xlim,zlim,nelem,FaultX,ezflt,fztag,fznz
+  NAMELIST / MESH_CART /  xlim,zlim,nelem,FaultX,ezflt,split,fztag,fznz,splitD
   NAMELIST / MESH_CART_DOMAIN / tag,ex,ez
 
   init_double = huge(init_double)
@@ -103,6 +106,8 @@ subroutine CART_read(mesh,iin)
   ezflt = 0
   fztag = 0
   fznz = 1
+  splitD = init_double
+  split = .false.
   
   rewind(iin)
   read(iin,MESH_CART,END=100)
@@ -119,11 +124,17 @@ subroutine CART_read(mesh,iin)
   if (ezflt <-1) call IO_abort('CART_read: ezflt must be >= -1')
   if (fztag<0) call IO_abort('MESH_LAYERS_read: fztag must be positive')
   if (fznz<1) call IO_abort('MESH_LAYERS_read: fznz must be strictly positive')
+  if (split) then
+    if ( (splitD < xlim(1)) .or. (splitD > xlim(2))) then
+      call IO_abort('CART_read: splitD must be in xlim range')
+    endif
+  endif
 
   if (echo_input) then
     write(iout,200) xlim, zlim, nelem
     if (ezflt>0) write(iout,210) ezflt
     if (fztag>0) write(iout,230) fztag,fznz
+    if (split) write(iout,250) splitD
   endif
 
   mesh%xmin = xlim(1)
@@ -135,7 +146,9 @@ subroutine CART_read(mesh,iin)
   mesh%ezflt = ezflt
   mesh%fztag = fztag
   mesh%fznz = fznz
-
+  mesh%split = split 
+  mesh%splitD = splitD
+ 
  ! Count the domains
   rewind(iin)
   n_domains = 0
@@ -197,6 +210,10 @@ subroutine CART_read(mesh,iin)
 230 format(5x, &
       'Tag for elements in fault zone  . . . . (fztag) = ',I0,/5x, &
       'Vertical nb of elements in fault zone . .(fznz) = ',I0)
+if (split) then
+  250 format(5x, &
+        'Splitting the fault at . . . . . . . . (splitD) = ',1pe10.3,/5x)
+endif
 
 end subroutine CART_read
 
@@ -216,7 +233,7 @@ subroutine CART_build(mesh,grid)
   type(fem_grid_type), intent(inout) :: grid
 
   double precision, allocatable :: x(:),z(:)
-  integer :: nxp,nzp,i,j,j1,j2,ilast,ifirst,idom
+  integer :: nxp,nzp,i,j,j1,j2,ilast,ifirst,idom,splitN
 
   nxp = mesh%nx+1 
   if (mesh%ezflt>0) then 
@@ -260,9 +277,9 @@ subroutine CART_build(mesh,grid)
   grid%tag = 0
   do idom=1,mesh%ndom
     do i=mesh%domains(idom)%ex(1),mesh%domains(idom)%ex(2)
-    do j=mesh%domains(idom)%ez(1),mesh%domains(idom)%ez(2)
-      grid%tag( sub2ind(i,j,mesh%nx) ) = mesh%domains(idom)%tag
-    enddo
+      do j=mesh%domains(idom)%ez(1),mesh%domains(idom)%ez(2)
+        grid%tag( sub2ind(i,j,mesh%nx) ) = mesh%domains(idom)%tag
+      enddo
     enddo
   enddo
  ! tag the elements near the fault
@@ -286,9 +303,15 @@ subroutine CART_build(mesh,grid)
   if (mesh%ezflt>0) then
     allocate(grid%bnds(6))
   else
-    allocate(grid%bnds(4))
+    if (mesh%split) then 
+      !call IO_abort('CART_build: split not fully incorporated')
+      splitN = int(floor(mesh%splitD/(mesh%xmax-mesh%xmin)/dble(mesh%nx)))
+      allocate(grid%bnds(5))  
+    else 
+      allocate(grid%bnds(4))
+    endif
   endif
-  call MESH_STRUCTURED_boundaries(grid%bnds,mesh%nx,mesh%nz,mesh%ezflt)
+  call MESH_STRUCTURED_boundaries(grid%bnds,mesh%nx,mesh%nz,mesh%ezflt,splitN)
 
  ! Renumber elements
   if (OPT_RENUMBER) call MESH_STRUCTURED_renumber(grid,mesh%nx,mesh%nz)

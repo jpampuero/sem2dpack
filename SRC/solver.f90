@@ -239,7 +239,7 @@ subroutine solve_quasi_static(pb)
     ! (preconditioned) conjugate gradient method solver for the 
     ! displacements in the medium
     call BC_set(pb%bc, pb%fields%displ, 0.0d0, d_medium)
-    call cg_solver(d_medium, f, pb, tolerance)
+    call pcg_solver(d_medium, f, pb, tolerance)
     
     ! combine displacements and calculate forces
     d = d_fault + d_medium
@@ -376,40 +376,47 @@ subroutine pcg_solver(d, f, pb, tolerance)
   norm_f = norm2(f)
   call compute_Fint(K_p,d,pb%fields%veloc,pb)
   r_new = f - K_p
-  r_old = r_new 
   z_new = matmul(transpose(pb%invKDiag),r_new)
-  z_old = z_new
   p = z_new
   
   do it=1,maxIterations
     print*,it ! DEVEL Trevor: temp print-out
+
     ! compute stiffness*p for later steps
     call compute_Fint(K_p,p,pb%fields%veloc,pb)
+
     ! find step length
-    alpha_n = matmul(transpose(r_new),r_new)
+    alpha_n = matmul(transpose(z_new),r_new)
     alpha_d = matmul(transpose(p),K_p)
     alpha = alpha_n/alpha_d
     print*,'alpha',alpha ! DEVEL Trevor: temp print-out
+
     ! determine approximate solution
     d = d + matmul(K_p,alpha)
+
     ! test if within tolerance
     print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
     print*,'|f|',norm_f ! DEVEL Trevor: temp print-out
     print*,'|r_new|/|f|',norm2(r_new)/norm_f! DEVEL Trevor: temp print-out
     if (norm2(r_new)/norm_f < tolerance) return
     if (norm2(r_new)/norm_f > 10.0d10) call IO_Abort('Preconditioned Conjugate Gradient does not converge')
-    ! find the residual
+
+    ! store old residual
+    r_old = r_new  
+    z_old = z_new
+
+    ! find new residual
     r_new = r_new - matmul(K_p,alpha)
     z_new = matmul(transpose(pb%invKDiag),r_new)
+
     ! improve the step
     beta_d = matmul(transpose(z_old),r_old)
     beta = alpha_n/beta_d
     print*,'beta',beta ! DEVEL Trevor: temp print-out
+
     ! search direction
     p = r_new + matmul(p,beta)
-    ! store old residual
-    r_old = r_new  
-    z_old = z_new
+
   enddo
   
   call IO_Abort('Preconditioned Conjugate Gradient does not converge')

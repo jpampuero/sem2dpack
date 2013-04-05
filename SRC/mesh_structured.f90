@@ -83,7 +83,7 @@ subroutine MESH_STRUCTURED_connectivity(knods,nx,nz,ngnod,ezflt)
 end subroutine MESH_STRUCTURED_connectivity
 
 !=====================================================================
-subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
+subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
 
   use fem_grid, only : edge_D,edge_R,edge_U,edge_L, & 
                        side_D,side_R,side_U,side_L
@@ -93,20 +93,44 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt)
   type(bnd_grid_type) :: bnds(:)
   integer, intent(in) :: nx,nz
   integer, intent(in), optional :: ezflt
+  integer, intent(in), optional :: splitN
 
   integer :: i,j
   integer, parameter :: fault_D = 5
   integer, parameter :: fault_U = 6
-
- ! Down
-  bnds(side_D)%tag = side_D
-  bnds(side_D)%nelem = nx
-  allocate(bnds(side_D)%elem(nx))
-  allocate(bnds(side_D)%edge(nx))
-  do i =1,nx
-    bnds(side_D)%elem(i) = sub2ind(i,1,nx)
-  enddo
-  bnds(side_D)%edge = edge_D
+  
+  if (present(splitN)) then
+    ! DEVEL Trevor: Not well tested
+    ! Down Left
+    bnds(fault_d)%tag = fault_D
+    bnds(fault_D)%nelem = splitN
+    allocate(bnds(fault_D)%elem(splitN))
+    allocate(bnds(fault_D)%edge(splitN))
+    do i = 1,splitN
+      bnds(fault_D)%elem(i) = sub2ind(i,1,splitN)
+    enddo
+    bnds(fault_D)%edge = edge_D
+ 
+    ! Down Right
+    bnds(side_D)%tag = side_D
+    bnds(side_D)%nelem = nx - splitN
+    allocate(bnds(side_D)%elem((nx-splitN)))
+    allocate(bnds(side_D)%edge((nx-splitN)))
+    do i = (splitN+1),nx
+      bnds(side_D)%elem(i) = sub2ind(i,(splitN+1),nx)
+    enddo
+    bnds(side_D)%edge = edge_D
+  else
+    ! Down
+    bnds(side_D)%tag = side_D
+    bnds(side_D)%nelem = nx
+    allocate(bnds(side_D)%elem(nx))
+    allocate(bnds(side_D)%edge(nx))
+    do i =1,nx
+      bnds(side_D)%elem(i) = sub2ind(i,1,nx)
+    enddo
+    bnds(side_D)%edge = edge_D
+  endif
 
  ! Right
   bnds(side_R)%tag = side_R
