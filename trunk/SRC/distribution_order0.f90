@@ -32,8 +32,10 @@ module distribution_order0
 !
 ! ARG: xn       [int] [none] Number of zones along X
 ! ARG: zn       [int] [none] Number of zones along Z
-! ARG: x        [dble(xn-1)] [none] Boundaries of X-zones: first zone X < x(1), 
-!                second zone x(1) < X < x(2), ... , last zone x(xn-1) < X
+! ARG: x        [dble(xn-1)] [none] Boundaries of X-zones: 
+!                first zone  X < x(1), 
+!                second zone x(1) < X < x(2), ... 
+!                last zone   x(xn-1) < X
 ! ARG: z        [dble(zn-1)] [none] Boundaries of Z-zones
 ! ARG: v        [dble(xn,zn)] [none] Values inside each zone
 !

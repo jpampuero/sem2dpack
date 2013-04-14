@@ -77,7 +77,6 @@ subroutine init_main(pb,InitFile)
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
 
  ! initialize physical parameters of all boundary conditions
- ! For faults: may reset the initial velocity
   if (info) write(iout,fmt1,advance='no') 'Defining boundary conditions'
   call BC_init(pb%bc,pb%grid,pb%matpro,pb%rmass,pb%time,pb%src,pb%fields%displ,pb%fields%veloc)
   if (info) write(iout,fmtok)
