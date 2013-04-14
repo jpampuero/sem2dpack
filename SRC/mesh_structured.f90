@@ -98,7 +98,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
   integer :: i,j
   integer, parameter :: fault_D = 5
   integer, parameter :: fault_U = 6
-  
+
   if (present(splitN)) then
     ! DEVEL Trevor: Not well tested
     ! Down Left
@@ -107,7 +107,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
     allocate(bnds(fault_D)%elem(splitN))
     allocate(bnds(fault_D)%edge(splitN))
     do i = 1,splitN
-      bnds(fault_D)%elem(i) = sub2ind(i,1,splitN)
+      bnds(fault_D)%elem(i) = sub2ind(i,1,nx)
     enddo
     bnds(fault_D)%edge = edge_D
  
@@ -116,8 +116,8 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
     bnds(side_D)%nelem = nx - splitN
     allocate(bnds(side_D)%elem((nx-splitN)))
     allocate(bnds(side_D)%edge((nx-splitN)))
-    do i = (splitN+1),nx
-      bnds(side_D)%elem(i) = sub2ind(i,(splitN+1),nx)
+    do i = 1, nx-splitN
+      bnds(side_D)%elem(i) = sub2ind(splitN+i,1,nx)
     enddo
     bnds(side_D)%edge = edge_D
   else
@@ -174,7 +174,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
       bnds(fault_U)%elem(i) = sub2ind(i,ezflt+1,nx)
     enddo
     bnds(fault_U)%edge = edge_D
-    
+
    ! Fault Down
     bnds(fault_D)%tag = fault_D
     bnds(fault_D)%nelem = nx
