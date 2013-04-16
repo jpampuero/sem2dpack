@@ -199,7 +199,9 @@ end subroutine solve_symplectic
 !        using quasi-static algorithm defined in Kaneko, et. al. 2011
 !        in acceleration form
 subroutine solve_quasi_static(pb)
+
   type(problem_type), intent(inout) :: pb
+
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
   double precision, parameter :: tolerance = 10.0d-5
