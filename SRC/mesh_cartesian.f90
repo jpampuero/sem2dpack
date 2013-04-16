@@ -210,10 +210,8 @@ subroutine CART_read(mesh,iin)
 230 format(5x, &
       'Tag for elements in fault zone  . . . . (fztag) = ',I0,/5x, &
       'Vertical nb of elements in fault zone . .(fznz) = ',I0)
-if (split) then
-  250 format(5x, &
-        'Splitting the fault at . . . . . . . . (splitD) = ',1pe10.3,/5x)
-endif
+250 format(5x, &
+      'Splitting the fault at . . . . . . . . (splitD) = ',1pe10.3,/5x)
 
 end subroutine CART_read
 
@@ -303,11 +301,11 @@ subroutine CART_build(mesh,grid)
   if (mesh%ezflt>0) then
     allocate(grid%bnds(6))
   else
-    if (mesh%split) then 
-      splitN = int(floor(mesh%splitD/(mesh%xmax-mesh%xmin)/dble(mesh%nx)))
+    splitN = 0
+    if (mesh%split) splitN = int(floor(mesh%splitD/(mesh%xmax-mesh%xmin)*dble(mesh%nx)))
+    if (splitN>0) then
       allocate(grid%bnds(5))  
     else 
-      splitN = 0
       allocate(grid%bnds(4))
     endif
   endif
