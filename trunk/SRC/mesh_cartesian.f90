@@ -304,10 +304,10 @@ subroutine CART_build(mesh,grid)
     allocate(grid%bnds(6))
   else
     if (mesh%split) then 
-      !call IO_abort('CART_build: split not fully incorporated')
       splitN = int(floor(mesh%splitD/(mesh%xmax-mesh%xmin)/dble(mesh%nx)))
       allocate(grid%bnds(5))  
     else 
+      splitN = 0
       allocate(grid%bnds(4))
     endif
   endif
