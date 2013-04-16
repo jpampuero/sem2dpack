@@ -98,8 +98,15 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
   integer :: i,j
   integer, parameter :: fault_D = 5
   integer, parameter :: fault_U = 6
+  logical :: split_bottom
 
   if (present(splitN)) then
+    split_bottom = (splitN>0)
+  else
+    split_bottom = .false.
+  endif
+
+  if (split_bottom) then
     ! DEVEL Trevor: Not well tested
     ! Down Left
     bnds(fault_d)%tag = fault_D
@@ -120,6 +127,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
       bnds(side_D)%elem(i) = sub2ind(splitN+i,1,nx)
     enddo
     bnds(side_D)%edge = edge_D
+
   else
     ! Down
     bnds(side_D)%tag = side_D
