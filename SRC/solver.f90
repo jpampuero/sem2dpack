@@ -249,7 +249,6 @@ subroutine solve_quasi_static(pb)
 
     ! apply boundary conditions 
     call BC_apply(pb%bc, pb%time%time, pb%fields, f)
-    
   enddo
 
   ! subtract plate velocity from fault for delta v 
@@ -345,6 +344,7 @@ subroutine cg_solver(d, f, pb, tolerance)
     !print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
     !print*,'|r_new|/|f|',norm2(r_new)/norm_f ! DEVEL Trevor: temp print-out
     if (norm2(r_new)/norm_f < tolerance) return
+    if (norm2(r_new)/norm_f > 10.0d10) call IO_Abort('Conjugate Gradient does not converge')
     ! find the residual
     r_new = r_new - matmul(K_p,alpha)
     ! improve the step

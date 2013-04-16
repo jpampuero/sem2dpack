@@ -100,16 +100,18 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
   integer, parameter :: fault_U = 6
   logical :: split_bottom
 
+  split_bottom = .false.
   if (present(splitN)) then
-    split_bottom = (splitN>0)
-  else
-    split_bottom = .false.
+    if (splitN>0) then
+      print*,'splitN = ',splitN
+      split_bottom = .true.
+    endif
   endif
 
   if (split_bottom) then
     ! DEVEL Trevor: Not well tested
     ! Down Left
-    bnds(fault_d)%tag = fault_D
+    bnds(fault_D)%tag = fault_D
     bnds(fault_D)%nelem = splitN
     allocate(bnds(fault_D)%elem(splitN))
     allocate(bnds(fault_D)%edge(splitN))
@@ -172,7 +174,7 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
 
   if (present(ezflt)) then
   if (ezflt>0) then
-
+    print*,'Ezflt = ',ezflt
    ! Fault Up: 
     bnds(fault_U)%tag = fault_U
     bnds(fault_U)%nelem = nx
