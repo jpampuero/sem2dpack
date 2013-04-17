@@ -124,11 +124,8 @@ subroutine CART_read(mesh,iin)
   if (ezflt <-1) call IO_abort('CART_read: ezflt must be >= -1')
   if (fztag<0) call IO_abort('MESH_LAYERS_read: fztag must be positive')
   if (fznz<1) call IO_abort('MESH_LAYERS_read: fznz must be strictly positive')
-  if (split) then
-    if ( (splitD < xlim(1)) .or. (splitD > xlim(2))) then
-      call IO_abort('CART_read: splitD must be in xlim range')
-    endif
-  endif
+  if (split .and. ( splitD < xlim(1) .or. splitD > xlim(2) ) &
+    call IO_abort('CART_read: splitD must be in xlim range')
 
   if (echo_input) then
     write(iout,200) xlim, zlim, nelem
@@ -302,7 +299,7 @@ subroutine CART_build(mesh,grid)
     allocate(grid%bnds(6))
   else
     splitN = 0
-    if (mesh%split) splitN = int(floor(mesh%splitD/(mesh%xmax-mesh%xmin)*dble(mesh%nx)))
+    if (mesh%split) splitN = floor( (mesh%splitD-mesh%xmin)/(mesh%xmax-mesh%xmin)*mesh%nx )
     if (splitN>0) then
       allocate(grid%bnds(5))  
     else 

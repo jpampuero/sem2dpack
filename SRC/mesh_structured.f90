@@ -102,14 +102,10 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
 
   split_bottom = .false.
   if (present(splitN)) then
-    if (splitN>0) then
-      print*,'splitN = ',splitN
-      split_bottom = .true.
-    endif
+    if (splitN>0) split_bottom = .true.
   endif
 
   if (split_bottom) then
-    ! DEVEL Trevor: Not well tested
     ! Down Left
     bnds(fault_D)%tag = fault_D
     bnds(fault_D)%nelem = splitN
@@ -174,7 +170,6 @@ subroutine MESH_STRUCTURED_boundaries(bnds,nx,nz,ezflt,splitN)
 
   if (present(ezflt)) then
   if (ezflt>0) then
-    print*,'Ezflt = ',ezflt
    ! Fault Up: 
     bnds(fault_U)%tag = fault_U
     bnds(fault_U)%nelem = nx
