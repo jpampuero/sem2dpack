@@ -47,7 +47,7 @@ EXEC = $(HOME)/bin/sem2dsolve
 #OPT = 
 F90 = gfortran
 OPT = -O3 -Wall
-#OPT = -O3 
+#OPT = -O0 -Wall -g -fbacktrace -fbounds-check
 
 #-- Intel Fortran --
 #F90 = ifort
