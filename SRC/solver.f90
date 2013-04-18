@@ -235,6 +235,7 @@ subroutine solve_quasi_static(pb)
     ! (v_pre doesn't influence force, just energy, which isn't used)
     call compute_Fint(f, d_fault, pb%fields%veloc, pb)
     f = -f
+    call BC_set(pb%bc, f, 0.0d0, f) 
 
     ! inputting the previous displacements as the initial guess into
     ! (preconditioned) conjugate gradient method solver for the 
@@ -247,7 +248,7 @@ subroutine solve_quasi_static(pb)
     call compute_Fint(f, d, pb%fields%veloc, pb)
 
     ! apply boundary conditions 
-    call BC_apply(pb%bc, pb%time%time, pb%fields, f)
+    call BC_apply(pb%bc, pb%time%time, pb%fields, f) !DEVEL jpa: we need a new friction solver here
   enddo
 
   ! subtract plate velocity from fault for delta v 
@@ -363,12 +364,12 @@ end subroutine cg_solver
 
 ! DEVEL: not finished yet!
 subroutine pcg_solver(d, f, pb, tolerance)
+
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(in) :: f
   double precision, intent(in) :: tolerance
   type(problem_type), intent(inout) :: pb
 
-  ! internal variables
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
   double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
   double precision :: norm_f, norm_r
@@ -377,6 +378,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
 
   norm_f = norm2(f)
   call compute_Fint(K_p,d,pb%fields%veloc,pb)
+  call BC_set(pb%bc, K_p, 0.0d0, K_p) 
   r = f - K_p
   z = pb%invKDiag * r
   p = z
@@ -386,6 +388,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
 
     ! compute stiffness*p for later steps
     call compute_Fint(K_p,p,pb%fields%veloc,pb)
+    call BC_set(pb%bc, K_p, 0.0d0, K_p) 
 
     ! find step length
     alpha_n = sum(z*r)
