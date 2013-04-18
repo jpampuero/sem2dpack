@@ -319,7 +319,7 @@ subroutine cg_solver(d, f, pb, tolerance)
   ! internal variables
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p
   double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
-  double precision :: norm_f
+  double precision :: norm_f,norm_r
   integer, parameter :: maxIterations=10000
   integer :: it  
  
@@ -342,8 +342,9 @@ subroutine cg_solver(d, f, pb, tolerance)
     ! test if within tolerance
     !print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
     !print*,'|r_new|/|f|',norm2(r_new)/norm_f ! DEVEL Trevor: temp print-out
-    if (norm2(r_new)/norm_f < tolerance) return
-    if (norm2(r_new)/norm_f > 10.0d10) call IO_Abort('Conjugate Gradient does not converge')
+    norm_r = norm2(r_new)
+    if (norm_r/norm_f < tolerance) return
+    if (norm_r/norm_f > 10.0d10) call IO_Abort('Conjugate Gradient does not converge')
     ! find the residual
     r_new = r_new - matmul(K_p,alpha)
     ! improve the step
@@ -368,17 +369,17 @@ subroutine pcg_solver(d, f, pb, tolerance)
   type(problem_type), intent(inout) :: pb
 
   ! internal variables
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r_new, r_old, p, K_p, z_new, z_old
-  double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_d, beta
-  double precision :: norm_f
+  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
+  double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
+  double precision :: norm_f, norm_r
   integer, parameter :: maxIterations=4000
   integer :: it  
 
   norm_f = norm2(f)
   call compute_Fint(K_p,d,pb%fields%veloc,pb)
-  r_new = f - K_p
-  z_new = matmul(transpose(pb%invKDiag),r_new)
-  p = z_new
+  r = f - K_p
+  z = pb%invKDiag * r
+  p = z
   
   do it=1,maxIterations
     print*,it ! DEVEL Trevor: temp print-out
@@ -387,36 +388,36 @@ subroutine pcg_solver(d, f, pb, tolerance)
     call compute_Fint(K_p,p,pb%fields%veloc,pb)
 
     ! find step length
-    alpha_n = matmul(transpose(z_new),r_new)
-    alpha_d = matmul(transpose(p),K_p)
+    alpha_n = sum(z*r)
+    alpha_d = sum(p*K_p)
     alpha = alpha_n/alpha_d
     print*,'alpha',alpha ! DEVEL Trevor: temp print-out
 
     ! determine approximate solution
-    d = d + matmul(K_p,alpha)
-
-    ! test if within tolerance
-    print*,'|r_new|',norm2(r_new) ! DEVEL Trevor: temp print-out
-    print*,'|f|',norm_f ! DEVEL Trevor: temp print-out
-    print*,'|r_new|/|f|',norm2(r_new)/norm_f! DEVEL Trevor: temp print-out
-    if (norm2(r_new)/norm_f < tolerance) return
-    if (norm2(r_new)/norm_f > 10.0d10) call IO_Abort('Preconditioned Conjugate Gradient does not converge')
-
-    ! store old residual
-    r_old = r_new  
-    z_old = z_new
+    !d = d + matmul(K_p,alpha) !JPA ???
+    d = d + alpha*p
 
     ! find new residual
-    r_new = r_new - matmul(K_p,alpha)
-    z_new = matmul(transpose(pb%invKDiag),r_new)
+    r = r - alpha*K_p
+
+    ! test if within tolerance
+    norm_r = norm2(r)
+    print*,'|r|',norm_r ! DEVEL Trevor: temp print-out
+    print*,'|f|',norm_f ! DEVEL Trevor: temp print-out
+    print*,'|r|/|f|',norm_r/norm_f! DEVEL Trevor: temp print-out
+    if (norm_r/norm_f < tolerance) return
+    if (norm_r/norm_f > 10.0d10) exit
+
+    z = pb%invKDiag * r
 
     ! improve the step
-    beta_d = matmul(transpose(z_old),r_old)
-    beta = alpha_n/beta_d
+    beta_n = sum(z*r)
+    beta_d = alpha_n
+    beta = beta_n/beta_d
     print*,'beta',beta ! DEVEL Trevor: temp print-out
 
     ! search direction
-    p = r_new + matmul(p,beta)
+    p = z + beta*p
 
   enddo
   
