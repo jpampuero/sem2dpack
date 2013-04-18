@@ -124,7 +124,7 @@ subroutine CART_read(mesh,iin)
   if (ezflt <-1) call IO_abort('CART_read: ezflt must be >= -1')
   if (fztag<0) call IO_abort('MESH_LAYERS_read: fztag must be positive')
   if (fznz<1) call IO_abort('MESH_LAYERS_read: fznz must be strictly positive')
-  if (split .and. ( splitD < xlim(1) .or. splitD > xlim(2) ) &
+  if (split .and. ( splitD < xlim(1) .or. splitD > xlim(2) ) ) &
     call IO_abort('CART_read: splitD must be in xlim range')
 
   if (echo_input) then
