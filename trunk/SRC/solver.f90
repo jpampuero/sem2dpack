@@ -214,8 +214,7 @@ subroutine solve_quasi_static(pb)
   d_pre = pb%fields%displ
  
   ! create field with plate velocity on fault, zeros in medium
-  call BC_set(pb%bc, v_pre, 0.0d0, v_plate)
-  v_f0 = v_pre - v_plate 
+  v_f0 = 0d0
   call BC_set(pb%bc, v_f0, plate_rate, v_plate)
   
   ! add plate velocity to fault

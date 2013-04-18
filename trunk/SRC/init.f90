@@ -121,12 +121,13 @@ subroutine init_main(pb,InitFile)
 
  ! required for quasi-static solution
  ! DEVEL only implemented in elastic material              
- if (pb%time%kind =='quasi-static') then
+  if (pb%time%kind =='quasi-static') then
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'
-    call MAT_diag_stiffness_init(pb%invKDiag,pb)
- endif
+    call MAT_diag_stiffness_init(pb)
+  endif
+
 end subroutine init_main
 
 !=======================================================================

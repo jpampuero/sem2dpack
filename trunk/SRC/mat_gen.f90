@@ -842,19 +842,18 @@ end subroutine MAT_stress_dv
 !=======================================================================
 ! finds the diagonal of the stiffness matrix, and stores its inverse
 
-  subroutine MAT_diag_stiffness_init(invKDiag,pb)
+  subroutine MAT_diag_stiffness_init(pb)
 
     use problem_class, only : problem_type
 
-    double precision, dimension(:,:), pointer, intent(inout) :: invKDiag
-    type(problem_type), intent(in) :: pb    
+    type(problem_type), intent(inout) :: pb    
 
     double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: d,f
     integer :: e, i, j, k, dof
     
-    allocate(invKDiag(pb%fields%npoin,pb%fields%ndof))
-    call storearray('invKDiag',size(invKDiag),idouble)
-    invKDiag = 0.d0
+    allocate(pb%invKDiag(pb%fields%npoin,pb%fields%ndof))
+    call storearray('invKDiag',size(pb%invKDiag),idouble)
+    pb%invKDiag = 0.d0
     d = 0.0d0
 
     do e=1,pb%grid%nelem
@@ -864,14 +863,14 @@ end subroutine MAT_stress_dv
           do dof=1,pb%fields%ndof
              d(i,j,dof) = 1.0d0
              call MAT_ELAST_f(f,d,pb%matwrk(e)%elast,pb%grid%hprime,pb%grid%hTprime,pb%grid%ngll,pb%fields%ndof)
-             invKDiag(k,dof) = invKDiag(k,dof) + f(i,j,dof)
+             pb%invKDiag(k,dof) = pb%invKDiag(k,dof) + f(i,j,dof)
              d(i,j,dof) = 0.0d0
           enddo
         enddo
       enddo
     enddo
 
-    invKDiag = 1d0/invKDiag
+    pb%invKDiag = 1d0/pb%invKDiag
 
   end subroutine MAT_diag_stiffness_init
 
