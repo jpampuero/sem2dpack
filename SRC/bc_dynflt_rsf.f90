@@ -22,7 +22,7 @@ module bc_dynflt_rsf
     type(rsf_input_type) :: input
   end type rsf_type
 
-  public :: rsf_type, rsf_read, rsf_init, rsf_mu, rsf_solver
+  public :: rsf_type, rsf_read, rsf_init, rsf_mu, rsf_solver, rsf_qs_solver
 
 contains
 
