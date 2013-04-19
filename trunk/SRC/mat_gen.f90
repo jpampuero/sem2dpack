@@ -842,35 +842,39 @@ end subroutine MAT_stress_dv
 !=======================================================================
 ! finds the diagonal of the stiffness matrix, and stores its inverse
 
-  subroutine MAT_diag_stiffness_init(pb)
+  subroutine MAT_diag_stiffness_init(invKDiag,g,f,matwrk)
 
-    use problem_class, only : problem_type
+  use spec_grid, only : sem_grid_type
+  use fields_class, only : fields_type
 
-    type(problem_type), intent(inout) :: pb    
+  double precision, dimension(:,:), pointer :: invKDiag
+  type(sem_grid_type), intent(in) :: g
+  type(fields_type), intent(in) :: f
+  type(matwrk_elem_type), intent(in) :: matwrk(:)
 
-    double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: d,f
-    integer :: e, i, j, k, dof
+  double precision, dimension(g%ngll,g%ngll,f%ndof) :: dloc,floc
+  integer :: e, i, j, k, dof
     
-    allocate(pb%invKDiag(pb%fields%npoin,pb%fields%ndof))
-    call storearray('invKDiag',size(pb%invKDiag),idouble)
-    pb%invKDiag = 0.d0
-    d = 0.0d0
+  allocate(invKDiag(f%npoin,f%ndof))
+  call storearray('invKDiag',size(invKDiag),idouble)
+  invKDiag = 0.d0
+  dloc = 0.0d0
 
-    do e=1,pb%grid%nelem
-      do j=1,pb%grid%ngll
-        do i=1,pb%grid%ngll
-          k = pb%grid%ibool(i,j,e)
-          do dof=1,pb%fields%ndof
-             d(i,j,dof) = 1.0d0
-             call MAT_ELAST_f(f,d,pb%matwrk(e)%elast,pb%grid%hprime,pb%grid%hTprime,pb%grid%ngll,pb%fields%ndof)
-             pb%invKDiag(k,dof) = pb%invKDiag(k,dof) + f(i,j,dof)
-             d(i,j,dof) = 0.0d0
-          enddo
-        enddo
-      enddo
+  do e=1,g%nelem
+  do j=1,g%ngll
+  do i=1,g%ngll
+    k = g%ibool(i,j,e)
+    do dof=1,f%ndof
+      dloc(i,j,dof) = 1.0d0
+      call MAT_ELAST_f(floc,dloc,matwrk(e)%elast,g%hprime,g%hTprime,g%ngll,f%ndof)
+      invKDiag(k,dof) = invKDiag(k,dof) + floc(i,j,dof)
+      dloc(i,j,dof) = 0.0d0
     enddo
+  enddo
+  enddo
+  enddo
 
-    pb%invKDiag = 1d0/pb%invKDiag
+  invKDiag = 1d0/invKDiag
 
   end subroutine MAT_diag_stiffness_init
 
