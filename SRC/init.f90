@@ -125,7 +125,7 @@ subroutine init_main(pb,InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'
-    call MAT_diag_stiffness_init(pb)
+    call MAT_diag_stiffness_init(pb%invKDiag,pb%grid,pb%fields,pb%matwrk)
   endif
 
 end subroutine init_main

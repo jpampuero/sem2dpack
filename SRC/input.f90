@@ -106,7 +106,7 @@ contains
   character(10) :: iexecname
   character(4) :: verbose
 
-  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo &
+  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo, &
                        abort_on_warnings
 
   iexec = 0
