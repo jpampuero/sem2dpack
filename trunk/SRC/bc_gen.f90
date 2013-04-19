@@ -257,10 +257,11 @@ subroutine bc_apply(bc,time,fields,field)
 
   use sources, only: source_type
   use fields_class, only: fields_type
+  use time_evol, only : timescheme_type
 
   type(bc_type), pointer :: bc(:)
-  double precision, intent(in) :: time
   type (fields_type), intent(inout) :: fields
+  type(timescheme_type), intent(in) :: time
   double precision, dimension(:,:), intent(inout) :: field
 
   integer :: i

@@ -4,6 +4,7 @@ module bc_kinflt
 
   use bnd_grid, only : bnd_grid_type
   use distribution_cd
+  use time_evol, only : timescheme_type
   use stf_gen
 
   implicit none
@@ -285,7 +286,7 @@ subroutine bc_kinflt_apply(bc,MxA,v,time)
   type(bc_kinflt_type), intent(inout) :: bc
   double precision, intent(in) :: v(:,:)
   double precision, intent(inout) :: MxA(:,:)
-  double precision, intent(in) :: time
+  type(timescheme_type), intent(in) :: time
 
   integer :: i,ic
 
@@ -294,7 +295,7 @@ subroutine bc_kinflt_apply(bc,MxA,v,time)
  ! prescribed velocity (kinematic source)
   ic = bc%comp
   do i=1,bc%topo%npoin
-    bc%V(i,ic) = bc%slipr(i)*STF_get(bc%stf,(time-bc%trup(i))/bc%tris(i))
+    bc%V(i,ic) = bc%slipr(i)*STF_get(bc%stf,(time%time-bc%trup(i))/bc%tris(i))
   enddo
  ! T_stick, only x component
   bc%T(:,ic) = bc%Z * ( -2d0*v(bc%topo%node,ic) -2d0*bc%CoefA2V*bc%invM1*MxA(bc%topo%node,ic) -bc%V(:,ic))

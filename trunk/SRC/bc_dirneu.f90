@@ -6,6 +6,7 @@ module bc_dirneu
   
   use bnd_grid, only : bnd_grid_type
   use stf_gen
+  use time_evol, only : timescheme_type
 
   implicit none
   private
@@ -144,16 +145,17 @@ end subroutine bc_DIRNEU_init
 
 !=======================================================================
 !
-subroutine bc_DIRNEU_apply(bc,field,t)
+subroutine bc_DIRNEU_apply(bc,field,time)
 
   type(bc_DIRNEU_type), intent(in) :: bc
+  type(timescheme_type), intent(in) :: time
   double precision, intent(inout) :: field(:,:)
-  double precision, intent(in) :: t
+
 
   if (bc%kind(1)==IS_DIRICHLET) then
     field(bc%topo%node,1) = 0.d0
   elseif (associated(bc%hstf)) then
-    field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,t)*bc%B
+    field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
   endif
 
   if (size(field,2)==1) return
@@ -161,7 +163,7 @@ subroutine bc_DIRNEU_apply(bc,field,t)
   if (bc%kind(2)==IS_DIRICHLET) then
     field(bc%topo%node,2) = 0.d0
   elseif (associated(bc%vstf)) then
-    field(bc%topo%node,2) = field(bc%topo%node,2) + STF_get(bc%vstf,t)*bc%B
+    field(bc%topo%node,2) = field(bc%topo%node,2) + STF_get(bc%vstf,time%time)*bc%B
   endif
 
 end subroutine bc_DIRNEU_apply
