@@ -44,7 +44,7 @@ contains
 
   subroutine RICKER_read(src,iin)
 
-  use stdio, only : IO_abort
+  use stdio, only : IO_abort, IO_warning
   use echo , only : echo_input,iout
 
   type(ricker_type), intent(out) :: src
@@ -65,6 +65,7 @@ contains
     !onset = 1./f0
     write(iout,*) '*** WARNING: RICKER_read: Onset time too small, ***'
 !    write(iout,'(A,EN12.3)') '             will be reset to t0 = ',onset
+    call IO_warning()
   endif
 
   src%f0    = dble(f0)

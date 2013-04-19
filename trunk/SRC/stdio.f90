@@ -10,9 +10,10 @@ module stdio
 
 !! Error output unit, default: standard output                              
   integer, save :: ierror = 6 
+  logical, save :: abort_on_warnings=.true.
 
   public :: IO_read_skip, IO_new_unit, IO_test_msg, IO_rw_field, IO_abort, &
-    IO_file_length, IO_file_columns
+    IO_file_length, IO_file_columns, abort_on_warnings, IO_warning
 
 contains
 
@@ -211,6 +212,18 @@ contains
     
   end subroutine IO_abort
 
+!===================================================================
+
+  subroutine IO_warning()
+
+    if (abort_on_warnings) then 
+      write(ierror,*) 'FATAL WARNING, aborting.'
+      stop
+    else
+      write(ierror,*) 'SERIOUS WARNING.'
+    endif
+    
+  end subroutine IO_warning
 
 end module stdio
  

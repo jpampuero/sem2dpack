@@ -605,7 +605,7 @@ contains
 
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
-    call rsf_solver(bc%V(:,1), T(:,1), bc%T(:,1), bc%T0(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
+    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
                                         
    !DEVEL combined with time-weakening

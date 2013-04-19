@@ -31,9 +31,9 @@ contains
 
   type(cd_type), intent(inout) :: CD
   double precision, intent(in), optional :: C
-  character(*), intent(in), optional :: D
+  character(*), optional :: D
   integer, intent(in), optional :: iin
-  character(*), intent(out), optional :: txt
+  character(*), optional :: txt
 
   character(10) :: lD
 

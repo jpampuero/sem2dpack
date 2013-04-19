@@ -91,13 +91,14 @@ contains
 !                Example: '0001' is verbose only during solver.
 ! ARG: itInfo   [int] [100] Frequency (in number of timesteps) for printing
 !                progress information during the solver phase.
+! ARG: abort_on_warnings        [log] [T] Abort if a severe warning occurs
 !
 ! END INPUT BLOCK
 
   subroutine read_gen(iexec,ndof,ngll,fmax,iin)
 
   use echo
-  use stdio, only : IO_abort
+  use stdio, only : IO_abort,abort_on_warnings
 
   integer, intent(in) :: iin
   integer  :: iexec,ndof,ngll
@@ -105,7 +106,8 @@ contains
   character(10) :: iexecname
   character(4) :: verbose
 
-  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo
+  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo &
+                       abort_on_warnings
 
   iexec = 0
   ndof = 2
@@ -138,7 +140,7 @@ contains
     write(iout,'(a)') '***********************************************'
     write(iout,*)
     write(iout,200) iexecname,ngll,ndof,fmax, &
-      echo_input,echo_init,echo_check,echo_run,itInfo
+      echo_input,echo_init,echo_check,echo_run,itInfo,abort_on_warnings
   endif
 
   return
@@ -155,7 +157,8 @@ contains
   '            initialization phase . . . .(verbose(2)) = ',L1/ 5x, &
   '            checking phase . . . . . . .(verbose(3)) = ',L1/ 5x, &
   '            solver phase . . . . . . . .(verbose(4)) = ',L1/ 5x, &
-  'Frequency for solver progress information  .(itInfo) = ',I0/ 5x)
+  'Frequency for solver progress information  .(itInfo) = ',I0/ 5x, &
+  'Abort if severe warnings . . . . (abort_on_warnings) = ',L1/ 5x)
 
   end subroutine read_gen
 

@@ -320,6 +320,7 @@ contains
   subroutine TIME_init(t,grid_cfl)
 
   use echo, only : echo_check,iout
+  use stdio, only : IO_warning
 
   type(timescheme_type), intent(inout) :: t
   double precision, intent(in) :: grid_cfl
@@ -378,7 +379,7 @@ contains
                     t%dt*critical_CFL/t%courant ,'           **'
     write(iout,103) '*******************************************************'
     write(iout,*)
-
+    call IO_warning()
   endif
 
   return

@@ -90,7 +90,7 @@ END TYPE List_Type
 CONTAINS
 
 !-----------------------------------------------------------------------
-SUBROUTINE Abort(Message)
+SUBROUTINE LI_Abort(Message)
 IMPLICIT NONE
 CHARACTER *(*) Message
 
@@ -98,7 +98,7 @@ WRITE(6,*) Message
 WRITE(6,*) 'Program aborted'
 STOP
 
-END SUBROUTINE Abort
+END SUBROUTINE LI_Abort
 
 !-----------------------------------------------------------------------
 SUBROUTINE LI_Check_List(List,Message)
@@ -108,7 +108,7 @@ CHARACTER *(*) Message
 
 IF(.NOT.ASSOCIATED(List%Head%Next))THEN
    WRITE(6,*) Message
-   CALL Abort('List is not initialised in call to LI_Check_List()')
+   CALL LI_Abort('List is not initialised in call to LI_Check_List()')
 ENDIF
 
 END SUBROUTINE LI_Check_List

@@ -145,7 +145,7 @@ end subroutine init_main
   subroutine CHECK_grid(grid,mat,mode,max_c_dx)
 
   use echo, only : echo_check,iout,fmt1,fmtok
-  use stdio, only : IO_new_unit
+  use stdio, only : IO_new_unit, IO_warning
   use spec_grid, only : sem_grid_type,SE_inquire,SE_elem_coord
   use prop_mat, only : matpro_elem_type, MAT_getProp
   use plot_postscript, only : PLOT_PS
@@ -277,6 +277,7 @@ end subroutine init_main
     write(iout,103) '**      use this mesh with lower frequencies         **'
     write(iout,103) '*******************************************************'
     write(iout,*)
+    call IO_warning()
   endif
 
   return

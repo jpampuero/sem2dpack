@@ -415,6 +415,7 @@ contains
   double precision :: d2min,d2
   integer :: ip
 
+  iglob = 0
   d2min = huge(d2min)
   do ip = 1,grid%npoin
     d2 = (coord_in(1)-grid%coord(1,ip))**2 + (coord_in(2)-grid%coord(2,ip))**2
