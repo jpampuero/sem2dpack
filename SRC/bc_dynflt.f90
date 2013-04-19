@@ -559,9 +559,11 @@ contains
 
   use stdio, only: IO_abort
   use constants, only : PI
+  use time_evol, only : timescheme_type
 
+  type(timescheme_type), intent(in) :: time
   type(bc_dynflt_type), intent(inout) :: bc
-  double precision, intent(in) :: V(:,:),D(:,:),time 
+  double precision, intent(in) :: V(:,:),D(:,:)
   double precision, intent(inout) :: MxA(:,:)
 
   double precision, dimension(bc%npoin) :: strength
@@ -605,14 +607,18 @@ contains
 
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
-    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
+    if (time%kind=='quasi-static') then
+      call rsf_qs_solver()
+    else
+      call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
+    endif
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
                                         
    !DEVEL combined with time-weakening
    !DEVEL WARNING: slip rate is updated later, but theta is not
 
    ! superimposed time-weakening
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
+    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
 
     strength = - bc%MU * normal_getSigma(bc%normal)
                                          
@@ -633,11 +639,11 @@ contains
       bc%MU = swf_mu(bc%swf)
   
      ! superimposed time-weakening
-      if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time) )
+      if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
 
    !-- pure time-weakening
     elseif (associated(bc%twf)) then
-      bc%MU = twf_mu(bc%twf,bc%coord,time)
+      bc%MU = twf_mu(bc%twf,bc%coord,time%time)
     endif
 
    ! Update strength

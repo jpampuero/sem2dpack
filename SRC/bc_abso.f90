@@ -30,6 +30,7 @@ module bc_abso
   use memory_info
   use bnd_grid, only : bnd_grid_type
   use sources
+  use time_evol, only : timescheme_type
 
   implicit none
   private
@@ -285,8 +286,9 @@ contains
   subroutine BC_ABSO_apply(bc,D,V,MxA,time)
 
   type(bc_abso_type) , intent(in)    :: bc
+  type(timescheme_type), intent(in) :: time
   double precision, intent(inout) :: MxA(:,:)
-  double precision, intent(in) :: D(:,:),V(:,:), time
+  double precision, intent(in) :: D(:,:),V(:,:)
 
   double precision, dimension(:,:), allocatable :: KxD, Vin, Tin, Vn
   integer, pointer :: nodes(:)
@@ -297,7 +299,7 @@ contains
 
   if (associated(bc%wav)) then
     allocate( Vin(bc%topo%npoin,ndof), Tin(bc%topo%npoin,ndof) )
-    call SO_WAVE_get_VT( Vin, Tin, time,bc%coord,bc%n,bc%wav)
+    call SO_WAVE_get_VT( Vin, Tin, time%time,bc%coord,bc%n,bc%wav)
     do i=1,ndof
       MxA(nodes,i) = MxA(nodes,i) - bc%C(:,i)*( V(nodes,i) - Vin(:,i) ) +bc%B*Tin(:,i)
     enddo

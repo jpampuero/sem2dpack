@@ -68,7 +68,7 @@ subroutine solve_Newmark(pb)
   call SO_add(pb%src, pb%time%time, f)
 
  !-- Apply boundary conditions
-  call BC_apply(pb%bc,pb%time%time,pb%fields,f)
+  call BC_apply(pb%bc,pb%time,pb%fields,f)
 
  ! NOTE: if a source is an incident wave, it is not added during
  !       "call SO_add" but during "call BC_apply"
@@ -91,7 +91,7 @@ subroutine solve_HHT_alpha(pb)
   type(problem_type), intent(inout) :: pb
   
   double precision, dimension(:,:), pointer :: d,v,a,f,d_alpha,v_alpha
-  double precision :: t_alpha,dt,alpha,beta,gamma
+  double precision :: t_alpha,tmp,dt,alpha,beta,gamma,
 
   d => pb%fields%displ
   v => pb%fields%veloc
@@ -115,7 +115,11 @@ subroutine solve_HHT_alpha(pb)
   call compute_Fint(f,d_alpha,v_alpha,pb)
   t_alpha = pb%time%time +(alpha-1.d0)*dt
   call SO_add(pb%src, t_alpha, f)
-  call BC_apply(pb%bc,t_alpha,pb%fields,f)
+  !call BC_apply(pb%bc,t_alpha,pb%fields,f)
+  tmp = pb%time%time
+  pb%time%time = t_alpha
+  call BC_apply(pb%bc,pb%time,pb%fields,f)
+  pb%time%time = tmp
   a = f*pb%rmass
 
   v = v + gamma*dt*a
@@ -148,7 +152,7 @@ subroutine solve_leapfrog(pb)
    
   call compute_Fint(f,d,v_mid,pb)
   call SO_add(pb%src, pb%time%time, f)
-  call BC_apply(pb%bc,pb%time%time,pb%fields,f)
+  call BC_apply(pb%bc,pb%time,pb%fields,f)
 
   a = pb%rmass * f
   v_mid = v_mid + pb%time%dt * a 
@@ -248,7 +252,7 @@ subroutine solve_quasi_static(pb)
     call compute_Fint(f, d, pb%fields%veloc, pb)
 
     ! apply boundary conditions 
-    call BC_apply(pb%bc, pb%time%time, pb%fields, f) !DEVEL jpa: we need a new friction solver here
+    call BC_apply(pb%bc, pb%time, pb%fields, f) !DEVEL jpa: we need a new friction solver here
   enddo
 
   ! subtract plate velocity from fault for delta v 
