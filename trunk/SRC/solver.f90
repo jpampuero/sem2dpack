@@ -91,7 +91,7 @@ subroutine solve_HHT_alpha(pb)
   type(problem_type), intent(inout) :: pb
   
   double precision, dimension(:,:), pointer :: d,v,a,f,d_alpha,v_alpha
-  double precision :: t_alpha,tmp,dt,alpha,beta,gamma,
+  double precision :: t_alpha,tmp,dt,alpha,beta,gamma
 
   d => pb%fields%displ
   v => pb%fields%veloc
@@ -252,7 +252,7 @@ subroutine solve_quasi_static(pb)
     call compute_Fint(f, d, pb%fields%veloc, pb)
 
     ! apply boundary conditions 
-    call BC_apply(pb%bc, pb%time, pb%fields, f) !DEVEL jpa: we need a new friction solver here
+    call BC_apply(pb%bc, pb%time, pb%fields, f)
   enddo
 
   ! subtract plate velocity from fault for delta v 

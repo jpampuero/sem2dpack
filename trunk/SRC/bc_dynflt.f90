@@ -608,7 +608,7 @@ contains
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
     if (time%kind=='quasi-static') then
-      call rsf_qs_solver()
+      call rsf_qs_solver(bc%V(:,1),T(:,1), normal_getSigma(bc%normal), bc%rsf)
     else
       call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     endif
