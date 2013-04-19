@@ -64,7 +64,7 @@ contains
   double precision :: Dc,MuS,a,b,Vstar,theta
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH
   integer :: kind
-  character(20) :: kind_txt
+  character(25) :: kind_txt
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,DcH,MuSH,aH,bH,VstarH,thetaH
 
@@ -188,20 +188,19 @@ contains
 !
 ! Note: most often sigma is negative (compressive) 
 !
-  subroutine rsf_solver(v,tau_stick,tau,tau0,sigma,f,Z)
+  subroutine rsf_solver(v,tau_stick,sigma,f,Z)
 
   double precision, dimension(:), intent(inout) :: v
-  double precision, dimension(:), intent(in) :: sigma,Z,tau_stick,tau,tau0
+  double precision, dimension(:), intent(in) :: sigma,Z,tau_stick
   type(rsf_type), intent(inout) :: f
-  integer :: it
 
   double precision, dimension(size(v)) :: v_new,theta_new
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
-  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
+  v_new = rsf_update_V(tau_stick, sigma, f, theta_new, Z)
   ! Second pass:
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
-  v_new = rsf_update_V(tau_stick, tau, tau0, sigma, f, theta_new, Z)
+  v_new = rsf_update_V(tau_stick, sigma, f, theta_new, Z)
   
   ! store new velocity and state variable estimate in friction law 
   f%theta = theta_new 
@@ -254,9 +253,9 @@ contains
 !          We should allow here for any sign of v
 !          Exploit the fact that sign(tau)=sign(tau_stick) (because mu>0)
 
-  function rsf_update_V(tau_stick,tau,tau0,sigma,f,theta,Z) result(v)
+  function rsf_update_V(tau_stick,sigma,f,theta,Z) result(v)
    
-  double precision, dimension(:), intent(in) :: tau_stick,tau,tau0,sigma,theta,Z
+  double precision, dimension(:), intent(in) :: tau_stick,sigma,theta,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
@@ -280,12 +279,7 @@ contains
        tolerance=0.001*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
        estimateLow = -10.0 
        estimateHigh = 10.0
-       
-       !print*,'tau = ',tau(it),', tau0 = ',tau0(it),'tau_stick = ',tau_stick(it)
- 
        v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
-       !print*,'velocity at',it,'=',v(it)
-       !print*,''
      enddo     
         
   end select
@@ -412,7 +406,7 @@ contains
   double precision, intent(in) :: x_acc
   double precision, intent(inout) :: x_est
   double precision :: v
-  double precision :: dfunc_dx, dx, dx_old, func_x 
+  double precision :: dfunc_dx, dx, func_x 
   double precision :: temp
   
   ! Friction parameters:
