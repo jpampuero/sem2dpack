@@ -178,6 +178,21 @@ contains
 
   end function rsf_mu_no_direct
 
+!---------------------------------------------------------------------
+!  Slip velocity at theta, tau
+  function rsf_v(f,tau,sigma) result(v)
+
+  type(rsf_type), intent(in) :: f
+  double precision, dimension(:), intent(in) :: tau, sigma
+  double precision, dimension(size(f%theta)) :: tmp, v
+
+  !  Kaneko et al (2011) Eq. 14
+  tmp = f%mus +f%b*log(f%Vstar*f%theta/f%Dc)
+  tmp = 2d0*f%Vstar*exp(-tmp/f%a)
+  v = sinh(tau/(-sigma*f%a))*tmp
+
+  end function rsf_v
+
 !=====================================================================
 !       --------------- RSF_SOLVER subroutine -----------------
 ! Two passes:
@@ -207,6 +222,25 @@ contains
   v = v_new
 
   end subroutine rsf_solver
+
+!=====================================================================
+!       --------------- RSF_QS_SOLVER subroutine -----------------
+! Two passes:
+!      1. update theta using Vold from the previous time step
+!      2. solve for Vnew
+!
+! Note: most often sigma is negative (compressive) 
+!
+  subroutine rsf_qs_solver(v,tau,sigma,f)
+
+  double precision, dimension(:), intent(inout) :: v
+  double precision, dimension(:), intent(in) :: sigma,tau
+  type(rsf_type), intent(inout) :: f
+  
+  f%theta = rsf_update_theta(f%theta,v,f)
+  v = rsf_v(f, tau, sigma)
+
+  end subroutine rsf_qs_solver
 
 !---------------------------------------------------------------------
 ! Update state variable (theta) assuming slip velocity (v) is known
