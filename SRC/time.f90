@@ -198,8 +198,11 @@ contains
   gamma    = 0.5d0
 
   select case (kind)
+   
+   case ('quasi-static')
+    t%Omega_max = huge(1d0)
 
-   case ('leapfrog','quasi-static')
+   case ('leapfrog')
     t%Omega_max = 2d0
 
    case ('newmark')
