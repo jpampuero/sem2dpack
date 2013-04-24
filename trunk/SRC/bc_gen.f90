@@ -49,7 +49,7 @@ module bc_gen
                         IS_DYNFLT = 6
                         !! IS_USER = 7
 
-  public :: bc_type,bc_read,bc_apply,bc_init,bc_write,bc_set
+  public :: bc_type,bc_read,bc_apply,bc_init,bc_write,bc_set,bc_timestep
 
 contains
 
@@ -391,6 +391,59 @@ contains
   
 end subroutine bc_set
 
+!=======================================================================
+!! Sets the field along the boundary to a specific value
+subroutine bc_timestep(bc,time,hcell)
 
+  use sources, only: source_type
+  use fields_class, only: fields_type
+  use time_evol, only : timescheme_type
+
+  double precision, intent(in) :: hcell
+  type(bc_type), pointer, intent(in) :: bc(:)
+  type(timescheme_type), intent(inout) :: time
+
+  integer :: i
+
+  if (.not. associated(bc)) return
+ ! apply first periodic, then absorbing, then the rest
+ ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
+  do i = 1,size(bc)
+    if ( bc(i)%kind == IS_PERIOD) call bc_timestep_single(bc(i),time,hcell)
+  enddo
+  do i = 1,size(bc)
+    if ( bc(i)%kind == is_absorb) call bc_timestep_single(bc(i),time,hcell)
+  enddo
+  do i = 1,size(bc)
+    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_timestep_single(bc(i),time,hcell)
+  enddo
+    
+contains
+
+  subroutine bc_timestep_single(bc,time,hcell)
+
+    type(bc_type), intent(in) :: bc
+    double precision, intent(in) :: hcell
+    type(timescheme_type), intent(inout) :: time
+    ! DEVEL these other set functions will have to be created 
+    ! in their respective files.
+    select case(bc%kind)
+      case(IS_DIRNEU,IS_ABSORB,IS_PERIOD)
+        !do nothing
+      case(IS_KINFLT)
+        !not implemented yet
+        !call bc_KINFLT_timestep(bc%kinflt,time)
+      case(IS_LISFLT)
+        !not implemented yet
+        !call BC_LSF_timestep(bc%lisflt,time)
+      case(IS_DYNFLT)
+        call BC_DYNFLT_timestep(time,bc%dynflt,hcell)
+!!      case(IS_USER)
+!!        call BC_USER_timestep(bc%user,time)
+    end select
+
+  end subroutine bc_timestep_single
+  
+end subroutine bc_timestep
 
 end module bc_gen

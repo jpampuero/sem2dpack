@@ -22,7 +22,7 @@ module bc_dynflt_rsf
     type(rsf_input_type) :: input
   end type rsf_type
 
-  public :: rsf_type, rsf_read, rsf_init, rsf_mu, rsf_solver, rsf_qs_solver
+  public :: rsf_type, rsf_read, rsf_init, rsf_mu, rsf_solver, rsf_qs_solver, rsf_timestep
 
 contains
 
@@ -535,5 +535,47 @@ subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
       dfunc_dv = -Z - sigma*dmu_dv
   
 end subroutine nr_fric_func_v
+
+!---------------------------------------------------------------------
+!-----------Adapts timestep for quasi-static algorithm----------------
+subroutine rsf_timestep(time,f,v,sigma,hcell)
+  use time_evol, only : timescheme_type
+  
+  type(rsf_type), intent(in) :: f
+  double precision, intent(in) :: hcell  
+  type(timescheme_type), intent(inout) :: time
+  double precision, dimension(:), intent(in) :: v,sigma
+
+  double precision :: k, xi, chi, tmp, min_timestep
+  real, parameter :: PI = 3.1415927
+  integer :: it
+
+  min_timestep = time%dt 
+  
+  xi = 0.5d0 ! xi critical
+  k = (PI/4)*maxval(f%mus(:))/hcell ! single-cell stiffness
+
+  do it=1,size(v)
+    ! Determine xi, as in Lapusta et al, 2000
+    tmp = k*f%Dc(it)/(f%a(it)*sigma(it))
+    chi = (0.25d0)*(tmp - (f%b(it) - f%a(it))/f%a(it))**2 - tmp ! Eq. 15c
+    if (chi >= 0.0d0) then
+      tmp = f%a(it)*sigma(it)/(k*f%Dc(it) - sigma(it)*(f%b(it) - f%a(it))) ! Eq. 15a
+    else
+      tmp = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
+    endif
+    xi = min(tmp,0.5d0) ! Eq. 15a,b
+
+    ! Determine minimum timestep allowed
+    tmp = xi*f%Dc(it)/abs(v(it))
+    if (tmp > 0.0d0 .and. tmp < min_timestep) min_timestep = tmp
+    
+    !DEVEL Trevor - in MATLAB code, there is a limitation on how quickly the timestep 
+    ! can change. However, this is not mentioned in Kaneko et al, 2011.
+  enddo
+
+  time%dt = min_timestep 
+
+end subroutine
 
 end module bc_dynflt_rsf

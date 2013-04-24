@@ -48,7 +48,7 @@
     nt = NT_CHECK
   else
     write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-    nt = pb%time%nt
+    nt = pb%time%nt ! Devel Trevor: quasi-static might require a do-while loop
   endif
 
   call CPU_TIME( cputime1 )
@@ -58,7 +58,7 @@
     pb%time%time = it*pb%time%dt
                                                        
     call solve(pb)
-
+  
   !-- CPU time info -----------------------------------------------------
 
     if (it == NT_CHECK) then
@@ -78,6 +78,7 @@
 
     if (mod(it,ItInfo) == 0)  &
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
+    if (mod(it,ItInfo) == 0 .and. pb%time%kind == 'quasi-static') print*,'dt = ',pb%time%dt
 
     if (iexec==0) cycle
 
@@ -137,5 +138,4 @@
 
   stop
 200 format("Timestep #",I8,"  t = ",EN11.3,"  vmax = ",EN11.3,"  dmax = ",EN11.3)
-
   end program main

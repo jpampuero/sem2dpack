@@ -35,7 +35,7 @@ module bc_dynflt
     logical :: osides
   end type bc_dynflt_type
 
-  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set
+  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, BC_DYNFLT_timestep
 
 contains
 
@@ -837,6 +837,23 @@ contains
   endif
 
   end function BC_DYNFLT_potency
+
+!=====================================================================
+  ! Adapts timestep for quasi-static solver
+
+  subroutine BC_DYNFLT_timestep(time,bc,hcell)
+ 
+  use time_evol, only : timescheme_type
+
+  type(timescheme_type), intent(inout) :: time
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, intent(in) :: hcell
+
+  if (associated(bc%rsf)) then 
+    call rsf_timestep(time,bc%rsf,bc%V(:,1),normal_getSigma(bc%normal),hcell)
+  endif  
+
+  end subroutine
 
 end module bc_dynflt
   

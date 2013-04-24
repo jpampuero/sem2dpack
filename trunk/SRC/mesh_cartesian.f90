@@ -21,7 +21,7 @@ module mesh_cartesian
     type (domain_type), pointer :: domains(:) 
   end type mesh_cart_type
 
-  public :: mesh_cart_type,CART_read,CART_build
+  public :: mesh_cart_type,CART_read,CART_build,CART_h
 
   integer, parameter :: NGNOD = 4
 
@@ -312,5 +312,15 @@ subroutine CART_build(mesh,grid)
   if (OPT_RENUMBER) call MESH_STRUCTURED_renumber(grid,mesh%nx,mesh%nz)
 
 end subroutine CART_build
+
+subroutine CART_h(mesh,h)
+  double precision, intent(out) :: h 
+  type(mesh_cart_type), intent(in) :: mesh
+
+  ! Devel Trevor: assumes fault on x boundary
+  h = (mesh%xmax-mesh%xmin)/mesh%nx
+
+end subroutine
+
 
 end module mesh_cartesian
