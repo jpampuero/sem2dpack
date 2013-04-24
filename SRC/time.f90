@@ -201,6 +201,7 @@ contains
    
    case ('quasi-static')
     t%Omega_max = huge(1d0)
+    t%nt = huge(1)
 
    case ('leapfrog')
     t%Omega_max = 2d0
