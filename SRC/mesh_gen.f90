@@ -28,7 +28,7 @@ module mesh_gen
                        ,tag_emc2 = 3 &
                        ,tag_mesh2d = 4
 
-  public :: mesh_type, MESH_read, MESH_build
+  public :: mesh_type, MESH_read, MESH_build, MESH_h
 
 contains
 
@@ -161,5 +161,24 @@ subroutine MESH_build(grid,mesh)
 
 
 end subroutine MESH_build
+
+subroutine MESH_h(mesh,h)
+  use stdio, only : IO_abort
+
+  type(mesh_type), intent(in) :: mesh
+  double precision, intent(out) :: h
+
+  select case (mesh%kind)
+    case(tag_cart)
+      call CART_h(mesh%cart,h)
+    case(tag_layers)
+      call IO_abort('MESH_h: Layers not implemented')
+    case(tag_emc2)
+      call IO_abort('MESH_h: EMC2 not implemented')
+    case(tag_mesh2d)
+      call IO_abort('MESH_h: Mesh2D not implemented')
+  end select
+
+end subroutine
 
 end module mesh_gen

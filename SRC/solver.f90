@@ -6,7 +6,7 @@ module solver
   use problem_class
   use stdio, only : IO_Abort
   use sources, only : SO_add
-  use bc_gen , only : BC_apply, BC_set
+  use bc_gen , only : BC_apply, BC_set, BC_timestep
 
   implicit none
   private
@@ -203,13 +203,14 @@ end subroutine solve_symplectic
 !        using quasi-static algorithm defined in Kaneko, et. al. 2011
 !        in acceleration form
 subroutine solve_quasi_static(pb)
-
+  use mesh_gen, only : mesh_h
   type(problem_type), intent(inout) :: pb
 
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
   double precision, parameter :: tolerance = 10.0d-5
   double precision :: plate_rate
+  double precision :: hcell
   integer :: i
  
   ! store initial 
@@ -260,6 +261,10 @@ subroutine solve_quasi_static(pb)
 
   ! store final displacements
   pb%fields%displ = d
+
+  ! adapt timestep
+  call MESH_h(pb%mesh,hcell)
+  call BC_timestep(pb%bc,pb%time,hcell)
   
 end subroutine solve_quasi_static
 
