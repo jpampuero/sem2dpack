@@ -48,7 +48,7 @@
     nt = NT_CHECK
   else
     write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-    nt = pb%time%nt ! Devel Trevor: quasi-static might require a do-while loop
+    nt = pb%time%nt 
   endif
 
   call CPU_TIME( cputime1 )
