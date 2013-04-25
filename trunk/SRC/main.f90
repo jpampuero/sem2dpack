@@ -53,8 +53,9 @@
 
   call CPU_TIME( cputime1 )
   cputime0 = cputime1-cputime0
+  it = 0
 
-  Time_Loop: do it=1,nt
+  Time_Loop: do while (pb%time%time < pb%time%total) 
     pb%time%time = it*pb%time%dt
                                                        
     call solve(pb)
@@ -86,7 +87,7 @@
     call PLOT_FIELD(pb,it,title,iout)
 
     !-- store seismograms
-    if(associated(pb%rec)) call REC_store(pb%rec,it,pb%grid)
+    if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
 
     !-- write data for faults, and possibly other BCs
     call BC_write(pb%bc,it,pb%fields%displ,pb%fields%veloc)
@@ -100,7 +101,7 @@
     if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
 
   !------------------------------------------------------------------------
-
+  it = it + 1
   enddo Time_Loop
 
 
