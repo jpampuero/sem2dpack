@@ -371,6 +371,12 @@ subroutine cg_solver(d, f, pb, tolerance)
 
 end subroutine cg_solver
 
+double precision function norm2(x)
+  double precision, dimension(:,:), intent(in) :: x
+  call IO_abort('norm2 not implemented yet')
+  norm2 = 0d0
+end function norm2
+  
 ! DEVEL: not finished yet!
 subroutine pcg_solver(d, f, pb, tolerance)
 
