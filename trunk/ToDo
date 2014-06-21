@@ -14,6 +14,7 @@
      + Kelvin-Voigt for inhomogeneous materials (gradient, etc) is not consistent 
      + Kelvin-Voigt for plastic materials is not consistent 
      + damage needs plasticity after loss of convexity
+     + "Segmentation fault" error if using Intel 12 compiler
 
    POSSIBLE ISSUES (need further verification, including beta features):
      + plastic solver is first order?
