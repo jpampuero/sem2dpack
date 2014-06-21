@@ -547,6 +547,7 @@ subroutine rsf_timestep(time,f,v,sigma,hcell)
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, tmp, min_timestep
+  !use constants, only: PI
   real, parameter :: PI = 3.1415927
   integer :: it
 

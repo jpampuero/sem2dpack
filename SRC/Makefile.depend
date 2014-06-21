@@ -35,6 +35,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 # 
+attenuation.o: constants.o
 bc_abso.o: bc_periodic.o bnd_grid.o constants.o echo.o memory_info.o \
 	prop_mat.o spec_grid.o src_gen.o stdio.o time.o
 bc_dirneu.o: bc_periodic.o bnd_grid.o constants.o echo.o spec_grid.o stdio.o \
@@ -80,11 +81,12 @@ main.o: bc_gen.o constants.o echo.o energy.o init.o input.o plot_gen.o \
 mat_damage.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o utils.o
 mat_elastic.o: constants.o echo.o mxmlib.o prop_mat.o spec_grid.o stdio.o
 mat_gen.o: echo.o fields.o mat_damage.o mat_elastic.o mat_kelvin_voigt.o \
-	mat_mass.o mat_plastic.o memory_info.o mxmlib.o prop_mat.o \
+	mat_mass.o mat_plastic.o mat_visco.o memory_info.o mxmlib.o prop_mat.o \
 	spec_grid.o stdio.o
 mat_kelvin_voigt.o: echo.o prop_mat.o stdio.o
 mat_mass.o: echo.o fields.o memory_info.o prop_mat.o spec_grid.o
 mat_plastic.o: constants.o echo.o prop_mat.o stdio.o
+at_visco.o: attenuation.o echo.o prop_mat.o stdio.o
 memory_info.o: stdio.o
 mesh_cartesian.o: constants.o echo.o fem_grid.o memory_info.o \
 	mesh_structured.o stdio.o utils.o
