@@ -135,6 +135,10 @@
      + Graphical User Interface front end
 
   DOCUMENTATION:
+     + add Huang et al (2013, 2014), Xu et al (2014) 
+     + add Behura and Snieder (2013, http://library.seg.org/doi/pdf/10.1190/geo2013-0069.1)
+     + add Boaga et al (2013, http://library.seg.org/doi/abs/10.1190/geo2012-0194.1)
+     + add Boaga et al (2014, http://jeeg.geoscienceworld.org/content/19/2/87.abstract)
      + complete description of visco-plasticity
      + complete description of the boundary conditions
      + add full operational sequence in examples (README files)

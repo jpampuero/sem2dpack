@@ -53,10 +53,10 @@
 
   call CPU_TIME( cputime1 )
   cputime0 = cputime1-cputime0
-  it = 0
+  it = 1
+  pb%time%time = it*pb%time%dt
 
   Time_Loop: do while (pb%time%time < pb%time%total) 
-    pb%time%time = it*pb%time%dt
                                                        
     call solve(pb)
   
@@ -101,7 +101,9 @@
     if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
 
   !------------------------------------------------------------------------
-  it = it + 1
+
+    it = it + 1
+    pb%time%time = it*pb%time%dt
   enddo Time_Loop
 
 
