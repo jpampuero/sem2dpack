@@ -1,6 +1,6 @@
 
 #----- General parameters ----------------
-&GENERAL iexec=1, ngll=9, fmax=250d0 , ndof=2 ,
+&GENERAL iexec=0, ngll=9, fmax=250d0 , ndof=2 ,
   title = "Layered medium example 1", verbose='1111' , ItInfo = 500/ 
 
 #----- Build the mesh ---------------------------

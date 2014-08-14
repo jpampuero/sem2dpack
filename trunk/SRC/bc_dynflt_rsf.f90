@@ -547,14 +547,13 @@ subroutine rsf_timestep(time,f,v,sigma,hcell)
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, tmp, min_timestep
-  !use constants, only: PI
-  real, parameter :: PI = 3.1415927
+  use constants, only: PI
   integer :: it
 
   min_timestep = time%dt 
   
   xi = 0.5d0 ! xi critical
-  k = (PI/4)*maxval(f%mus(:))/hcell ! single-cell stiffness
+  k = (PI/4d0)*maxval(f%mus(:))/hcell ! single-cell stiffness
 
   do it=1,size(v)
     ! Determine xi, as in Lapusta et al, 2000
