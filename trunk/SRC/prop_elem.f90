@@ -52,6 +52,7 @@ contains
   ! devel: could make DIST_CD_Init output argument of prop_elem_type
   ! call DIST_CD_Init(cd,coord,prop, keep_cd=.true.)
 
+  nullify(tmp)
   call DIST_CD_Init(cd,coord,tmp, keep_cd=.true.)
   if (DIST_CD_isDist(cd)) then
     prop = PROP_set_val2(tmp)

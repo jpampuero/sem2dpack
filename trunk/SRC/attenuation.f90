@@ -1,5 +1,5 @@
 module attenuation
-! Added by Yihe (2012)
+! Added by Yihe Huang (2012)
 
   implicit none
   contains
@@ -297,7 +297,7 @@ module attenuation
         if((abs(rv1(l))+anorm)==anorm) exit !in recipe: goto 2
         if((abs(w(nm))+anorm)==anorm) exit !in recipe: goto 1
       end do !41
-	if (abs(rv1(l))+anorm/=anorm) then !!!!! not in recipe
+      if (abs(rv1(l))+anorm/=anorm) then !!!!! not in recipe
 !!!!!!!!!!!!!! Below in recipe: 1
         c=0.0 
         s=1.0 
@@ -319,7 +319,7 @@ module attenuation
             end do !42
           endif      !in book version of Recipe
         end do !43
-	end if  !!!!! not in recipe
+      end if  !!!!! not in recipe
 !!!!!!!!!!!!!! Below in recipe: 2
       z=w(k) 
       if(l==k) then 
@@ -331,7 +331,7 @@ module attenuation
         endif 
       exit ! in recipe: goto 3 (exit do 48)
       endif 
-      if(its==30) pause 'no convergence in 30 iterations' 
+      if(its==30) stop 'no convergence in 30 iterations' 
       x=w(l) 
       nm=k-1 
       y=w(nm) 

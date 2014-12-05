@@ -194,7 +194,7 @@ contains
   type(matpro_elem_type), intent(inout) :: elem
   double precision, intent(in) :: ecoord(:,:,:)
 
-  double precision, dimension(size(ecoord,2),size(ecoord,3)) :: cp,cs,rho,c11,c55,c66
+  double precision, dimension(size(ecoord,2),size(ecoord,3)) :: cp,cs,rho,c11,c55
   
   if (MAT_isKind(elem,isElasticIsotropic)) then
 

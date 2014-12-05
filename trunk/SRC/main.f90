@@ -72,16 +72,17 @@
         'Total solver CPU time . . . . .', cputime2*pb%time%nt ,&
         '                 (mins) . . . .', cputime2*pb%time%nt/60. ,&
         '                 (hours). . . .', cputime2*pb%time%nt/3600.
-
+      exit
     endif
 
  !--- Intermediate OUTPUTS -------------------------------------------
 
-    if (mod(it,ItInfo) == 0)  &
+    if (mod(it,ItInfo) == 0) then
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-    if (mod(it,ItInfo) == 0 .and. pb%time%kind == 'quasi-static') print*,'dt = ',pb%time%dt
+      if (pb%time%kind == 'quasi-static') write(iout,*),'dt = ',pb%time%dt
+    endif
 
-    if (iexec==0) cycle
+    if (iexec>0) then
 
     !-- snapshot outputs
     call PLOT_FIELD(pb,it,title,iout)
@@ -100,6 +101,7 @@
 
     if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
 
+    endif
   !------------------------------------------------------------------------
 
     it = it + 1
