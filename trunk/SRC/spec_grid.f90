@@ -504,6 +504,7 @@ contains
   integer :: iglob,k,istat
   integer, pointer, dimension(:) :: itab,jtab,etab
 
+  nullify(itab,jtab,etab)
   call SE_find_nearest_node(coord,grid,iglob)
   call SE_node_belongs_to(iglob,etab,itab,jtab,grid)
   do k = 1,size(etab)

@@ -22,11 +22,11 @@ module problem_class
    ! data for the spectral element mesh
     type(sem_grid_type) :: grid
    ! input data for each material
-    type(matpro_input_type), pointer :: matinp(:) 
+    type(matpro_input_type), pointer :: matinp(:) => null()
    ! material properties for each element (slow access)
-    type(matpro_elem_type), pointer :: matpro(:)
+    type(matpro_elem_type), pointer :: matpro(:) => null()
    ! working data for each element (rapid access)
-    type(matwrk_elem_type), pointer :: matwrk(:)
+    type(matwrk_elem_type), pointer :: matwrk(:) => null()
    ! data for boundary conditions
     type(bc_type), pointer :: bc(:) => null()
    ! energies over the whole domain

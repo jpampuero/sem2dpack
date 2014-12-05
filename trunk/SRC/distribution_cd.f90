@@ -70,6 +70,7 @@ contains
   logical, optional :: keep_cd
 
   logical :: destroy
+
   if (.not.associated(F)) allocate( F(size(Coord,2)) )
 
   if (present(keep_cd)) then
