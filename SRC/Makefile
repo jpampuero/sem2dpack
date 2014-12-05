@@ -51,10 +51,10 @@ EXEC = $(HOME)/bin/sem2dsolve
 
 #-- Intel Fortran --
 F90 = ifort
-OPT = -O3 -ip -ipo -unroll
+#OPT = -O3 -ip -ipo -unroll
 #-no-inline-factor
 #OPT = -O3
-#OPT = -O0 -warn all -C
+OPT = -O0 -warn all -C -traceback
 #OPT = -O0 -g
 
 #OPT = -O3 -ip -ipo -arch SSE2 -tpp7 -xN # pablo.ethz.ch

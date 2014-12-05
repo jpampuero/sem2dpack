@@ -383,7 +383,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       allocate(matwrk(e)%derint)
       allocate(matwrk(e)%visco)
       call MAT_set_derint(matwrk(e)%derint,grid,e)
-      call MAT_VISCO_init_elem_work(matwrk(e)%visco,matpro(e),grid%ngll,dt)
+      call MAT_VISCO_init_elem_work(matwrk(e)%visco,matpro(e),grid%ngll)
 
 
   !!  elseif (MAT_isUser(matpro(e)))

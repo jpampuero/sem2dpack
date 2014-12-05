@@ -37,10 +37,10 @@ module bc_abso
   
   type bc_abso_type
     private
-    double precision, dimension(:,:,:), pointer :: K    
-    double precision, dimension(:,:), pointer :: C,Ht,n,coord
-    double precision, dimension(:), pointer :: B
-    type(bnd_grid_type), pointer :: topo
+    double precision, dimension(:,:,:), pointer :: K => null()
+    double precision, dimension(:,:), pointer :: C => null(),Ht => null(),n => null(),coord => null()
+    double precision, dimension(:), pointer :: B => null()
+    type(bnd_grid_type), pointer :: topo => null()
     type(source_type), pointer :: wav=>null() ! incident wave
     logical :: stacey,periodic,let_wave,is_flat
   end type

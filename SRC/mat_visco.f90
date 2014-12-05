@@ -1,6 +1,6 @@
 module mat_visco
-! Added by Yihe (2012)
-! viscoelastic medium following Mozco (2004)
+! Added by Yihe Huang (2012)
+! viscoelastic medium following Moczo (2004)
   
   use attenuation
   use prop_mat
@@ -49,19 +49,19 @@ contains
 !
 ! NAME   : MAT_VISCO
 ! GROUP  : MATERIALS
-! PURPOSE: Set material properties for in viscoelastic medium and allow 
-!          attenuation in a certain frequency band
-! SYNTAX : &MAT_PLASTIC cp,cs,rho,phi,coh,Tv,e0 /
+! PURPOSE: Set material properties for viscoelastic medium with
+!          approximately constant quality factor in a prescribed frequency band
+! SYNTAX : &MAT_VISCO cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax /
 !
 ! ARG: cp       [dble][0d0] P wave velocity
 ! ARG: cs       [dble][0d0] S wave velocity
 ! ARG: rho      [dble][0d0] density
-! ARG: QP       [dble][0d0] attenuation quality factor of P wave
-! ARG: QS       [dble][0d0] attenuation quality factor of S wave
+! ARG: QP       [dble][0d0] attenuation quality factor of P waves
+! ARG: QS       [dble][0d0] attenuation quality factor of S waves
 ! ARG: Nbody    [int][0] number of viscoelastic mechanisms
 ! ARG: f0       [dble][0d0] central frequency
-! ARG: fmin     [dble][0d0] minimum frequency
-! ARG: fmax     [dble][0d0] maximum frequency
+! ARG: fmin     [dble][0d0] minimum frequency for constant Q
+! ARG: fmax     [dble][0d0] maximum frequency for constant Q
 !
 ! END INPUT BLOCK
 
@@ -168,17 +168,7 @@ contains
 
   allocate(theta(Nbody,3))
   allocate(wbody(Nbody))
-  print *,'CHECK3'
   call get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax)
-!!!!
-  print *,'CHECK4'
-!!!! debug
- ! print *, 'Nbody is', Nbody
- ! print *, 'wbody is', wbody
- ! print *, 'mu_inf is', mu_inf
- ! print *, 'lambda_inf is', lambda_inf
- ! print *, 'theta is', theta
-!!!!
   do i=1,Nbody
      write(ctemp,'(i2)') i
      !call MAT_setProp(elem,'theta1'//trim(adjustl(ctemp)),theta(i,1),MAT_VISCO_mempro)
@@ -194,12 +184,11 @@ contains
   end subroutine MAT_VISCO_init_elem_prop
 
 !=======================================================================
-  subroutine MAT_VISCO_init_elem_work(m,p,ngll,dt)
+  subroutine MAT_VISCO_init_elem_work(m,p,ngll)
 
   type(matwrk_visco_type), intent(inout) :: m
   type(matpro_elem_type), intent(in) :: p
   integer, intent(in) :: ngll
-  double precision, intent(in) :: dt
   integer :: i
   double precision :: dNbody
   character(len=2) :: ctemp !The number of mechanisms < 100

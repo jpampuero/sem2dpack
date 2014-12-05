@@ -541,13 +541,14 @@ end subroutine nr_fric_func_v
 subroutine rsf_timestep(time,f,v,sigma,hcell)
   use time_evol, only : timescheme_type
   
+  use constants, only: PI
+
   type(rsf_type), intent(in) :: f
   double precision, intent(in) :: hcell  
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, tmp, min_timestep
-  use constants, only: PI
   integer :: it
 
   min_timestep = time%dt 
