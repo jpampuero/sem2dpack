@@ -20,8 +20,10 @@ module bc_dynflt
     integer :: npoin
     integer, dimension(:), pointer :: node1=>null(), node2=>null()
     double precision :: CoefA2V,CoefA2D
-    double precision, dimension(:,:), pointer:: n1,B,invM1,invM2,Z,T0,T,V,D,coord
-    double precision, dimension(:), pointer:: MU,cohesion=>null()
+    double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
+      invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
+      D=>null(),coord=>null()
+    double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
     type(swf_type), pointer :: swf => null()
     type(rsf_type), pointer :: rsf => null()
     type(twf_type), pointer :: twf => null()
@@ -241,14 +243,15 @@ contains
   type(timescheme_type), intent(in) :: time
   type(bc_periodic_type), pointer :: perio
 
-  double precision, dimension(:), pointer :: Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz
-  double precision, dimension(:), pointer :: V
+  double precision, dimension(:), pointer :: Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V
   double precision, pointer :: tmp_n1(:,:), tmp_B(:)
   double precision :: dt
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
   logical :: two_sides
   
+  nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
+
   ndof = size(M,2)
 
 ! if fault is on a domain boundary and symmetry is required, 
