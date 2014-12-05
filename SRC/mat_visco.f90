@@ -27,7 +27,7 @@ module mat_visco
   integer, save:: MAT_VISCO_memwrk = 0
 
   public :: matwrk_visco_type &
-          , MAT_isVisco, MAT_anyVisco, MAT_VISCO_read, MAT_VISCO_init_elem_prop &
+          , MAT_isVisco, MAT_VISCO_read, MAT_VISCO_init_elem_prop &
           , MAT_VISCO_init_elem_work, MAT_VISCO_stress & 
           , MAT_VISCO_mempro, MAT_VISCO_memwrk
 
@@ -38,11 +38,6 @@ contains
   type(matpro_elem_type), intent(in) :: m
   MAT_isVisco = MAT_isKind(m,isVisco)
   end function MAT_isVisco
-
-!=======================================================================
-  logical function MAT_anyVisco()
-  MAT_anyVisco = (isVisco>0)
-  end function MAT_anyVisco
 
 !=======================================================================
 ! BEGIN INPUT BLOCK
@@ -76,6 +71,7 @@ contains
 
   NAMELIST / MAT_VISCO / cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax
 
+  call MAT_setKind(input,isVisco)
 
   cp = 0d0
   cs = 0d0
@@ -89,8 +85,6 @@ contains
 
   read(iin, MAT_VISCO, END=100)
   write(iout,200) cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax
-
-  call MAT_setKind(input,isVisco)
 
   call MAT_setProp(input,'cp',cp)
   call MAT_setProp(input,'cs',cs)
@@ -125,25 +119,17 @@ contains
   type(matpro_elem_type), intent(inout) :: elem
   double precision, intent(in) :: ecoord(:,:,:) !don't need eccord in the following lines
   
-  integer :: i
-
+  integer :: i,Nbody
   character(len=2) :: ctemp !The number of mechanisms < 100
-
   double precision :: cp,cs,rho,QP,QS,f0,fmin,fmax,mu_inf,lambda_inf, dNbody
-
-  integer :: Nbody
-
-  double precision, pointer, dimension(:,:) :: theta => null()
- 
-  double precision, pointer, dimension(:) :: wbody => null()
+  double precision, dimension(:,:), allocatable :: theta
+  double precision, dimension(:), allocatable :: wbody 
      
   call MAT_setProp(elem,'cp',ecoord,MAT_VISCO_mempro)!
   call MAT_setProp(elem,'cs',ecoord,MAT_VISCO_mempro)!
-    
   call MAT_setProp(elem,'QP',ecoord,MAT_VISCO_mempro)!
   call MAT_setProp(elem,'QS',ecoord,MAT_VISCO_mempro)!
   call MAT_setProp(elem,'Nbody',ecoord,MAT_VISCO_mempro)!
-    
   call MAT_setProp(elem,'f0',ecoord,MAT_VISCO_mempro)!
   call MAT_setProp(elem,'fmin',ecoord,MAT_VISCO_mempro)!
   call MAT_setProp(elem,'fmax',ecoord,MAT_VISCO_mempro)!
@@ -151,32 +137,26 @@ contains
   call MAT_getProp(rho,elem,'rho')
   call MAT_getProp(cp,elem,'cp')
   call MAT_getProp(cs,elem,'cs')
-    
   call MAT_getProp(QP,elem,'QP')
   call MAT_getProp(QS,elem,'QS')
-  
-  !dNbody=dble(Nbody)
-  call MAT_getProp(dNbody,elem,'Nbody')
-    
+  call MAT_getProp(dNbody,elem,'Nbody') !dNbody=dble(Nbody)
+  Nbody=int(dNbody) !!!! Pay attention 
   call MAT_getProp(f0,elem,'f0')
   call MAT_getProp(fmin,elem,'fmin')
-  
   call MAT_getProp(fmax,elem,'fmax')
-  
-!!!! Pay attention 
-  Nbody=int(dNbody)
 
   allocate(theta(Nbody,3))
   allocate(wbody(Nbody))
   call get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax)
   do i=1,Nbody
-     write(ctemp,'(i2)') i
-     !call MAT_setProp(elem,'theta1'//trim(adjustl(ctemp)),theta(i,1),MAT_VISCO_mempro)
-     call MAT_setProp(elem,'theta1'//trim(ctemp),theta(i,1),MAT_VISCO_mempro)
-     call MAT_setProp(elem,'theta2'//trim(ctemp),theta(i,2),MAT_VISCO_mempro)
-     call MAT_setProp(elem,'theta3'//trim(ctemp),theta(i,3),MAT_VISCO_mempro)
-     call MAT_setProp(elem,'wbody'//trim(ctemp),wbody(i),MAT_VISCO_mempro)
+    write(ctemp,'(i2)') i
+    !call MAT_setProp(elem,'theta1'//trim(adjustl(ctemp)),theta(i,1),MAT_VISCO_mempro)
+    call MAT_setProp(elem,'theta1'//trim(ctemp),theta(i,1),MAT_VISCO_mempro)
+    call MAT_setProp(elem,'theta2'//trim(ctemp),theta(i,2),MAT_VISCO_mempro)
+    call MAT_setProp(elem,'theta3'//trim(ctemp),theta(i,3),MAT_VISCO_mempro)
+    call MAT_setProp(elem,'wbody'//trim(ctemp),wbody(i),MAT_VISCO_mempro)
   end do
+  deallocate(theta,wbody)
       
   call MAT_setProp(elem,'mu',mu_inf,MAT_VISCO_mempro)
   call MAT_setProp(elem,'lambda',lambda_inf,MAT_VISCO_mempro)
@@ -234,24 +214,20 @@ contains
   double precision, intent(out):: s(ngll,ngll,3)
   type (matwrk_visco_type), intent(inout) :: m
   
+  double precision, dimension(ngll,ngll,3):: s_an(ngll,ngll,3)
   double precision :: lambda, two_mu, RK_factor
   integer :: i
-!  double precision, pointer, dimension(:,:,:) :: el_old
-  double precision, dimension(ngll,ngll,3):: s_an(ngll,ngll,3)
 
   lambda = m%lambda
   two_mu = 2d0*m%mu
 
-!  allocate(el_old(ngll,ngll,m%Nbody,3))
-!  el_old=m%el
-
 ! Update anelastic function el(m) using el(m-1) and etot(m-1)
   do i=1,m%Nbody
-     RK_factor=m%wbody(i)*dt-(m%wbody(i)**2)*(dt**2)/2d0+(m%wbody(i)**3)*(dt**3)/6d0  &
-               -(m%wbody(i)**4)*(dt**4)/24d0
-     m%el(:,:,i,1)=m%el(:,:,i,1)+RK_factor*(m%etot_old(:,:,1)-m%el(:,:,i,1))
-     m%el(:,:,i,2)=m%el(:,:,i,2)+RK_factor*(m%etot_old(:,:,2)-m%el(:,:,i,2))
-     m%el(:,:,i,3)=m%el(:,:,i,3)+RK_factor*(m%etot_old(:,:,3)-m%el(:,:,i,3))   
+    RK_factor=m%wbody(i)*dt-(m%wbody(i)**2)*(dt**2)/2d0+(m%wbody(i)**3)*(dt**3)/6d0  &
+             -(m%wbody(i)**4)*(dt**4)/24d0
+    m%el(:,:,i,1)=m%el(:,:,i,1)+RK_factor*(m%etot_old(:,:,1)-m%el(:,:,i,1))
+    m%el(:,:,i,2)=m%el(:,:,i,2)+RK_factor*(m%etot_old(:,:,2)-m%el(:,:,i,2))
+    m%el(:,:,i,3)=m%el(:,:,i,3)+RK_factor*(m%etot_old(:,:,3)-m%el(:,:,i,3))   
   end do
 
 ! Update strain to time step m
@@ -261,9 +237,9 @@ contains
   s_an=0d0
   
   do i=1,m%Nbody
-     s_an(:,:,1)=s_an(:,:,1)+m%theta(i,1)*m%el(:,:,i,1)+m%theta(i,2)*m%el(:,:,i,2)
-     s_an(:,:,2)=s_an(:,:,2)+m%theta(i,2)*m%el(:,:,i,1)+m%theta(i,1)*m%el(:,:,i,2)
-     s_an(:,:,3)=s_an(:,:,3)+m%theta(i,3)*m%el(:,:,i,3)
+    s_an(:,:,1)=s_an(:,:,1)+m%theta(i,1)*m%el(:,:,i,1)+m%theta(i,2)*m%el(:,:,i,2)
+    s_an(:,:,2)=s_an(:,:,2)+m%theta(i,2)*m%el(:,:,i,1)+m%theta(i,1)*m%el(:,:,i,2)
+    s_an(:,:,3)=s_an(:,:,3)+m%theta(i,3)*m%el(:,:,i,3)
   end do
 
 ! Calculate the total stress at time step m
@@ -274,23 +250,6 @@ contains
 
   end subroutine MAT_VISCO_stress
 
-!===============================================================================
-
-!  function MAT_VISCO_export(m) result(dat)
-  
-!  type(matwrk_visco_type), intent(in) :: m
-!  real :: dat(size(m%el,1),size(m%el,2),size(m%el,3),size(m%el,4))
-
-!  dat=real(m%el)
-
-!  end function MAT_VISCO_export
-
-
-!===============================================================================
-
-
-
-!=====================================================================================
 end module mat_visco
 
 
