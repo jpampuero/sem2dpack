@@ -293,12 +293,14 @@ subroutine read_layer(layer,ngnod,iin,tagdef)
       call IO_abort('MESH_LAYERS_read: ztop or ztopH must be set')
     if (ztopH == 'LINEAR' .or. ztopH=='') then
       ngnod = 4
+    elseif (ztopH == 'QSPLINE') then
+      ngnod = 9
+      layer%qc_spline%kind = 1
     elseif (ztopH == 'CSPLINE') then
       ngnod = 8
       layer%qc_spline%kind = 2
     else
       ngnod = 9
-      layer%qc_spline%kind = 1
     endif
 
   else

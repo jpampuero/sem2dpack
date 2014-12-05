@@ -1,5 +1,4 @@
 -- KNOWN ISSUES: 
-     + check examples. TestLayers fails
      + incompatibility between dynamic faults and absorbing boundaries:
        . see 1D test
        . see 2D test: fault normal stress in homogeneous symmetric examples 
@@ -13,7 +12,6 @@
      + incompatible update of friction when there is opening
      + Kelvin-Voigt for inhomogeneous materials (gradient, etc) is not consistent 
      + Kelvin-Voigt for plastic materials is not consistent 
-     + damage needs plasticity after loss of convexity
      + "Segmentation fault" error if using Intel 12 compiler
 
    POSSIBLE ISSUES (need further verification, including beta features):
@@ -27,8 +25,7 @@
   SOLVER:
 
    Materials:
-     + attenuation Q, merge code by Yihe
-     + in damage: plasticity after loss of convexity, merge code by Shiqing
+     + in damage: plasticity after loss of convexity, merge code by Shiqing Xu
      + plasticity with dilatancy (helps regularization, 
        see Rudnicki and Rice, 1975; Templeton and Rice, 2008)
      + non-local regularization for plasticity
@@ -57,6 +54,7 @@
         . time weakening with spontaneous rupture speed
         . time healing
         . velocity toughening
+        . slip-strengthening (back-slip as in rough faults, Franklin Koch)
      + couple dynamic faults to off-fault (1D) heat and fluid equations
      + dynamic faults: handle branching points
      + higher order ABC for SH
