@@ -2,48 +2,31 @@ module attenuation
 ! Added by Yihe Huang (2012)
 
   implicit none
+
   contains
 
-
+!=======================================================================
   subroutine get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax)
 
   use constants, only : PI
 
-  implicit none
+  integer, intent(in) :: Nbody
+  double precision, intent(out) :: theta(Nbody,3), wbody(Nbody)
 
-  integer :: i,j,Nbody,Nfrequency
+  double precision, intent(in) :: cp, cs, rho, QP, QS, f0, fmin, fmax
+  double precision, intent(out) :: mu_inf, lambda_inf
 
-  double precision :: mu_inf, lambda_inf, cp, cs, rho, QP, QS, f0, fmin, fmax, w0, wmin, wmax
-
-  double precision :: theta(Nbody,3), wbody(Nbody)
-
-  double precision, pointer, dimension(:,:) :: AP => null(), AS => null() ! (Nfrequency*Nbody) Matrices for P and S
-
-  double precision, pointer, dimension(:) :: QPInv => null(), QSInv => null() ! (Nfrequency) 1/Q
-
-  double precision, pointer, dimension(:) :: w => null() ! (Nfrequency) frequencies used for inversion
-
-  double precision :: Y_alpha(Nbody), Y_beta(Nbody) ! Anelastic function for P and S
-
-  double precision, pointer, dimension(:) :: WM => null()
-
-  double precision, pointer, dimension(:,:) :: VM => null()
-
-  double precision :: RP1, RP2, RP, RS1, RS2, RS, mu, lambda ! Used to calculate unrelaxted modulus
-
-  intent(in) :: cp, cs, rho, QP, QS, Nbody, f0, fmin, fmax
-
-  intent(out) :: theta, wbody, mu_inf, lambda_inf
+  integer :: i,j,Nfrequency
+  double precision :: w0, wmin, wmax, &
+                      RP1, RP2, RP, RS1, RS2, RS, mu, lambda ! to calculate unrelaxed moduli
+  double precision, dimension(2*Nbody-1,Nbody) :: AP, AS! (Nfrequency*Nbody) Matrices for P and S
+  double precision, dimension(2*Nbody-1) :: QPInv,QSInv,w ! (Nfrequency) 1/Q and frequencies used for inversion
+  double precision, dimension(Nbody) :: Y_alpha, Y_beta ! Anelastic function for P and S
+  double precision :: WM(Nbody), VM(Nbody,Nbody)
 
 !Calculate anelastic functions Y_alpha and Y_beta
 
   Nfrequency = 2*Nbody-1
-
-  allocate(AP(Nfrequency,Nbody))
-  allocate(AS(Nfrequency,Nbody))
-  allocate(QPInv(Nfrequency))
-  allocate(QSInv(Nfrequency))
-  allocate(w(Nfrequency))
 
   w0=2.0d0*PI*f0
   wmin=2.0d0*PI*fmin
@@ -51,28 +34,25 @@ module attenuation
 
   if(Nbody>1) then
     do i=1,Nfrequency
-       w(i)=exp(log(wmin)+(i-1)*(log(wmax)-log(wmin))/(Nfrequency-1))
+      w(i)=exp(log(wmin)+(i-1)*(log(wmax)-log(wmin))/(Nfrequency-1))
     end do
   else
     w(:)=w0
   end if
   
   do j=1,Nbody
-     wbody(j)=w(2*j-1)
+    wbody(j)=w(2*j-1)
   end do
 
   do i=1,Nfrequency
-     QPInv(i)=1.0d0/QP
-     QSInv(i)=1.0d0/QS
-     do j=1,Nbody
-        AP(i,j)=(wbody(j)*w(i)+wbody(j)**2/QP)/(wbody(j)**2+w(i)**2)
-        AS(i,j)=(wbody(j)*w(i)+wbody(j)**2/QS)/(wbody(j)**2+w(i)**2)
-     end do
+    QPInv(i)=1.0d0/QP
+    QSInv(i)=1.0d0/QS
+    do j=1,Nbody
+      AP(i,j)=(wbody(j)*w(i)+wbody(j)**2/QP)/(wbody(j)**2+w(i)**2)
+      AS(i,j)=(wbody(j)*w(i)+wbody(j)**2/QS)/(wbody(j)**2+w(i)**2)
+    end do
   end do
   
-  allocate(WM(Nbody))
-  allocate(VM(Nbody,Nbody))
-
   WM=0d0
   VM=0d0
 
@@ -82,7 +62,6 @@ module attenuation
   call svdcmp(AS,Nfrequency,Nbody,WM,VM)
   call svbksb(AS,WM,VM,Nfrequency,Nbody,QSInv,Y_beta)
 
-!========================================================================================
 
 !Calculate unrelaxed modulus mu_inf and lambda_inf
 
@@ -92,10 +71,10 @@ module attenuation
   RS2=0d0
 
   do j=1,Nbody
-     RP1=RP1-Y_alpha(j)/(1d0+(w0/wbody(j))**2)
-     RP2=RP2+Y_alpha(j)*(w0/wbody(j))/(1d0+(w0/wbody(j))**2)
-     RS1=RS1-Y_beta(j)/(1d0+(w0/wbody(j))**2)
-     RS2=RS2+Y_beta(j)*(w0/wbody(j))/(1d0+(w0/wbody(j))**2)
+    RP1=RP1-Y_alpha(j)/(1d0+(w0/wbody(j))**2)
+    RP2=RP2+Y_alpha(j)*(w0/wbody(j))/(1d0+(w0/wbody(j))**2)
+    RS1=RS1-Y_beta(j)/(1d0+(w0/wbody(j))**2)
+    RS2=RS2+Y_beta(j)*(w0/wbody(j))/(1d0+(w0/wbody(j))**2)
   end do
 
   RP=sqrt(RP1**2+RP2**2)
@@ -107,14 +86,13 @@ module attenuation
   mu_inf=mu*(RS+RS1)/(2*RS**2)
   lambda_inf=(lambda+2d0*mu)*(RP+RP1)/(2*RP**2)-2d0*mu_inf
 
-!=====================================================================================
 
 !Calculate Y+, Y- and 2d0*mu*Y_beta
 
   do j=1,Nbody
-      theta(j,1)=(lambda_inf+2d0*mu_inf)*Y_alpha(j)
-      theta(j,2)=(lambda_inf+2d0*mu_inf)*Y_alpha(j)-2d0*mu_inf*Y_beta(j)
-      theta(j,3)=2d0*mu_inf*Y_beta(j)
+    theta(j,1)=(lambda_inf+2d0*mu_inf)*Y_alpha(j)
+    theta(j,2)=(lambda_inf+2d0*mu_inf)*Y_alpha(j)-2d0*mu_inf*Y_beta(j)
+    theta(j,3)=2d0*mu_inf*Y_beta(j)
   end do
 
   end subroutine get_attenuation
