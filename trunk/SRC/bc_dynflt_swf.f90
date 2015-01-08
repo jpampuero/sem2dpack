@@ -135,7 +135,7 @@ contains
     mu = f%mus -(f%mus-f%mud)*min(f%theta/f%dc,1d0)
   else 
  !-- exponential slip weakening:
-    mu = f%mus -(f%mus-f%mud)*exp(-f%theta/f%dc)
+    mu = f%mud -(f%mud-f%mus)*exp(-f%theta/f%dc)
   endif
 
   end function swf_mu
