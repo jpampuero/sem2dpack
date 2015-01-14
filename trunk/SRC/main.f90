@@ -38,25 +38,20 @@
 
 !*********************  s o l v e r   p h a s e  ***********************
 
-    write(iout,*)
-    write(iout,'(a)') '***********************************************'
-    write(iout,'(a)') '*           S o l v e r   p h a s e           *'
-    write(iout,'(a)') '***********************************************'
-    write(iout,*)
-
-  if (iexec==0) then
-    nt = NT_CHECK
-  else
-    write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-    nt = pb%time%nt 
-  endif
+  write(iout,*)
+  write(iout,'(a)') '***********************************************'
+  write(iout,'(a)') '*           S o l v e r   p h a s e           *'
+  write(iout,'(a)') '***********************************************'
+  write(iout,*)
+  write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
 
   call CPU_TIME( cputime1 )
   cputime0 = cputime1-cputime0
-  it = 1
-  pb%time%time = it*pb%time%dt
 
-  Time_Loop: do while (pb%time%time < pb%time%total) 
+  it = 1
+  pb%time%time = pb%time%dt
+
+  do while (pb%time%time < pb%time%total) 
                                                        
     call solve(pb)
   
@@ -72,7 +67,7 @@
         'Total solver CPU time . . . . .', cputime2*pb%time%nt ,&
         '                 (mins) . . . .', cputime2*pb%time%nt/60. ,&
         '                 (hours). . . .', cputime2*pb%time%nt/3600.
-      exit
+      if (iexec==0) exit
     endif
 
  !--- Intermediate OUTPUTS -------------------------------------------
@@ -84,35 +79,36 @@
 
     if (iexec>0) then
 
-    !-- snapshot outputs
-    call PLOT_FIELD(pb,it,title,iout)
+      !-- snapshot outputs
+      call PLOT_FIELD(pb,it,title,iout)
 
-    !-- store seismograms
-    if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
+      !-- store seismograms
+      if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
 
-    !-- write data for faults, and possibly other BCs
-    call BC_write(pb%bc,it,pb%fields%displ,pb%fields%veloc)
-  
-    !-- export energies
-    if (COMPUTE_ENERGIES) then
-      call energy_compute(pb%energy,pb%matpro,pb%matwrk,pb%grid,pb%fields)
-      call energy_write(pb%energy,pb%time%time)
-    endif
+      !-- write data for faults, and possibly other BCs
+      call BC_write(pb%bc,it,pb%fields%displ,pb%fields%veloc)
+    
+      !-- export energies
+      if (COMPUTE_ENERGIES) then
+        call energy_compute(pb%energy,pb%matpro,pb%matwrk,pb%grid,pb%fields)
+        call energy_write(pb%energy,pb%time%time)
+      endif
 
-    if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
+      if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
 
     endif
   !------------------------------------------------------------------------
 
     it = it + 1
-    pb%time%time = it*pb%time%dt
-  enddo Time_Loop
+    pb%time%time = pb%time%time + pb%time%dt
+
+  end do
 
 
 
 !*****************  g l o b a l   o u t p u t   p h a s e  **************
 
-  if(iexec == 0) then
+  if (iexec == 0) then
    !-- if data check mode then stop ---------------------------------
     write(iout,*) 
     write(iout,*) '**********************************'
