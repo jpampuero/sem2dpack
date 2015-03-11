@@ -195,6 +195,22 @@ the average P wave traveltime across a few grid points,
 i.e. a few times the average spacing between GLL nodes divided by the P wave speed.
 
 %----------------------------------------------------------
+\subsection{Attenuation}
+Following Moczo et al., [2004], we incorporate attenuation by adding viscoelastic terms in the stress-strain relations:
+
+?(t)=M_u??(t)-·_(l=1)^n??M_u Y_l ?_l (t)?                              ??_l (t)+?_l ?_l (t)=?_l ?(t)          
+
+where M_u, Y_l, ?_l (t) and ?_l are the unrelaxed modulus, anelastic coefficient, anelastic function and relaxation 
+frequency of the l^(th) viscoelastic mechanism, respectively. Seismic observations suggest that the quality factor Q 
+is nearly constant over a certain frequency range. To realize an approximately flat Q in a numerical method, an 
+adequate number of anelastic functions ?_l (t) and relaxation frequencies ?_l are needed to cover the frequency 
+range under interest. We find that three anelastic functions are sufficient to obtain a practically constant Q, with 
+relative error less than 5%, over a broad frequency band with maximum to minimum frequency ratio of 100. 
+Anelastic coefficients can then be solved from the following equation given a certain frequency band ?:
+Q^(-1) (?)=·_(l=1)^n?(?_l ?+?_l^2 Q^(-1) (?))/(?_l^2+?^2 ) Y_l                                
+The unrelaxed modulus is calculated from the anelastic coefficients and phase velocity [Equation (166) and (167) in Mozco et al., 2004]. 
+
+%----------------------------------------------------------
 \subsection{Continuum damage}
 
 The continuum damage formulation by \shortciteN{Lyaetal97a}, 
