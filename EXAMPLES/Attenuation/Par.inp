@@ -10,7 +10,7 @@
 
 # HOST ROCK
 &MATERIAL tag = 1, kind='VISCO' /
-&MAT_VISCO rho=2000d0, cp=3000d0, cs=2000d0, QP=30d0, QS=20d0, Nbody=5,f0=18d0,fmin=1.8d0,fmax=180d0 /
+&MAT_VISCO rho=2000d0, cp=3000d0, cs=2000d0, QP=30d0, QS=20d0, Nbody=5,fmin=1.8d0,fmax=180d0 /
 
 #----- Boundary conditions ---------------------
 
