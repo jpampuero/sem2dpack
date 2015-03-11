@@ -6,7 +6,7 @@ module attenuation
   contains
 
 !=======================================================================
-  subroutine get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax)
+  subroutine get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,fmin,fmax)
 
   use constants, only : PI
 
@@ -24,10 +24,31 @@ module attenuation
   double precision, dimension(Nbody) :: Y_alpha, Y_beta ! Anelastic function for P and S
   double precision :: WM(Nbody), VM(Nbody,Nbody)
 
+  double precision :: theta(Nbody,3), wbody(Nbody)
+
+  double precision, pointer, dimension(:,:) :: AP => null(), AS => null() ! (Nfrequency*Nbody) Matrices for P and S
+
+  double precision, pointer, dimension(:) :: QPInv => null(), QSInv => null() ! (Nfrequency) 1/Q
+
+  double precision, pointer, dimension(:) :: w => null() ! (Nfrequency) frequencies used for inversion
+
+  double precision :: Y_alpha(Nbody), Y_beta(Nbody) ! Anelastic function for P and S
+
+  double precision, pointer, dimension(:) :: WM => null()
+
+  double precision, pointer, dimension(:,:) :: VM => null()
+
+  double precision :: RP1, RP2, RP, RS1, RS2, RS, mu, lambda ! Used to calculate unrelaxted modulus
+
+  intent(in) :: cp, cs, rho, QP, QS, Nbody, fmin, fmax
+
+  intent(out) :: theta, wbody, mu_inf, lambda_inf
+
 !Calculate anelastic functions Y_alpha and Y_beta
 
   Nfrequency = 2*Nbody-1
 
+  f0=(fmin*fmax)**0.5d0
   w0=2.0d0*PI*f0
   wmin=2.0d0*PI*fmin
   wmax=2.0d0*PI*fmax
