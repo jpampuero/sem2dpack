@@ -15,7 +15,7 @@
 
   type(problem_type) :: pb
   real :: cputime0, cputime1, cputime2,cputime3
-  integer :: it,iexec,nt
+  integer :: it,iexec
   integer, parameter :: NT_CHECK=10
 
   call CPU_TIME(cputime0)
@@ -138,5 +138,5 @@
   call ECHO_banner('Program  S E M 2 D P A C K :  end',iout)
 
   stop
-200 format("Timestep #",I8,"  t = ",EN11.3,"  vmax = ",EN11.3,"  dmax = ",EN11.3)
+200 format("Timestep #",I8,"  t = ",EN12.3,"  vmax = ",EN12.3,"  dmax = ",EN12.3)
   end program main

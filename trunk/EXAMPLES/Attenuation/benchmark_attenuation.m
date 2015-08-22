@@ -4,7 +4,6 @@ set(0,'DefaulttextFontSize',12)
    set(0,'DefaultAxesLineWidth',2)
    set(0,'DefaultLineLineWidth',2)
    set(0,'DefaultLineMarkerSize',14)
-addpath ~/SEM2DPACK_2.3.8/POST
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Nbody=3;   
@@ -175,14 +174,15 @@ xlim([0.1 0.7]);
 d=sem2d_read_seis;
 subplot(211);
 plot([1:d.nt]*d.dt,d.ux,'b');
-xlim([0.1 0.7]);hold on
+xlim([0.1 0.7]);hold off
 h1=legend('Analytical','SEM2DPACK');
 set(h1,'fontsize',8);
 
 subplot(212);
-plot([1:d.nt]*d.dt,d.uz,'b');hold on
+plot([1:d.nt]*d.dt,d.uz,'b');hold off
 xlim([0.1 0.7]);
 xlabel('Time (s)');
 h1=legend('Analytical','SEM2DPACK');
 set(h1,'fontsize',8);
 title('(b) Vertical displacement');
+

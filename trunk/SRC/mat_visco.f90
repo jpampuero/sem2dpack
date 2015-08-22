@@ -147,7 +147,7 @@ contains
 
   allocate(theta(Nbody,3))
   allocate(wbody(Nbody))
-  call get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,f0,fmin,fmax)
+  call get_attenuation(theta,wbody,mu_inf,lambda_inf,cp,cs,rho,QP,QS,Nbody,fmin,fmax)
   do i=1,Nbody
     write(ctemp,'(i2)') i
     !call MAT_setProp(elem,'theta1'//trim(adjustl(ctemp)),theta(i,1),MAT_VISCO_mempro)
