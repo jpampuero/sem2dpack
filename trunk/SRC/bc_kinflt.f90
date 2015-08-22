@@ -67,6 +67,9 @@ contains
 ! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output
 !                The default resets oxi(2) = last fault node
 ! 
+!
+! END INPUT BLOCK
+
 subroutine bc_kinflt_read(bc,iin)
 
   use echo, only : echo_input,iout

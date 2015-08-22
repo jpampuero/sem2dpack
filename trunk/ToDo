@@ -136,8 +136,6 @@
      + complete description of the boundary conditions
      + add full operational sequence in examples (README files)
      + add examples in matlab doc
-     + guidelines for advanced users on how-to implement new 
-       materials, outputs, distributions, sources, friction laws, boundary conditions
      + emc2: detailed example of quadrangulate domains for structured regions
      + improve self-documentation script: make latex output, test RoboDoc or similar
      
