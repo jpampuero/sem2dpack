@@ -12,27 +12,27 @@ where $x$ is the horizontal coordinate, with positive direction pointing to the 
 and $z$ is the vertical coordinate, with positive direction pointing upwards.
 The coordinates $(x,y,z)$ will be also denoted as $(x_1,x_2,x_3)$.
 This notations carry also for subscripts. For instance,
-the $k$-th component of displacement is denoted as $u_k$, with $k=1,2,3$ or with $k=x,y,z$.
+the $i$-th component of displacement is denoted as $u_i$, with $i=1,2,3$ or with $i=x,y,z$.
 
 The reference frame is Eulerian.
 Infinitesimal strain is assumed.
-The (symmetric) infinitesimal strain tensor $\epsilon$ is defined as 
+The (symmetric) infinitesimal strain tensor $\varepsilon$ is defined as 
 \eq
- \epsilon_{ij} = \frac{1}{2} \left(\frac{\partial u_i}{\partial x_j} +\frac{\partial u_j}{\partial x_i}\right)
+ \varepsilon_{ij} = \frac{1}{2} \left(\frac{\partial u_i}{\partial x_j} +\frac{\partial u_j}{\partial x_i}\right)
 \en
 %Dynamic fault boundary conditions assume also small displacements....?
 
 Material density is deonted $\rho(x,z)$.
 The displacements and stresses relative to an initial equilibrium configuration
-are denoted $u_k(x,z,t)$ and $\sigma_{ij}(x,z,t)$, respectively.
+are denoted $u_i(x,z,t)$ and $\sigma_{ij}(x,z,t)$, respectively.
 External forces (sources) are denoted $f_i(x,z,t)$. 
 SEM2DPACK solves the following equations of motion to obtain
-the relative displacements $u_k(x,z,t)$:
+the relative displacements $u_i(x,z,t)$:
 \eq
-  \rho\ \frac{\partial^2 u}{\partial t^2} = \frac{\partial\sigma_{ij}}{\partial x_j} + f_i
+  \rho\ \frac{\partial^2 u_i}{\partial t^2} = \frac{\partial\sigma_{ij}}{\partial x_j} + f_i
 \en
 where summation over repeated indices is assumed.
-The initial conditions are $u_k=0$ and $\partial u_k/\partial t = 0$.
+The initial conditions are $u_i=0$ and $\partial u_i/\partial t = 0$.
 Stresses are related to strain, and possibly to other internal variables,
 by constitutive equations described in \secref{rheol}.
 The governing equations are supplemented by boundary conditions, described in \secref{bcs}. 
@@ -45,12 +45,12 @@ plane strain is selected by $\texttt{ndof=2}$ and antiplane shear by $\texttt{nd
 \item \emph{Plane strain}: 
 Also known in seismology as P-SV, and in fracture mechanics as inplane mode or mode II.
 It is assumed that $u_3=0$ and $\partial / \partial x_3 = 0$.
-Hence, $\epsilon_{13}=\epsilon_{23}=\epsilon_{33}=0$
+Hence, $\varepsilon_{13}=\varepsilon_{23}=\varepsilon_{33}=0$
 and there are two degrees of freedom per node, $u_x$ and $u_z$.
 \item \emph{Antiplane shear}: 
 Also known in seismology as SH, and in fracture mechanics as antiplane mode or mode III.
 It is assumed that $u_1=u_2=0$ and $\partial / \partial x_3 = 0$. 
-Hence, only $\epsilon_{13}$ and $\epsilon_{23}$ are non-zero
+Hence, only $\varepsilon_{13}$ and $\varepsilon_{23}$ are non-zero
 and there is one degree of freedom per node, $u_y$.
 \end{sitemize}
 
@@ -58,18 +58,18 @@ and there is one degree of freedom per node, $u_y$.
 \label{Sec:rheol}
 
 We describe here the constitutive equations implemented in SEM2DPACK,
-relating stress ($\sigma_{ij}$), strain ($\epsilon_{ij}$) and internal variables.
+relating stress ($\sigma_{ij}$), strain ($\varepsilon_{ij}$) and internal variables.
 
 \subsection{Linear elasticity}
 
 \subsubsection{Linear isotropic elasticity}
 
 Stress and strain are linearly related by Hooke's law, 
-$\sigma_{ij} = c_{ijkl} \epsilon_{ij}$,
+$\sigma_{ij} = c_{ijkl} \varepsilon_{ij}$,
 where $c_{ijkl}$ is the tensor of elastic moduli.
 In particular, for isotropic elasticity:
 \eq
-  \sigma_{ij} = \lambda \epsilon_{kk} \delta_{ij} + 2\mu \epsilon_{ij}
+  \sigma_{ij} = \lambda \varepsilon_{kk} \delta_{ij} + 2\mu \varepsilon_{ij}
 \en
 where $\lambda$ and $\mu$ are Lam\'e's first and second parameters, respectively.
 In 2D plane strain the only relevant stress components are $\sigma_{11}$, $\sigma_{22}$ and $\sigma_{12}$.
@@ -94,7 +94,7 @@ The stress-strain constitutive relation for P-SV in Voigt notation is:
     0      & 0      & c_{55}
   \end{array} \right) \ 
   \left( \begin{array}{c}
-    \epsilon_{xx} \\ \epsilon_{zz} \\ 2\epsilon_{xz}
+    \varepsilon_{xx} \\ \varepsilon_{zz} \\ 2\varepsilon_{xz}
   \end{array} \right)
 \en
 where the $c_{ij}$ are elastic moduli. 
@@ -109,7 +109,7 @@ For SH:
     0 & c_{66} 
   \end{array} \right) \ 
   \left( \begin{array}{c}
-    2 \epsilon_{yz} \\ 2\epsilon_{xy}
+    2 \varepsilon_{yz} \\ 2\varepsilon_{xy}
   \end{array} \right)
 \en
 
@@ -122,7 +122,7 @@ For SH:
 \subsubsection{Kelvin-Voigt material}
 
 Kelvin-Voigt damping can be combined with any of the other constitutive equations
-by replacing the elastic strain $\epsilon$ by $\epsilon^* = \epsilon + \eta\,\partial\epsilon/\partial t$,
+by replacing the elastic strain $\varepsilon$ by $\varepsilon^* = \varepsilon + \eta\,\partial\varepsilon/\partial t$,
 where $\eta$ is a viscosity timescale.
 
 The resulting quality factor $Q$ is frequency-dependent, $Q^{-1}(f) = 2\pi\eta f$.
@@ -162,8 +162,8 @@ Perfect plasticity with a Coulomb yield function is implemented
 for 2D plane strain, as in \citeN{And05}.
 
 The total strain is the sum of an elastic and a plastic contribution,
-$\epsilon = \epsilon^e + \epsilon^p$.
-The plastic strain is assumed to be purely deviatoric ($\epsilon^p_{kk} = 0$).
+$\varepsilon = \varepsilon^e + \varepsilon^p$.
+The plastic strain is assumed to be purely deviatoric ($\varepsilon^p_{kk} = 0$).
 Plastic yield occurs when
 the maximum shear stress over all orientations,
 \eq
@@ -180,7 +180,7 @@ where $c$ is the cohesion and $\phi$ is the internal friction angle.
 In classical Duvaut-Lions visco-plasticity the (visco-)plastic strain rate is proportional
 to the excess of stress over the yield strength:
 \eq
-  \dot{\epsilon}^p_{kl} = \frac{1}{2\mu\ T_v} \langle\tau_{max} - Y\rangle\ \frac{\tau_{ij}}{\tau_{max}}
+  \dot{\varepsilon}^p_{kl} = \frac{1}{2\mu\ T_v} \langle\tau_{max} - Y\rangle\ \frac{\tau_{ij}}{\tau_{max}}
 \en
 where $T_v$ is the visco-plastic relaxation time,
 $\langle x\rangle \doteq (x+|x|)/2$ is the ramp function
@@ -196,19 +196,38 @@ i.e. a few times the average spacing between GLL nodes divided by the P wave spe
 
 %----------------------------------------------------------
 \subsection{Attenuation}
-Following Moczo et al., [2004], we incorporate attenuation by adding viscoelastic terms in the stress-strain relations:
+Following \shortciteN{Mocetal04}, we incorporate attenuation 
+by adding viscoelastic terms in the stress-strain relations.
+For the sake of simplicity, we present here the formulation in terms of scalar stress and strain:
+\eqa
+\sigma(t) &=& M_u \varepsilon(t)-\sum_{l=1}^n M_u Y_l \zeta_l(t) \\
+\dot{\zeta}_l(t)+\omega_l \zeta_l(t) &=& \omega_l \varepsilon_l(t)
+\label{Eq:Qf}
+\ena
+where $M_u$ is the unrelaxed modulus, $n$ is the number of anelastic mechanisms
+and $Y_l$, $\zeta_l(t)$ and $\omega_l$ are the anelastic coefficient, 
+anelastic state variable and relaxation frequency of the $l^{th}$ viscoelastic mechanism, respectively. 
 
-?(t)=M_u??(t)-·_(l=1)^n??M_u Y_l ?_l (t)?                              ??_l (t)+?_l ?_l (t)=?_l ?(t)          
+The material parameters $Y_l$ and $\omega_l$ are determined to achieve
+a prescribed constant $Q$ value within a prescribed frequency band $[\omega_1,\omega_2]$.
+The quality factor of this viscoleastic material, as a function of angular frequency $\omega$, is
+implicitely given by the solution of the following equation:
+\eq
+Q^{-1}(\omega)- \sum_{l=1}^n \frac{\omega_l \omega +\omega_l^2 Q^(-1)(\omega)}{\omega_l^2+\omega^2 } Y_l = 0
+\en
+The relaxation frequencies $\omega_l$ are distributed uniformly in logarithmic scale
+within $[\omega_1,\omega_2]$.
+The anelastic coefficients $Y_l$ are determined by satisfying Equation~\ref{Eq:Qf} with prescribed $Q$ 
+in a least squares sense at $2n-1$ frequencies 
+distributed uniformly in logarithmic scale within $[\omega_1,\omega_2]$.
+The unrelaxed moduli $M_u$ are derived from the anelastic coefficients, 
+following equations 166 and 167 of \shortciteN{Mocetal04}),
+by constrainging the phase velocity at the reference frequency $\omega_r=\sqrt{\omega_1 \omega_2}$
+to equal the prescribed elastic wave velocity.
 
-where M_u, Y_l, ?_l (t) and ?_l are the unrelaxed modulus, anelastic coefficient, anelastic function and relaxation 
-frequency of the l^(th) viscoelastic mechanism, respectively. Seismic observations suggest that the quality factor Q 
-is nearly constant over a certain frequency range. To realize an approximately flat Q in a numerical method, an 
-adequate number of anelastic functions ?_l (t) and relaxation frequencies ?_l are needed to cover the frequency 
-range under interest. We find that three anelastic functions are sufficient to obtain a practically constant Q, with 
-relative error less than 5%, over a broad frequency band with maximum to minimum frequency ratio of 100. 
-Anelastic coefficients can then be solved from the following equation given a certain frequency band ?:
-Q^(-1) (?)=·_(l=1)^n?(?_l ?+?_l^2 Q^(-1) (?))/(?_l^2+?^2 ) Y_l                                
-The unrelaxed modulus is calculated from the anelastic coefficients and phase velocity [Equation (166) and (167) in Mozco et al., 2004]. 
+For $n=3$, an almost constant $Q$ is achieved, with less than $5\%$ error, 
+over a frequency band with maximum to minimum frequency ratio $\sim 100$. 
+A benchmark of our attenuation implementation is presented in section 5.1 of \shortciteN{Huaetal14b}.
 
 %----------------------------------------------------------
 \subsection{Continuum damage}
@@ -219,13 +238,13 @@ is implemented with modifications for 2D plane strain.
 %and XXX $\beta$ as introduced by \shortciteN{Hametal04}.
 
 The first and second invariants of the 2D elastic strain tensor are defined as
-$I_1 = \epsilon^e_{kk}$ and $I_2 = \epsilon^e_{ij}\epsilon^e_{ij}$, respectively. 
+$I_1 = \varepsilon^e_{kk}$ and $I_2 = \varepsilon^e_{ij}\varepsilon^e_{ij}$, respectively. 
 A strain invariant ratio is defined as $\xi = I_1/\sqrt{I_2}$.
 The following non-linear stress-strain relation is assumed
 \shortcite[eq. 12]{Lyaetal97a}:
 \eq
   \sigma_{ij} = ( \lambda - \gamma/\xi )\ I_1 \delta_{ij} 
-              + ( 2\mu - \gamma \xi )\ \epsilon^e_{ij}
+              + ( 2\mu - \gamma \xi )\ \varepsilon^e_{ij}
 \en
 where $\gamma$ is an additional elastic modulus.
 The elastic moduli depend
@@ -278,11 +297,11 @@ The evolution equation for the damage variable is
   \right.
 \en
 No healing is assumed below $\xi_0$.
-The evolution of the plastic strain $\epsilon^p_{ij}$ is 
+The evolution of the plastic strain $\varepsilon^p_{ij}$ is 
 driven by the damage variable $\alpha$ 
 \shortcite[eq. 9]{Hametal04}:
 \eq
-  \dot{\epsilon}^p_{ij} = 
+  \dot{\varepsilon}^p_{ij} = 
    \left\{
    \begin{array}{ll}
      \tau_{ij} C_v \dot{\alpha} & \mbox{if $\dot{\alpha}\ge 0$} \\
