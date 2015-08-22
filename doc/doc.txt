@@ -15,7 +15,8 @@
   let_wave [log] [T] Allow incident waves across this boundary 
                 if mechanism='WAVE' in &SRC_DEF
 
- NOTE   : Only implemented for vertical and horizontal boundaries.
+ NOTE   : Stacey conditions and incident waves are only implemented for 
+          vertical and horizontal boundaries
 
  ----------------------------------------------------------------------------
 
@@ -61,7 +62,8 @@
   cohesion [dble] [0d0] part of the strength not proportional to normal stress
   opening  [log] [T] Allow fault opening instead of tensile normal stress
   Tn       [dble] [0d0] Initial normal traction (positive = tensile)
-  Tt       [dble] [0d0] Initial tangent traction (positive antiplane: y>0)
+  Tt       [dble] [0d0] Initial tangent traction 
+                 (positive antiplane: y>0; positive inplane: right-lateral slip)
   Sxx      [dble] [0d0] Initial stress sigma_xx
   Sxy      [dble] [0d0] Initial stress sigma_xy
   Sxz      [dble] [0d0] Initial stress sigma_xz
@@ -78,11 +80,12 @@
                 The default resets oxi(2) = last fault node
   osides   [log] [F] Export displacement and velocities on each side
                 of the fault
+  V        [dble] [1d-12] Initial velocity (needed for RSF)
 
- NOTE: the initial stress can be set as a stress tensor (Sxx,etc), as
+ NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
        initial tractions on the fault plane (Tn and Tt) or as the sum of both.
 
- NOTE: we recommend to use dynamic faults with the leapfrog time scheme
+ NOTE: We recommend to use dynamic faults with the leapfrog time scheme
        and a layer of Kelvin-Voigt damping material near the fault.
 
  ----------------------------------------------------------------------------
@@ -121,6 +124,7 @@
   a        [dble] [0.01d0] Direct effect coefficient
   b        [dble] [0.02d0] Evolution effect coefficient
   Vstar    [dble] [1d0] Characteristic or reference slip velocity
+  theta    [dble] [1d0] State variable
 
  ----------------------------------------------------------------------------
 
@@ -182,11 +186,47 @@
                and for periodic boundaries.
    kind    [char*6] [none] Type of boundary condition. The following are
                implemented:
-               'DIRNEU', 'ABSORB', 'PERIOD', 'LISFLT', 'DYNFLT'
+               'DIRNEU', 'ABSORB', 'PERIOD', 'LISFLT', 'DYNFLT', 'KINFLT'
 
  NOTE   : Most of the boundary conditions need additional data, given
           in a BC_kind input block of the BOUNDARY_CONDITIONS group
           immediately following the BC_DEF block.
+
+ ----------------------------------------------------------------------------
+
+ NAME   : BC_KINFLT
+ GROUP  : BOUNDARY_CONDITION
+ PURPOSE: Prescribe a kinematic source (the spatio-temporal distribution of slip rate)
+          on a finite fault
+ STATUS : The current implementation has the following features and restrictions:
+            . the fault is a flat horizontal boundary at the bottom of the model
+            . prescribed (x,t)-dependent horizontal or vertical velocity
+            . traction is free in the other component 
+            . the source time function is the same everywhere (but variably shifted and scaled)
+            . the rupture time, final slip and rise time can be spatially variable
+ SYNTAX : &BC_KINFLT comp, trup|trupH, slipr|sliprH, tris|trisH, stf, ot1, otd, oxi /
+          followed, in order, by:
+          1. &DIST_XXX blocks (from the DISTRIBUTIONS group) for arguments
+             with suffix H, if present, in the order listed above.
+          2. one SOURCE TIME FUNCTION block (&STF_XXXX)
+ 
+  comp     [int] [1] component to apply velocity, 1=horizontal, 2=vertical
+  trup     [dble] [0d0] Rupture time (s)
+  slipr    [dble] [0d0] Slip rate (m/s)
+  tris     [dble] [0d0] Rise time (s)
+  stf      [name] [none] Name of the source time function for slip rate:
+                'RICKER', 'TAB', 'HARMONIC', 'BRUNE', 'USER', etc.
+                See the SOURCE TIME FUNCTION blocks.
+  otd      [dble] [0d0] Time lag between outputs (in seconds)
+                Internally adjusted to the nearest multiple of the timestep
+                Its value can be found in the output file FltXX_sem2d.hdr
+                The default internally resets otd = timestep
+  ot1      [dble] [0d0] Time of first output (in seconds)
+                Internally adjusted to the nearest multiple of the timestep
+                Its value can be found in the output file FltXX_sem2d.hdr
+  oxi      [int(3)] [(1,huge,1)] First, last node and stride for output
+                The default resets oxi(2) = last fault node
+ 
 
  ----------------------------------------------------------------------------
 
@@ -290,6 +330,9 @@
   length   [dble] [0] Smoothing length for sliding average window
                No smoothing if length=0
 
+ NOTE: If the requested point is out of bounds we extrapolate linearly
+       the two terminal values
+
  ----------------------------------------------------------------------------
 
  NAME   : DIST_ORDER0
@@ -304,8 +347,10 @@
 
   xn       [int] [none] Number of zones along X
   zn       [int] [none] Number of zones along Z
-  x        [dble(xn-1)] [none] Boundaries of X-zones: first zone X < x(1), 
-                second zone x(1) < X < x(2), ... , last zone x(xn-1) < X
+  x        [dble(xn-1)] [none] Boundaries of X-zones: 
+                first zone  X < x(1), 
+                second zone x(1) < X < x(2), ... 
+                last zone   x(xn-1) < X
   z        [dble(zn-1)] [none] Boundaries of Z-zones
   v        [dble(xn,zn)] [none] Values inside each zone
 
@@ -370,6 +415,7 @@
                 Example: '0001' is verbose only during solver.
   itInfo   [int] [100] Frequency (in number of timesteps) for printing
                 progress information during the solver phase.
+  abort_on_warnings        [log] [T] Abort if a severe warning occurs
 
  ----------------------------------------------------------------------------
 
@@ -398,15 +444,15 @@
  PURPOSE: Set material properties for a linear elastic medium
  SYNTAX : For isotropic material:
            &MAT_ELASTIC rho|rhoH, cp|cpH, cs|csH /
-           followed by DIST_XXXX blocks, for arguments with suffix H,
-           if present, in the same order as listed above.
           For transverse anisotropy with vertical symmetry axis:
-           &MAT_ELASTIC rho, c11,c13,c33,c55 /
+           &MAT_ELASTIC rho|rhoH, c11|c11H, c13|c13H, c33|c33H, c55|c55H, c66|c66H /
+          Followed by one DIST_XXXX blocks for each argument present with suffix H,
+          in the same order as listed above.
 
-  cp       [dble][0d0] P wave velocity
-  cs       [dble][0d0] S wave velocity
-  rho      [dble][0d0] density
-  c11,c13,c33,c55  [dble][0d0] anisotropic elastic moduli 
+  cp       [dble][0d0] P wave velocity (m/s)
+  cs       [dble][0d0] S wave velocity (m/s)
+  rho      [dble][0d0] density (kg/m^3)
+  c11,c13,c33,c55,c66  [dble][0d0] anisotropic elastic moduli (Pa)
 
  ----------------------------------------------------------------------------
 
@@ -472,6 +518,26 @@
 
  ----------------------------------------------------------------------------
 
+ NAME   : MAT_VISCO
+ GROUP  : MATERIALS
+ PURPOSE: Set material properties for viscoelastic medium with
+          approximately constant quality factor in a prescribed frequency band
+ SYNTAX : &MAT_VISCO cp,cs,rho,QP,QS,Nbody,fmin,fmax /
+
+  cp       [dble][0d0] P wave velocity
+  cs       [dble][0d0] S wave velocity
+  rho      [dble][0d0] density
+  QP       [dble][0d0] attenuation quality factor of P waves
+  QS       [dble][0d0] attenuation quality factor of S waves
+  Nbody    [int][0] number of viscoelastic mechanisms
+  fmin     [dble][0d0] minimum frequency for constant Q
+  fmax     [dble][0d0] maximum frequency for constant Q
+
+ NOTE   : For Nbody=3, constant Q with less than 5% error can be achieved
+          over a maximum bandwidth fmax/fmin ~ 100
+
+ ----------------------------------------------------------------------------
+
  NAME   : MESH_CART
  GROUP  : MESH_DEF
  PURPOSE: Rectangular box with structured mesh.
@@ -490,15 +556,17 @@
   fztag    [int][0] fault zone tag for elements close to the fault
                 Useful to set a damping layer near the fault.
                 If ezflt=0, a fault is assumed at the bottom boundary
+  split    [log][F] splits the bottom boundary into two segments.
+  splitD   [dble(2)][none] X distance that splits bottom boundary
   fznz     [int][1] vertical size (number of elements) of near-fault layer
-  FaultX   [log] [F] Same as ezflt=-1. Obsolete (will be deprecated) 
+  FaultX   [log][F] Same as ezflt=-1. Obsolete (will be deprecated) 
 
  NOTE: the following tags are automatically assigned to the boundaries: 
-               1       Bottom 
+               1       Bottom or Bottom Right
                2       Right        
                3       Top  
                4       Left
-               5       Fault, bottom side
+               5       Fault, bottom side or Bottom Left
                6       Fault, top side
 
  ----------------------------------------------------------------------------
@@ -855,6 +923,18 @@
 
  ----------------------------------------------------------------------------
 
+ NAME   : STF_GAUSSIAN
+ GROUP  : SOURCE TIME FUNCTIONS
+ PURPOSE: Gaussian source time function  
+          stf(t) = ampli*exp[-(pi*f0*(t-onset))^2]
+ SYNTAX : &STF_GAUSSIAN ampli, f0, onset /
+
+  ampli    [dble] [1d0] Amplitude
+  onset    [dble] [0d0] Delay time (s)
+  f0       [dble] [1d0] Characteristic frequency bandwidth (Hz)  
+
+ ----------------------------------------------------------------------------
+
  NAME   : STF_HARMONIC
  GROUP  : SOURCE TIME FUNCTIONS
  PURPOSE: Harmonic source time function f(t) = ampli*sin(2*pi*t*f0)
@@ -928,6 +1008,7 @@
                 'symp_PV'       Position Verlet
                 'symp_PFR'      Position Forest-Ruth (4th order)
                 'symp_PEFRL'    Extended PFR (4th order)
+		 'quasi-static'  Quasi-static (Kaneko, et al, 2011)
   Dt        [dble] [none] Timestep (in seconds)
   Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
                 stability number (CFL), defined as

@@ -14,7 +14,7 @@ $(DOC).dvi: *.tex *.bib
 	latex $(DOC)
 
 selfdoc.tex: ../../SRC/*.f90 
-	cd .. ; ./selfdoc.csh ; cd USERS_GUIDE
+	cd .. ; csh ./selfdoc.csh ; cd USERS_GUIDE
 
 *.bib:
 	bibtex $(DOC) ; latex $(DOC)
