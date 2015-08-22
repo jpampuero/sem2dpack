@@ -1,5 +1,6 @@
 module attenuation
 ! Added by Yihe Huang (2012)
+! Modified by J.-P. Ampuero (2015)
 
   implicit none
 
@@ -11,45 +12,23 @@ module attenuation
   use constants, only : PI
 
   integer, intent(in) :: Nbody
+  double precision, intent(in) :: cp, cs, rho, QP, QS, fmin, fmax
   double precision, intent(out) :: theta(Nbody,3), wbody(Nbody)
-
-  double precision, intent(in) :: cp, cs, rho, QP, QS, f0, fmin, fmax
   double precision, intent(out) :: mu_inf, lambda_inf
 
   integer :: i,j,Nfrequency
   double precision :: w0, wmin, wmax, &
                       RP1, RP2, RP, RS1, RS2, RS, mu, lambda ! to calculate unrelaxed moduli
-  double precision, dimension(2*Nbody-1,Nbody) :: AP, AS! (Nfrequency*Nbody) Matrices for P and S
+  double precision, dimension(2*Nbody-1,Nbody) :: AP, AS  ! (Nfrequency*Nbody) Matrices for P and S
   double precision, dimension(2*Nbody-1) :: QPInv,QSInv,w ! (Nfrequency) 1/Q and frequencies used for inversion
-  double precision, dimension(Nbody) :: Y_alpha, Y_beta ! Anelastic function for P and S
+  double precision, dimension(Nbody) :: Y_alpha, Y_beta   ! Anelastic coefficients for P and S
   double precision :: WM(Nbody), VM(Nbody,Nbody)
-
-  double precision :: theta(Nbody,3), wbody(Nbody)
-
-  double precision, pointer, dimension(:,:) :: AP => null(), AS => null() ! (Nfrequency*Nbody) Matrices for P and S
-
-  double precision, pointer, dimension(:) :: QPInv => null(), QSInv => null() ! (Nfrequency) 1/Q
-
-  double precision, pointer, dimension(:) :: w => null() ! (Nfrequency) frequencies used for inversion
-
-  double precision :: Y_alpha(Nbody), Y_beta(Nbody) ! Anelastic function for P and S
-
-  double precision, pointer, dimension(:) :: WM => null()
-
-  double precision, pointer, dimension(:,:) :: VM => null()
-
-  double precision :: RP1, RP2, RP, RS1, RS2, RS, mu, lambda ! Used to calculate unrelaxted modulus
-
-  intent(in) :: cp, cs, rho, QP, QS, Nbody, fmin, fmax
-
-  intent(out) :: theta, wbody, mu_inf, lambda_inf
 
 !Calculate anelastic functions Y_alpha and Y_beta
 
   Nfrequency = 2*Nbody-1
 
-  f0=(fmin*fmax)**0.5d0
-  w0=2.0d0*PI*f0
+  w0=2.0d0*PI*(fmin*fmax)**0.5d0
   wmin=2.0d0*PI*fmin
   wmax=2.0d0*PI*fmax
 
@@ -65,9 +44,10 @@ module attenuation
     wbody(j)=w(2*j-1)
   end do
 
+  QPInv=1.0d0/QP
+  QSInv=1.0d0/QS
+
   do i=1,Nfrequency
-    QPInv(i)=1.0d0/QP
-    QSInv(i)=1.0d0/QS
     do j=1,Nbody
       AP(i,j)=(wbody(j)*w(i)+wbody(j)**2/QP)/(wbody(j)**2+w(i)**2)
       AS(i,j)=(wbody(j)*w(i)+wbody(j)**2/QS)/(wbody(j)**2+w(i)**2)
