@@ -373,8 +373,7 @@ end subroutine cg_solver
 
 double precision function norm2(x)
   double precision, dimension(:,:), intent(in) :: x
-  call IO_abort('norm2 not implemented yet')
-  norm2 = 0d0
+  norm2 = sqrt( sum(x*x) )
 end function norm2
   
 ! DEVEL: not finished yet!
