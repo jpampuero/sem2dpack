@@ -84,7 +84,7 @@
      + add surrounding strip of elements for PML
      + element quality metrics
      + more precise stability estimate (element-wise eigenvalue problem)
-     + automated meshing starting with a triangulation in Cubit or: 
+     + automated meshing starting with a triangulation in Cubit (THEX) or: 
        Triangle (http://www.cs.cmu.edu/~quake/triangle.html)
         -->  CQmesh (http://www.dct.ufms.br/~marcelo/cqmesh.html)
          --> QMPP (http://www.dct.ufms.br/~marcelo/qmpp.html)
@@ -133,11 +133,6 @@
      + Graphical User Interface front end
 
   DOCUMENTATION:
-     + add Huang et al (2013, 2014), Xu et al (2014) 
-     + add Behura and Snieder (2013, http://library.seg.org/doi/pdf/10.1190/geo2013-0069.1)
-     + add Boaga et al (2013, http://library.seg.org/doi/abs/10.1190/geo2012-0194.1)
-     + add Boaga et al (2014, http://jeeg.geoscienceworld.org/content/19/2/87.abstract)
-     + complete description of visco-plasticity
      + complete description of the boundary conditions
      + add full operational sequence in examples (README files)
      + add examples in matlab doc
@@ -148,7 +143,6 @@
      
   PACKAGING:
      + expand test suite, test each main feature
-     + create a SubVersion project
      + avoid unnecessary recompilation of modules (www.theochem.uwa.edu.au/fortran/recompile)
      + add compiler_variable to Makefile
      
