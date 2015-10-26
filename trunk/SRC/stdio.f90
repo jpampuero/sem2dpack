@@ -206,6 +206,7 @@ contains
 
     character(*),intent(in) :: message
 
+    write(ierror,*) 
     write(ierror,*) message
     write(ierror,*) 'FATAL ERROR, aborting.'
     stop

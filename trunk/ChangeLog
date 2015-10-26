@@ -9,13 +9,25 @@ FR xxxxxxx : Feature Requests
 SR xxxxxxx : Support Requests
 
 
+-- v 2.3.9
+++ attenuation with constant Q
+++ anisotropy in SH waves (FR 3547982)
+ + dynamic faults can open with free stress
+ + meshes without boundary conditions are allowed
+ + bottom boundary can be split
+*+ in slip-strengthening faults, mu was incorrectly =mus (pointed out by Yihe Huang)
+*+ corrected meaning of mus and mud in exponential slip-weakening friction 
+*+ unassociated pointers (BR 4)
+*+ fixed handling of splines for layered mesh
+
+
 Tue Aug  7 15:21:11 PDT 2012 -- v 2.3.8
  ++ mesh2d/read_inp.m reads mesh in ABAQUS' INP format exported by CUBIT 
     (http://cubit.sandia.gov)
  ++ mesh2d/read_dcm.m reads mesh in DCM format exported by EZ4U
     (http://www-lacan.upc.es/ez4u.htm)
  ++ preliminary version of kinematic fault sources (new &BC_KINFLT block)
- ++ heterogeneous coefficients for anistropic media 
+ ++ heterogeneous coefficients for anisotropic media 
     FR 3313940
   + PRE/critical_timestep.m computes the critical time step for given element
     size and NGLL

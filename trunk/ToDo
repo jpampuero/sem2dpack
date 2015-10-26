@@ -1,4 +1,10 @@
 -- KNOWN ISSUES: 
+     + (Shiqing Xu) Displacement field near fault's intersection with the surface 
+       has minor problems (direction relative to fault dip, partitioning onto different sides, etc)
+       for shallowly dipping faults (e.g. 10 degrees).
+       Should be benchmarked with a 2D version of Okada's dislocation model. 
+     + (Shiqing Xu) Surface wave (Rayleigh) propagation towards the semi-spherical boundary
+     + (Shiqing Xu) Corner waves following the surface wave
      + incompatibility between dynamic faults and absorbing boundaries:
        . see 1D test
        . see 2D test: fault normal stress in homogeneous symmetric examples 
