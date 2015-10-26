@@ -64,24 +64,25 @@ contains
 !                Some friction types can be combined. E.g. to set the 
 !                friction coefficient to the minimum of SWF and TWF, set 
 !                  friction='SWF','TWF'
-! ARG: cohesion [dble] [0d0] part of the strength not proportional to normal stress
+! ARG: cohesion [dble] [0d0] part of the strength that is not proportional to 
+!                normal stress. It must be positive or zero.
 ! ARG: opening  [log] [T] Allow fault opening instead of tensile normal stress
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
 ! ARG: Tt       [dble] [0d0] Initial tangent traction 
-!                 (positive antiplane: y>0; positive inplane: right-lateral slip)
+!                (positive antiplane: y>0; positive inplane: right-lateral slip)
 ! ARG: Sxx      [dble] [0d0] Initial stress sigma_xx
 ! ARG: Sxy      [dble] [0d0] Initial stress sigma_xy
 ! ARG: Sxz      [dble] [0d0] Initial stress sigma_xz
 ! ARG: Syz      [dble] [0d0] Initial stress sigma_yz
 ! ARG: Szz      [dble] [0d0] Initial stress sigma_zz
-! ARG: otd      [dble] [0.d0] Time lag between outputs (in seconds)
-!                Internally adjusted to the nearest multiple of the timestep
-!                Its value can be found in the output file FltXX_sem2d.hdr
+! ARG: otd      [dble] [0.d0] Time lag between outputs (in seconds).
+!                Internally adjusted to the nearest multiple of the timestep.
+!                Its value can be found in the output file FltXX_sem2d.hdr.
 !                The default internally resets otd = timestep
-! ARG: ot1      [dble] [0.d0] Time of first output (in seconds)
-!                Internally adjusted to the nearest multiple of the timestep
+! ARG: ot1      [dble] [0.d0] Time of first output (in seconds).
+!                Internally adjusted to the nearest multiple of the timestep.
 !                Its value can be found in the output file FltXX_sem2d.hdr
-! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output
+! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output.
 !                The default resets oxi(2) = last fault node
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
@@ -409,6 +410,7 @@ contains
  
 ! cohesion
   call DIST_CD_Init(bc%input%cohesion,bc%coord,bc%cohesion)
+  if (any(bc%cohesion < 0d0)) call IO_abort('bc_dynflt_init: cohesion must be positive')
 
   ! Normal stress response
   call normal_init(bc%normal,dt,bc%T0(:,2))
