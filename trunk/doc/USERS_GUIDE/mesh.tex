@@ -380,16 +380,22 @@ the mesher. Some experience is needed here.
 \item Note that only Q4 elements (4 control nodes) are supported. For a smoother
 description of boundaries Q9 would be desirable.
 
+\section{Generating a mesh with CUBIT}
+
+An example CUBIT "journal file" is provided in \texttt{POST/mesh2d/dipping\_fault\_2d.jou}.
+It exports a mesh file \texttt{dipping\_fault\_2d.inp} in ABAQUS' INP format.
+This file must then be translated into SEM2DPACK's MESH2D format following the 
+instructions in the next section.
+
 \section{Importing a mesh from CUBIT, EZ4U or other mesh generation software}
 
 The most convenient way of doing this is by writing 
 a Matlab function that reads the external mesh file,
 performs mesh manipulations if required
-and exports a mesh file with the MESH2D format \secref{mesh2d}.
-
-Two examples of this are provided in \texttt{POST/mesh2d}.
-The functions \texttt{READ\_DCM} and \texttt{READ\_INP}		
-read a mesh in, respectively, the DCM format of EZ4U (http://www-lacan.upc.es/ez4u.htm)
-and in the INP format of ABAQUS exported by CUBIT.
+and exports a mesh file with the MESH2D format introduced in \secref{mesh2d}.
+Two examples of mesh file reading functions are provided in \texttt{POST/mesh2d}.
+\texttt{READ\_DCM} reads a mesh in the DCM format of EZ4U (http://www-lacan.upc.es/ez4u.htm).
+\texttt{READ\_INP} reads a mesh in the INP format of ABAQUS exported by CUBIT.
+The mesh is exported from Matlab in MESH2D format by the functionq \texttt{MESH2D\_WRITE}.
 
 \end{itemize}

@@ -1,0 +1,109 @@
+# Cubit/Trelis script for mesh generation of a 2D dipping fault model with split nodes,
+# semi-circular absorbing boundary and mesh coarsening.
+# 
+# If you use this script in your work, please cite
+#   Y. Huang, L. Meng and J.-P. Ampuero (2013)
+#   A dynamic model of the frequency-dependent rupture process of the 2011 Tohoku-Oki earthquake
+#   Earth, Planets and Space, 64 (12), 1061-1066, doi:10.5047/eps.2012.05.011
+# and
+#   Y. Huang, J.-P. Ampuero and H. Kanamori (2014)
+#   Slip-weakening models of the 2011 Tohoku-Oki earthquake and constraints on stress drop and fracture energy
+#   Pure Appl. Geophys., 171 (10), 2555-2568, doi:10.1007/s00024-013-0718-2
+#
+# Authors: Surendra Somala (IIT Hyderabad), Pablo Ampuero (Caltech Seismolab) (2015)
+
+reset
+
+#{km = 1} # re-scaling to properly control the merge tolerance
+# NOTE: this re-scaling works in models with dimensions of the order of 100 km and element sizes of the order of km
+#       but has not been tested yet in other settings
+
+## User can set model geometry parameters here ##
+#
+#{XFLT = 100*km} 	# horizontal position of fault surface trace
+#{ZFLT = 55*km}		# fault bottom depth. The fault bottom point is (-XFLT,-ZFLT)
+#{RIN_RATIO = 1.14} 	# inner radius normalized by sqrt( XFLT^2 + ZFLT^2 ), must be >1
+#{ROUT_RATIO = 2.3} 	# outer radius (absorbing boundary) normalized by inner radius, must be >1
+#{HIN = 2*km}		# element size on fault and inner circle
+#{HOUT_RATIO = 6}	# element size in outer circle normalized by HIN
+#
+## User does not need to change anything below this line ##
+
+#{RIN = RIN_RATIO*hypot(XFLT,ZFLT)} 	# inner radius
+#{ROUT = ROUT_RATIO*RIN}		# outer radius
+#{HOUT = HOUT_RATIO*HIN}		# element size in outer circle
+
+# body 1 = outer half-circle
+create vertex 0 0 0
+create vertex {ROUT} 0 0
+create vertex {-ROUT} 0 0
+create vertex 0 {-ROUT} 0
+create curve vertex 2 3 4 circular
+create curve vertex 2 1
+create curve vertex 1 3
+create surface curve 1 2 3
+delete vertex 4
+
+#  body 2 = triangle, bottom edge is the fault
+create vertex {XFLT} 0 0
+create vertex {-XFLT} 0 0
+create vertex {-XFLT} {-ZFLT} 0
+create surface vertex 8 9 10
+
+#  body 3 = half-circle minus triangle
+subtract body 2 from body 1 keep
+delete body 1
+
+# body 4 = inner half-circle
+create vertex {RIN} 0 0
+create vertex {-RIN} 0 0
+create vertex 0 {-RIN} 0
+create curve vertex 16 17 18 circular
+create curve vertex 16 17
+create surface curve 12 13
+delete vertex 18
+
+# body 5 = outer half-ring
+subtract body 4 from body 3 keep
+delete body 3
+
+# body 6 = inner half-circle minus triangle
+subtract body 2 from body 4 keep
+delete body 4
+
+curve 6 18 merge off
+merge tolerance 1.0e-0
+imprint all with volume all
+merge all
+
+# meshing inner blocks
+curve 6 18 scheme equal
+curve 14 size {HIN}
+surface 2 6 size {HIN}
+surface 2 5 6 scheme pave
+mesh surface 2 6
+
+# meshing outer ring
+curve 16 size {HOUT}
+surface 5 sizing function type bias start curve 14 finish curve 16
+mesh surface 5
+
+# scale upwards
+surface all scale 1000
+
+# define materials
+block 1 surface 2 5 6
+block 1 name "elastic"
+
+# define boundaries
+sideset 100 curve 6
+sideset 100 name "fault_up"
+sideset 101 curve 18
+sideset 101 name "fault_lo"
+sideset 10 curve 17 22 4 20 15
+sideset 10 name "free_surf"
+sideset 11 curve 16
+sideset 11 name "abso_boun"
+
+# write mesh file
+export abaqus "dipping_fault_2d.inp" dimension 2 overwrite
