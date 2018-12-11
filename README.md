@@ -1,4 +1,4 @@
-# sem2dpack
+# SEM2PACK
 
 ## A spectral element method for 2D wave propagation and fracture dynamics, with emphasis on computational seismology and earthquake source dynamics.
 
