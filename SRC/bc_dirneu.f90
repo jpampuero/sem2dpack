@@ -196,6 +196,7 @@ subroutine bc_DIRNEU_apply(bc,field,time,veloc)
     if (bc%kind(1)==IS_DIRICHLET) then
       field(bc%topo%node,1) = 0.d0
     elseif (associated(bc%hstf)) then
+      field(bc%topo%node,1) = 0.d0      
       veloc(bc%topo%node,1) = STF_get(bc%hstf,time%time)
     endif
     ! if SH return
@@ -204,6 +205,7 @@ subroutine bc_DIRNEU_apply(bc,field,time,veloc)
     if (bc%kind(2)==IS_DIRICHLET) then
       field(bc%topo%node,2) = 0.d0
     elseif (associated(bc%vstf)) then
+      field(bc%topo%node,2) = 0.d0
       veloc(bc%topo%node,2) = STF_get(bc%vstf,time%time)
     endif
     return
