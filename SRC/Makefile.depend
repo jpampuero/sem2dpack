@@ -80,8 +80,9 @@ main.o: bc_gen.o constants.o echo.o energy.o init.o input.o plot_gen.o \
 mat_damage.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o utils.o
 mat_elastic.o: constants.o echo.o mxmlib.o prop_mat.o spec_grid.o stdio.o
 mat_gen.o: echo.o fields.o mat_damage.o mat_elastic.o mat_kelvin_voigt.o \
-	mat_mass.o mat_plastic.o mat_visco.o mat_visla.o memory_info.o mxmlib.o prop_mat.o \
-	spec_grid.o stdio.o
+	mat_mass.o mat_iwan.o mat_plastic.o mat_visco.o mat_visla.o memory_info.o mxmlib.o prop_mat.o \
+	spec_grid.o stdio.o utils.o
+mat_iwan.o:  constants.o echo.o lu.o mat_visla.o prop_mat.o spec_grid.o stdio.o 
 mat_kelvin_voigt.o: echo.o prop_mat.o stdio.o
 mat_mass.o: echo.o fields.o memory_info.o prop_mat.o spec_grid.o
 mat_plastic.o: constants.o echo.o prop_mat.o stdio.o
