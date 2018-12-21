@@ -38,8 +38,8 @@
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
-
+# EXEC = $(HOME)/bin/sem2dsolve
+EXEC = ../sem2dsolve
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
 # GNU 
