@@ -155,8 +155,9 @@ subroutine solve_leapfrog(pb)
   call BC_apply(pb%bc,pb%time,pb%fields,f)
 
   a = pb%rmass * f
-  v_mid = v_mid + pb%time%dt * a 
-  
+!  v_mid = v_mid + pb%time%dt * a 
+   v_mid = pb%Pcoef1* v_mid + pb%Pcoef2* pb%time%dt * a 
+ 
 end subroutine solve_leapfrog
 
 
@@ -283,10 +284,12 @@ subroutine compute_Fint(f,d,v,pb)
   double precision :: E_ep, E_el, sg(3), sgp(3)
   integer :: e
 
+
   f = 0d0
   pb%energy%E_el = 0d0
   pb%energy%sg   = 0d0
   pb%energy%sgp  = 0d0
+
 
   do e = 1,pb%grid%nelem
     dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
@@ -303,8 +306,8 @@ subroutine compute_Fint(f,d,v,pb)
    ! cumulated stress glut
     pb%energy%sg = pb%energy%sg + sg
     pb%energy%sgp = pb%energy%sgp + sgp
-
   enddo
+
 
 !DEVEL: to parallelize this loop for multi-cores (OpenMP)
 !DEVEL: reorder the elements to avoid conflict during assembly (graph coloring)

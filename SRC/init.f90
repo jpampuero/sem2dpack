@@ -60,7 +60,9 @@ subroutine init_main(pb,InitFile)
   call TIME_init(pb%time,grid_cfl) ! define time evolution coefficients
  
  ! define work arrays and data
-  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
+!  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
+  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time),&
+                      pb%Pcoef1, pb%Pcoef2)
 
  ! initialise fields
   if (info) write(iout,fmt1,advance='no') 'Initializing kinematic fields'

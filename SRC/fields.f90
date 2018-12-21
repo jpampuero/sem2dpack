@@ -8,6 +8,7 @@ module fields_class
     integer :: ndof,npoin
     double precision, dimension(:,:), pointer ::  displ,veloc,accel, &
                                                   displ_alpha,veloc_alpha
+                                                  
   end type fields_type
 
   interface FIELD_get_elem
@@ -19,7 +20,8 @@ module fields_class
   end interface FIELD_add_elem
 
   public :: fields_type, FIELDS_read, FIELDS_init &
-          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
+          , FIELD_get_elem, FIELD_add_elem, FIELD_add_elem_no_cumul &
+          , FIELD_strain_elem, FIELD_divcurl_elem
 
 contains
 
@@ -127,7 +129,27 @@ subroutine FIELD_add_elem_2(fin,Fout,ibool)
   enddo
 
 end subroutine FIELD_add_elem_2
+!=============================================================================
+subroutine FIELD_add_elem_no_cumul(fin,Fout,ibool)
+  
+  ! Added by Elif(2016): 
+  ! to overwrite the global matrix
+  ! used for C-PML
+  double precision, intent(in) :: fin(:,:,:)
+  double precision, intent(inout) :: Fout(:,:)
+  integer, intent(in) :: ibool(:,:)
 
+  integer :: i,j,k,ngll
+
+  ngll = size(ibool,1)
+  do j=1,ngll
+  do i=1,ngll
+    k = ibool(i,j)
+    Fout(k,:) = fin(i,j,:)
+  enddo
+  enddo
+
+end subroutine FIELD_add_elem_no_cumul
 !=============================================================================
 ! Get element contribution from a global field, in local element storage 
 function FIELD_get_elem_1(Fin,ibool) result(fout)

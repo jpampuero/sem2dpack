@@ -43,6 +43,11 @@ module problem_class
     type(source_type), pointer :: src(:) => null()
    ! data for receivers
     type(rec_type), pointer :: rec => null()
+   ! C-PML absorbing layer definitive coefficiens 
+   ! (used only in leap-frog time scheme)
+    double precision, pointer :: Pcoef1(:,:) => null()
+    double precision, pointer :: Pcoef2(:,:) => null()
+
   end type problem_type
 
   public :: problem_type

@@ -39,6 +39,7 @@ module mat_gen
   use mat_visco
   use mat_visla
   use mat_iwan
+  use mat_cpml
  !!  use mat_user  
 
   implicit none
@@ -61,6 +62,7 @@ module mat_gen
     type(matwrk_visco_type), pointer :: visco=>null()
     type(matwrk_visla_type), pointer :: visla=>null()
     type(matwrk_iwan_type),  pointer :: iwan=>null()
+    type(matwrk_cpml_type),  pointer :: cpml=>null()
 
 !!    type(matwrk_user_type)  , pointer :: user=>null()
   end type matwrk_elem_type
@@ -94,6 +96,7 @@ contains
 ! ARG: tag      [int] [none]    Number identifying a mesh domain 
 ! ARG: kind     [name(2)] ['ELAST','']  Material types:
 !               'ELAST', 'DMG','PLAST', 'KV', 'VISCO', 'VISLA', 'IWAN'
+!               'CPML'.
 !
 ! NOTE   : Some combinations of material kinds can be assigned to the same domain.
 !          Any material type can be combined with 'KV', for instance:
@@ -156,6 +159,7 @@ subroutine MAT_read(mat,iin)
           case ('VISCO'); name(k) = 'Visco'
           case ('VISLA'); name(k) = 'Visco_LA'
           case ('IWAN') ; name(k) = 'Iwan'
+          case ('CPML');  name(k) = 'CPML'
           !! case ('USER'); name(k) = 'User'
           case default  ; name(k) = kind(k)
         end select
@@ -179,6 +183,7 @@ subroutine MAT_read(mat,iin)
         case ('VISCO'); call MAT_VISCO_read(mat(tag),iin)
         case ('VISLA'); call MAT_VISLA_read(mat(tag),iin)
         case ('IWAN') ; call MAT_IWAN_read(mat(tag),iin)
+        case ('CPML') ; call MAT_CPML_read(mat(tag),iin)
         !! case ('USER'); call MAT_USER_read(mat(tag),iin)
         case ('')     ; continue
         case default  ; call IO_abort('MAT_read: unkown kind')
@@ -258,6 +263,7 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   call storearray('matpro:visco',MAT_VISCO_mempro,idouble)
   call storearray('matpro:visla',MAT_VISLA_mempro,idouble)
   call storearray('matpro:iwan',MAT_IWAN_mempro,idouble)
+  call storearray('matpro:cpml',MAT_CPML_mempro,idouble)
   !!call storearray('matpro:user',MAT_USER_mempro,idouble)
 
   ! export velocity and density model
@@ -328,15 +334,17 @@ subroutine MAT_init_elem_prop(elem,ecoord)
   if (MAT_isVisco(elem)) call MAT_VISCO_init_elem_prop(elem,ecoord)
   if (MAT_isViscoLA(elem)) call MAT_VISLA_init_elem_prop(elem,ecoord)
   if (MAT_isIwan(elem)) call MAT_IWAN_init_elem_prop(elem,ecoord)
+  if (MAT_isCPML(elem)) call MAT_CPML_init_elem_prop(elem,ecoord)
   !!if (MAT_isUser(elem)) call MAT_USER_init_elem_prop(elem,ecoord)
 
 end subroutine MAT_init_elem_prop
 
 !=======================================================================
-subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
+subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt,Pcoef1,Pcoef2)
 
   use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged, SE_elem_coord
   use echo, only : echo_init,iout,fmt1,fmtok
+  use fields_class, only : FIELD_add_elem_no_cumul
   use stdio, only : IO_abort
   use memory_info
   use utils, only : unique
@@ -346,13 +354,16 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   type(matpro_elem_type), intent(inout) :: matpro(grid%nelem)
   integer, intent(in) :: ndof
   double precision, intent(in) :: dt
+  double precision, pointer, intent(inout) :: Pcoef1(:,:), Pcoef2(:,:)
+
   integer, pointer :: elist(:), tags(:)
   integer :: e, e1, ntags
   logical :: flat_grid, initstress
-
   double precision, dimension(:,:,:), allocatable :: siginit
   double precision, dimension(:), allocatable :: sigmid  
-  
+  double precision, dimension(grid%ngll,grid%ngll,ndof) :: coefloc1,coefloc2
+
+
   if (echo_init) write(iout,fmt1,advance='no') 'Defining material work arrays'
 
   allocate(matwrk(grid%nelem))
@@ -362,6 +373,12 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   flat_grid = SE_isFlat(grid)
   elist => SE_firstElementTagged(grid)
 
+
+! C-PML coefficients
+  allocate(Pcoef1(grid%npoin, ndof))
+  allocate(Pcoef2(grid%npoin, ndof))
+  Pcoef1 = 1d0
+  Pcoef2 = 1d0
 
 
   initstress = .False.
@@ -443,7 +460,14 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
         call MAT_IWAN_init_elem_work(matwrk(e)%iwan,matpro(e),grid%ngll,ndof)
       endif
 
-
+    ! C-PML absorbing layer model
+     elseif (MAT_isCPML(matpro(e))) then
+      allocate(matwrk(e)%derint)
+      allocate(matwrk(e)%cpml)
+      call MAT_set_derint(matwrk(e)%derint,grid,e)  
+      call MAT_CPML_init_elem_work(matwrk(e)%cpml,matpro(e),grid,grid%ngll,ndof,e,dt,coefloc1,coefloc2)
+      call FIELD_add_elem_no_cumul(coefloc1,Pcoef1,grid%ibool(:,:,e))    
+      call FIELD_add_elem_no_cumul(coefloc2,Pcoef2,grid%ibool(:,:,e))    
 
   !!  elseif (MAT_isUser(matpro(e)))
   !!    allocate(matwrk(e)%user)
@@ -467,6 +491,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   call storearray('matwrk%visco',MAT_VISCO_memwrk,idouble)
   call storearray('matwrk%visla',MAT_VISLA_memwrk,idouble)
   call storearray('matwrk%iwan',MAT_IWAN_memwrk,idouble)
+  call storearray('matwrk%cpml',MAT_CPML_memwrk,idouble)
   !!call storearray('matwrk%user',MAT_USER_memwrk,idouble)
 
 end subroutine MAT_init_work
@@ -523,6 +548,12 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
     call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
 
+  elseif(MAT_isCPML(matpro)) then
+  ! C-PML properties formulated on velocity-stress scheme 
+    de = (MAT_strain(v,matwrk,ngll,ndof))
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de)
+    f = MAT_forces(s,matwrk%derint,ngll,ndof)   
+
 
   else
     e  = MAT_strain(d,matwrk,ngll,ndof)
@@ -568,6 +599,8 @@ subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de)
 
   if (MAT_isIwan(matpro)) &
   call MAT_IWAN_stress(ndof,matwrk%iwan,ngll,dt,de,s,matpro)
+
+  if (MAT_isCPML(matpro))  call MAT_CPML_stress(matwrk%cpml,ngll,ndof,s,de,dt)
 
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
 
