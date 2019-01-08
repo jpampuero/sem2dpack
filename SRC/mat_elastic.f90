@@ -10,7 +10,7 @@ module mat_elastic
  !-- purely elastic
   type matwrk_elast_type
     private
-    double precision, pointer :: a(:,:,:) => null()
+    double precision, pointer :: a(:,:,:) => null(), beta(:,:) => null()
   end type matwrk_elast_type
 
   ! defined in the first call to MAT_setKind
@@ -28,7 +28,9 @@ module mat_elastic
           , MAT_ELAST_read &
           , MAT_ELAST_init_elem_prop, MAT_ELAST_init_elem_work &
           , MAT_ELAST_f, MAT_ELAST_stress &
-          , MAT_ELAST_memwrk, MAT_ELAST_mempro 
+          , MAT_ELAST_memwrk, MAT_ELAST_mempro &
+          , MAT_CP_add_f
+
 
 contains
 
@@ -275,6 +277,13 @@ contains
                    + size( transfer(matwrk, (/ 0d0 /) )) &
                    + size(matwrk%a)
 
+  if (grid%LY < huge(1d0)) then
+     allocate(matwrk%beta(grid%ngll,grid%ngll))
+     call MAT_ELAST_init_CrustalPlane(matwrk%beta,grid%ngll &
+                   , SE_VolumeWeights(grid,e),grid%LY,matpro,ndof)
+  endif
+
+
   end subroutine MAT_ELAST_init_elem_work
 
 !---------------------------------------------------------------------
@@ -350,10 +359,30 @@ contains
 
   end subroutine MAT_ELAST_init_a
 
+!==============================================
+  subroutine MAT_ELAST_init_CrustalPlane(beta,ngll,dvol,LY,mat,ndof)
+
+  integer, intent(in) :: ngll,ndof
+  double precision, intent(out) :: beta(ngll,ngll)
+  double precision, dimension(ngll,ngll), intent(in) :: dvol
+  double precision, intent(in) :: LY
+  type(matpro_elem_type), intent(in) :: mat
+
+  double precision, dimension(ngll,ngll) :: mu
+
+  call MAT_getProp(mu,mat,'mu') 
+  if(ndof == 1) then
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / LY)**2
+  else
+  ! Change this coefficient later
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / LY)**2
+  endif
+
+  end subroutine MAT_ELAST_init_CrustalPlane
 
 !=======================================================================
 !
-! Computes the elastic internal forces term = -K*displ 
+! Computes the elastic internal forces term = -K*displ - displ/(beta*LY) 
 ! in a SEM grid using the coefficients in elast.
 ! On output the result is stored in the field KD (scratched)
 !
@@ -391,6 +420,24 @@ contains
   endif
 
   end subroutine MAT_ELAST_f
+
+!=======================================================================
+! Compute the forces acted on "crustal plane" approximated by Lapusta and Rice
+!
+subroutine MAT_CP_add_f(f,d,elast,ngll,ndof)
+  integer, intent(in) :: ngll,ndof
+  double precision, intent(out):: f(ngll,ngll,ndof)
+  double precision, intent(in) :: d(ngll,ngll,ndof)
+  type (matwrk_elast_type), intent(in) :: elast
+
+  integer :: k
+
+    do k=1,ndof
+       f(:,:,k) = f(:,:,k) - elast%beta(:,:) * d(:,:,k)
+    enddo
+
+end subroutine MAT_CP_add_f
+
 
 !----------------------------------------------------------------
 

@@ -33,7 +33,7 @@ contains
   iin  = IO_new_unit()
   open (iin,file=input_file,status='old',action='read')
   
-  call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,iin)
+  call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,pb%grid%LY,iin)
 
  !---- mesh generation parameters     
   call MESH_read(pb%mesh,iin)
@@ -67,7 +67,7 @@ contains
 !
 ! NAME   : GENERAL
 ! PURPOSE: General parameters
-! SYNTAX : &GENERAL iexec, ngll, fmax, title, verbose, itInfo /
+! SYNTAX : &GENERAL iexec, ngll, fmax, LY, title, verbose, itInfo /
 !
 ! ARG: iexec    [int] [0] Run level:
 !                       0 = just check
@@ -79,6 +79,7 @@ contains
 !                This parameter is not used in computations, only for checking.
 !                To improve the resolution for a given fmax you must increase ngll 
 !                (but you will have to use shorter timesteps) or refine the mesh.
+! ARG: LY       [dble] [huge] The seismogenic width. Infinity means 2D problem and finite LY means 2.5D problem (use for elastic material)
 ! ARG: ndof     [int] [2] Number of degrees of freedom per node
 !                       1 = SH waves, anti-plane
 !                       2 = P-SV waves, in-plane
@@ -95,24 +96,25 @@ contains
 !
 ! END INPUT BLOCK
 
-  subroutine read_gen(iexec,ndof,ngll,fmax,iin)
+  subroutine read_gen(iexec,ndof,ngll,fmax,LY,iin)
 
   use echo
   use stdio, only : IO_abort,abort_on_warnings
 
   integer, intent(in) :: iin
   integer  :: iexec,ndof,ngll
-  double precision :: fmax
+  double precision :: fmax, LY
   character(10) :: iexecname
   character(4) :: verbose
 
-  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,title,verbose,itInfo, &
+  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,LY,title,verbose,itInfo, &
                        abort_on_warnings
 
   iexec = 0
   ndof = 2
   ngll = 9
   fmax = 1d0
+  LY   = huge(1d0)
   title   = ''
   verbose = '1101'
   itInfo  = 100
@@ -123,6 +125,7 @@ contains
   if (ndof>2 .or. ndof<1) call IO_abort('GENERAL input block: ndof must be 1 or 2 (SH or P-SV)')
   if (ngll <= 0) call IO_abort('GENERAL input block: ngll must be positive')
   if (fmax <= 0.d0) call IO_abort('GENERAL input block: fmax must be positive')
+  if (LY   <= 0.d0) call IO_abort('GENERAL input block: LY must be positive')
   if (itInfo<=0) call IO_abort('GENERAL input block: itInfo must be positive')
 
   if (iexec==0) then
@@ -139,7 +142,7 @@ contains
     write(iout,'(a)') '*            I n p u t   p h a s e            *'
     write(iout,'(a)') '***********************************************'
     write(iout,*)
-    write(iout,200) iexecname,ngll,ndof,fmax, &
+    write(iout,200) iexecname,ngll,ndof,fmax,LY, &
       echo_input,echo_init,echo_check,echo_run,itInfo,abort_on_warnings
   endif
 
@@ -152,6 +155,7 @@ contains
   'Number of nodes per edge . . . . . . . . . . .(ngll) = ',I0/5x, &
   'Number of d.o.f per node . . . . . . . . . . .(ndof) = ',I0/5x, &
   'Highest frequency to be resolved . . . . . . .(fmax) = ',EN12.3/5x, &
+  'Seismogenic width for 2.5D problem (elastic) . .(LY) = ',EN12.3/5x, &
   'Print progress information during ',/5x, &
   '            input phase  . . . . . . . .(verbose(1)) = ',L1/ 5x, &
   '            initialization phase . . . .(verbose(2)) = ',L1/ 5x, &
