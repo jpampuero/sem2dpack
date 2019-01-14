@@ -29,7 +29,7 @@ module mat_elastic
           , MAT_ELAST_init_elem_prop, MAT_ELAST_init_elem_work &
           , MAT_ELAST_f, MAT_ELAST_stress &
           , MAT_ELAST_memwrk, MAT_ELAST_mempro &
-          , MAT_CP_add_f
+          , MAT_ELAST_add_25D_f
 
 
 contains
@@ -277,10 +277,10 @@ contains
                    + size( transfer(matwrk, (/ 0d0 /) )) &
                    + size(matwrk%a)
 
-  if (grid%LY < huge(1d0)) then
+  if (grid%W < huge(1d0)) then
      allocate(matwrk%beta(grid%ngll,grid%ngll))
-     call MAT_ELAST_init_CrustalPlane(matwrk%beta,grid%ngll &
-                   , SE_VolumeWeights(grid,e),grid%LY,matpro,ndof)
+     call MAT_ELAST_init_25D(matwrk%beta,grid%ngll &
+                   , SE_VolumeWeights(grid,e),grid%W,matpro,ndof)
   endif
 
 
@@ -360,29 +360,29 @@ contains
   end subroutine MAT_ELAST_init_a
 
 !==============================================
-  subroutine MAT_ELAST_init_CrustalPlane(beta,ngll,dvol,LY,mat,ndof)
+  subroutine MAT_ELAST_init_25D(beta,ngll,dvol,W,mat,ndof)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(out) :: beta(ngll,ngll)
   double precision, dimension(ngll,ngll), intent(in) :: dvol
-  double precision, intent(in) :: LY
+  double precision, intent(in) :: W
   type(matpro_elem_type), intent(in) :: mat
 
   double precision, dimension(ngll,ngll) :: mu
 
   call MAT_getProp(mu,mat,'mu') 
   if(ndof == 1) then
-      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / LY)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / W)**2
   else
   ! Change this coefficient later
-      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / LY)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / W)**2
   endif
 
-  end subroutine MAT_ELAST_init_CrustalPlane
+  end subroutine MAT_ELAST_init_25D
 
 !=======================================================================
 !
-! Computes the elastic internal forces term = -K*displ - displ/(beta*LY) 
+! Computes the elastic internal forces term = -K*displ - displ/(beta*W) 
 ! in a SEM grid using the coefficients in elast.
 ! On output the result is stored in the field KD (scratched)
 !
@@ -424,7 +424,7 @@ contains
 !=======================================================================
 ! Compute the forces acted on "crustal plane" approximated by Lapusta and Rice
 !
-subroutine MAT_CP_add_f(f,d,elast,ngll,ndof)
+subroutine MAT_ELAST_add_25D_f(f,d,elast,ngll,ndof)
   integer, intent(in) :: ngll,ndof
   double precision, intent(out):: f(ngll,ngll,ndof)
   double precision, intent(in) :: d(ngll,ngll,ndof)
@@ -436,7 +436,7 @@ subroutine MAT_CP_add_f(f,d,elast,ngll,ndof)
        f(:,:,k) = f(:,:,k) - elast%beta(:,:) * d(:,:,k)
     enddo
 
-end subroutine MAT_CP_add_f
+end subroutine MAT_ELAST_add_25D_f
 
 
 !----------------------------------------------------------------
