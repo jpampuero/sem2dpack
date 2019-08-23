@@ -1,6 +1,6 @@
 #----- Some general parameters ----------------
 &GENERAL iexec=1, ngll=5, fmax=3.d0 , W=10d3, ndof=2 ,
-  title = '2.5D elastic in-plane model', verbose='1111' , ItInfo = 400/ 
+  title = '2.5D elastic in-plane model', verbose='1111' , ItInfo = 400/
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN'/
@@ -12,9 +12,9 @@
 
 #----- Boundary conditions ---------------------
 &BC_DEF  tag = 1, kind = 'DYNFLT' /
-&BC_DYNFLT friction='SWF','TWF', Tn=-50d6,Tt=29d6 /
+&BC_DYNFLT friction='SWF','TWF', Tn=-50d6,Tt=30.5d6 /
 &BC_DYNFLT_SWF Dc=0.4d0, MuS=0.63d0, MuD=0.54d0 /
-&BC_DYNFLT_TWF kind=1, MuS=0.63d0, MuD=0.54d0, Mu0=0.63d0, 
+&BC_DYNFLT_TWF kind=1, MuS=0.63d0, MuD=0.54d0, Mu0=0.63d0,
                X=0.d0, Z=0.d0, V=0.333d3, L=0.1665d3, T=60d0 /
 
 &BC_DEF  tag = 2 , kind = 'ABSORB' /
@@ -24,8 +24,12 @@
 
 
 #---- Time scheme settings ----------------------
-&TIME  kind='leapfrog', TotalTime=60 /
+&TIME  kind='leapfrog', TotalTime=30 /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 10 , first = 0d3,10d3, last = 50.d3,10d3, isamp=20, AtNode=F /
 
 #--------- Plots settings ----------------------
-&SNAP_DEF itd=1000, fields ='DVS',bin=F,ps=T /
+&SNAP_DEF itd=100, fields ='DVS',bin=T,ps=F /
 &SNAP_PS  vectors=F, interpol=T, DisplayPts=6, ScaleField=0d0   /
+
