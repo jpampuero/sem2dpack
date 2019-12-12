@@ -37,7 +37,9 @@ module mat_gen
   use mat_damage
   use mat_plastic
   use mat_visco
-!!  use mat_user  
+  use mat_visla
+  use mat_iwan
+ !!  use mat_user  
 
   implicit none
   private
@@ -57,6 +59,9 @@ module mat_gen
     type(matwrk_plast_type), pointer :: plast=>null()
     type(matwrk_dmg_type)  , pointer :: dmg=>null()
     type(matwrk_visco_type), pointer :: visco=>null()
+    type(matwrk_visla_type), pointer :: visla=>null()
+    type(matwrk_iwan_type),  pointer :: iwan=>null()
+
 !!    type(matwrk_user_type)  , pointer :: user=>null()
   end type matwrk_elem_type
 
@@ -88,7 +93,7 @@ contains
 !
 ! ARG: tag      [int] [none]    Number identifying a mesh domain 
 ! ARG: kind     [name(2)] ['ELAST','']  Material types:
-!               'ELAST', 'DMG','PLAST', 'KV' 
+!               'ELAST', 'DMG','PLAST', 'KV', 'VISCO', 'VISLA', 'IWAN'
 !
 ! NOTE   : Some combinations of material kinds can be assigned to the same domain.
 !          Any material type can be combined with 'KV', for instance:
@@ -149,6 +154,8 @@ subroutine MAT_read(mat,iin)
           case ('DMG')  ; name(k) = 'Damage'
           case ('KV')   ; name(k) = 'Kelvin-Voigt'
           case ('VISCO'); name(k) = 'Visco'
+          case ('VISLA'); name(k) = 'Visco_LA'
+          case ('IWAN') ; name(k) = 'Iwan'
           !! case ('USER'); name(k) = 'User'
           case default  ; name(k) = kind(k)
         end select
@@ -170,6 +177,8 @@ subroutine MAT_read(mat,iin)
         case ('DMG')  ; call MAT_DMG_read(mat(tag),iin)
         case ('KV')   ; call MAT_KV_read(mat(tag),iin)
         case ('VISCO'); call MAT_VISCO_read(mat(tag),iin)
+        case ('VISLA'); call MAT_VISLA_read(mat(tag),iin)
+        case ('IWAN') ; call MAT_IWAN_read(mat(tag),iin)
         !! case ('USER'); call MAT_USER_read(mat(tag),iin)
         case ('')     ; continue
         case default  ; call IO_abort('MAT_read: unkown kind')
@@ -247,6 +256,8 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   call storearray('matpro:dmg',MAT_DMG_mempro,idouble)
   call storearray('matpro:plast',MAT_PLAST_mempro,idouble)
   call storearray('matpro:visco',MAT_VISCO_mempro,idouble)
+  call storearray('matpro:visla',MAT_VISLA_mempro,idouble)
+  call storearray('matpro:iwan',MAT_IWAN_mempro,idouble)
   !!call storearray('matpro:user',MAT_USER_mempro,idouble)
 
   ! export velocity and density model
@@ -315,6 +326,8 @@ subroutine MAT_init_elem_prop(elem,ecoord)
   if (MAT_isKelvinVoigt(elem)) call MAT_KV_init_elem_prop(elem,ecoord)
   if (MAT_isDamage(elem)) call MAT_DMG_init_elem_prop(elem,ecoord)
   if (MAT_isVisco(elem)) call MAT_VISCO_init_elem_prop(elem,ecoord)
+  if (MAT_isViscoLA(elem)) call MAT_VISLA_init_elem_prop(elem,ecoord)
+  if (MAT_isIwan(elem)) call MAT_IWAN_init_elem_prop(elem,ecoord)
   !!if (MAT_isUser(elem)) call MAT_USER_init_elem_prop(elem,ecoord)
 
 end subroutine MAT_init_elem_prop
@@ -326,16 +339,20 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   use echo, only : echo_init,iout,fmt1,fmtok
   use stdio, only : IO_abort
   use memory_info
+  use utils, only : unique
 
   type(sem_grid_type), intent(in) :: grid
   type(matwrk_elem_type), pointer :: matwrk(:)
   type(matpro_elem_type), intent(inout) :: matpro(grid%nelem)
   integer, intent(in) :: ndof
   double precision, intent(in) :: dt
-  integer, pointer :: elist(:)
-  integer :: e,e1
-  logical :: flat_grid
+  integer, pointer :: elist(:), tags(:)
+  integer :: e, e1, ntags
+  logical :: flat_grid, initstress
 
+  double precision, dimension(:,:,:), allocatable :: siginit
+  double precision, dimension(:), allocatable :: sigmid  
+  
   if (echo_init) write(iout,fmt1,advance='no') 'Defining material work arrays'
 
   allocate(matwrk(grid%nelem))
@@ -344,6 +361,27 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
  ! get the list of the first element of each material
   flat_grid = SE_isFlat(grid)
   elist => SE_firstElementTagged(grid)
+
+
+
+  initstress = .False.
+  ! Initial-stress computation necessary 
+  ! only for pressure-dependent IWAN models
+  do e =1,grid%nelem
+    if (MAT_isOverburden(matpro(e))) then
+      tags => unique(grid%tag)
+      ntags = size(tags)
+      allocate(sigmid(ntags))
+      allocate(siginit(grid%ngll,grid%ngll,grid%nelem))
+      call MAT_IWAN_initial_stress(matpro,grid,ntags,sigmid,siginit)
+      initstress = .True.
+      exit
+    endif
+  enddo
+
+
+
+
 
   do e=1,grid%nelem
 
@@ -385,6 +423,27 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_VISCO_init_elem_work(matwrk(e)%visco,matpro(e),grid%ngll)
 
+    ! Liu& Archuleta (2006) viscoelasticity model
+    elseif (MAT_isViscoLA(matpro(e))) then
+      allocate(matwrk(e)%derint)
+      allocate(matwrk(e)%visla)
+      call MAT_set_derint(matwrk(e)%derint,grid,e)  
+      call MAT_VISLA_init_elem_work(matwrk(e)%visla,matpro(e),grid%ngll,ndof)
+
+    ! IWAN nonlinear rheology (viscoelastoplasticity or elastoplasticity)
+    elseif (MAT_isIwan(matpro(e))) then
+      allocate(matwrk(e)%derint)
+      allocate(matwrk(e)%iwan)
+      call MAT_set_derint(matwrk(e)%derint,grid,e)
+
+      if (initstress) then    
+        call MAT_IWAN_init_elem_work(matwrk(e)%iwan,matpro(e),grid%ngll,&
+                          ndof,sigmid(grid%tag(e)),siginit(:,:,e),e,grid)
+      else
+        call MAT_IWAN_init_elem_work(matwrk(e)%iwan,matpro(e),grid%ngll,ndof)
+      endif
+
+
 
   !!  elseif (MAT_isUser(matpro(e)))
   !!    allocate(matwrk(e)%user)
@@ -406,6 +465,8 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   call storearray('matwrk%dmg',MAT_DMG_memwrk,idouble)
   call storearray('matwrk%plast',MAT_PLAST_memwrk,idouble)
   call storearray('matwrk%visco',MAT_VISCO_memwrk,idouble)
+  call storearray('matwrk%visla',MAT_VISLA_memwrk,idouble)
+  call storearray('matwrk%iwan',MAT_IWAN_memwrk,idouble)
   !!call storearray('matwrk%user',MAT_USER_memwrk,idouble)
 
 end subroutine MAT_init_work
@@ -431,7 +492,8 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   double precision, intent(out) :: E_el !total elastic energy
   double precision, intent(out) :: sg(3),sgp(3)   !stress glut
 
-  double precision, dimension(ngll,ngll,ndof+1) :: e,s
+  double precision, dimension(ngll,ngll,ndof+1) :: e,s,de
+
 
   if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   if (MAT_isElastic(matpro)) then
@@ -443,6 +505,25 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
     E_el = 0d0
     sg = 0d0
     sgp = 0d0
+
+  elseif (MAT_isViscoLA(matpro)) then
+  ! Liu and Archuleta(2006) model formulated wrt 
+  ! strain-rate parameter (delta_epsilon^point) = de
+    e  = MAT_strain(d,matwrk,ngll,ndof) 
+    de = (MAT_strain(v,matwrk,ngll,ndof))
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de)
+    f = MAT_forces(s,matwrk%derint,ngll,ndof)
+
+  elseif (MAT_isIwan(matpro)) then
+  ! Iwan computations based on incremental-strain parameter
+  ! delta_epsilon = de
+    e  = MAT_strain(d,matwrk,ngll,ndof)
+    de = (MAT_strain(v,matwrk,ngll,ndof))* dt
+
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de)
+    f = MAT_forces(s,matwrk%derint,ngll,ndof)
+
+
   else
     e  = MAT_strain(d,matwrk,ngll,ndof)
 ! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
@@ -454,7 +535,9 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
 end subroutine MAT_Fint
 
 !=======================================================================
- subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
+! subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
+subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de)
+
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
@@ -464,6 +547,7 @@ end subroutine MAT_Fint
   logical, intent(in) :: update
   double precision, optional, intent(in) :: dt
   double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
+  double precision, optional, intent(in)  :: de(ngll,ngll,ndof+1)  
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
   double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local
@@ -478,6 +562,13 @@ end subroutine MAT_Fint
   if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
                                                 E_ep_local,E_el_local,sg_local,sgp_local)
   if (MAT_isVisco(matpro)) call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
+
+  if (MAT_isViscoLA(matpro)) &
+  call MAT_VISLA_stress(matwrk%visla,matpro,ngll,ndof,s,e,de,dt)
+
+  if (MAT_isIwan(matpro)) &
+  call MAT_IWAN_stress(ndof,matwrk%iwan,ngll,dt,de,s,matpro)
+
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
 
   if (present(E_ep)) E_ep = sum( matwrk%derint%weights * E_ep_local )
