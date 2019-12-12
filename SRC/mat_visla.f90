@@ -63,7 +63,7 @@ subroutine MAT_VISLA_read(input,iin)
   type (matpro_input_type), intent(inout) :: input
   integer, intent(in) :: iin
 
-  double precision :: cp,cs,rho,Qp, Qs, fr
+  double precision :: cp,cs,rho,Qp, Qs, fr, mu, lambda
 
   NAMELIST / MAT_VISLA / cp,cs,rho,Qp, Qs, fr
 
@@ -80,6 +80,15 @@ subroutine MAT_VISLA_read(input,iin)
   call MAT_setProp(input,'cp',cp)
   call MAT_setProp(input,'cs',cs)
   call MAT_setProp(input,'rho',rho)  
+
+  mu = rho*cs*cs
+  lambda  = rho*(cp*cp - 2d0*cs*cs)
+
+  ! Elif (10/19)
+  ! used for incident wave condition
+  call MAT_setProp(input,'lambda',lambda)
+  call MAT_setProp(input,'mu',mu)
+
   call MAT_setProp(input,'Qp',Qp)
   call MAT_setProp(input,'Qs',Qs)
   call MAT_setProp(input,'fr',fr)
@@ -112,6 +121,11 @@ subroutine MAT_VISLA_init_elem_prop(elem,ecoord)
   call MAT_setProp(elem,'Qp',ecoord,MAT_VISLA_mempro)
   call MAT_setProp(elem,'Qs',ecoord,MAT_VISLA_mempro)
   call MAT_setProp(elem,'fr',ecoord,MAT_VISLA_mempro)
+
+  ! Elif (10/19)
+  ! used for incident wave condition
+  call MAT_setProp(elem,'mu',ecoord,MAT_VISLA_mempro)
+  call MAT_setProp(elem,'lambda',ecoord,MAT_VISLA_mempro)
 
 
 end subroutine MAT_VISLA_init_elem_prop

@@ -288,8 +288,7 @@ contains
 
     select case(bc%kind)
       case(IS_DIRNEU)
-!         call bc_DIRNEU_apply(bc%dirneu,field,time)
-        call bc_DIRNEU_apply(bc%dirneu,field,time,fields%veloc)
+        call bc_DIRNEU_apply(bc%dirneu,field,time)
       case(IS_KINFLT)
         call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
       case(IS_ABSORB)

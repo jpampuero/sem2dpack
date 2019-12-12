@@ -1191,6 +1191,7 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
 
   allocate(zmin(ntags),zmax(ntags),sigmax(ntags))
   ! Reference depth for each domain
+  ! finding min and max depths of each layer
   do i=1,ntags
     count = 0
     do e=1,grid%nelem
@@ -1209,6 +1210,36 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
     enddo
   enddo
 
+
+  ! ! Relative initial stresses
+  ! do e=1,grid%nelem
+  !   ecoord  = SE_elem_coord(grid,e)
+  !   call MAT_getProp(rho,mat_elem(e),'rho')
+
+  !   do i=1,grid%ngll
+  !     do j=1,grid%ngll
+
+  !       ! Water table level - bulk density correction
+  !       if (abs(WT) <  abs(ecoord(2,i,j))) then
+  !         siginit(i,j,e) = 9.8*(rho-1d3)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
+  !       else
+  !         siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
+  !       endif
+
+  !       ! TO CHANGE LATER - ATTENTION !
+  !       ! how to understand the surface level !
+  !       ! Assuming surface coordinate (z) = 0d0
+  !       if (abs(ecoord(2,i,j)) == 0d0) &
+  !       siginit(i,j,e) = siginit(i,j-1,e)
+
+  !     enddo
+  !   enddo  
+  ! enddo
+
+
+
+
+! Quick and dirt modification for Nepal simulations
   ! Relative initial stresses
   do e=1,grid%nelem
     ecoord  = SE_elem_coord(grid,e)
@@ -1217,22 +1248,16 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
     do i=1,grid%ngll
       do j=1,grid%ngll
 
-        ! Water table level - bulk density correction
-        if (abs(WT) <  abs(ecoord(2,i,j))) then
-          siginit(i,j,e) = 9.8*(rho-1d3)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
-        else
-          siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
-        endif
+        siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
 
-        ! TO CHANGE LATER - ATTENTION !
-        ! how to understand the surface level !
-        ! Assuming surface coordinate (z) = 0d0
-        if (abs(ecoord(2,i,j)) == 0d0) &
-        siginit(i,j,e) = siginit(i,j-1,e)
+        ! fixing minimum depth to 1 m.
+        if (ecoord(2,i,j) > -0.5d0  ) &
+        siginit(i,j,e) = 9.8* rho* 0.5d0
 
       enddo
     enddo  
   enddo
+!
 
 
   ! IF WATER TABLE IS INSIDE THE DOMAIN
@@ -1258,7 +1283,9 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
     endif
   enddo
 
+
   ! Max initial stress for each domain   !!! CORRECTED
+  ! to be changed for irregular layer interfaces!!!
   sigmax = 0d0
   do i=1,ntags-1
 

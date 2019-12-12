@@ -85,6 +85,13 @@ function STF_TAB_fun(stf,t) result(fun)
   integer :: N 
 
   N = size(stf%t)
+  
+  ! Elif (10/2019)
+  ! this part is solving the problem of Infinity 
+  ! when using oblique waves with STF TAB !!!
+  fun=0d0
+  if (t > stf%t(N)  .or.  t<0d0)  return
+
   !NOTE: assumes value(t<t1) = value(t1) and value(t>tN) = value(tN) 
   tbis = max(t,stf%t(1))
   tbis = min(tbis,stf%t(N))
