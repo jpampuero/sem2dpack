@@ -453,7 +453,7 @@ end subroutine MAT_VEP_READ
 
 !=======================================================================
 
-  subroutine MAT_IWAN_init_elem_work(m,p,ngll,ndof,sigmid,siginit,e,grid)
+  subroutine MAT_IWAN_init_elem_work(m,p,ngll,ndof,sigmid,siginit,e,grid,ounitNL)
 
   use spec_grid, only : sem_grid_type, SE_elem_coord
 
@@ -464,12 +464,11 @@ end subroutine MAT_VEP_READ
   integer, intent(in) :: ndof 
   double precision, optional, intent(in) :: sigmid
   double precision, optional, intent(in) :: siginit(ngll,ngll)
-  integer, intent(in),optional :: e 
+  integer, intent(in),optional :: e, ounitNL
   type(sem_grid_type), intent(in),optional :: grid
 
   double precision :: dNspr
 
- 
   call MAT_getProp(dNspr,p,'Nspr')
   m%Nspr=int(dNspr)
   call MAT_getProp(m%lambda,p,'lambda')
@@ -507,7 +506,7 @@ end subroutine MAT_VEP_READ
   ! don't change this order *
   select case (MAT_isOverburden(p))
     case (.True.) 
-      call MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e)
+      call MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e,ounitNL)
     case (.False.)
       call MAT_IWAN_init_elem_no_overburden(m,p,ngll)
   end select
@@ -573,7 +572,7 @@ subroutine MAT_IWAN_init_elem_vepmod(m,p,ngll,ndof)
 end subroutine MAT_IWAN_init_elem_vepmod
 !============================================================================
 
-subroutine MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e)
+subroutine MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e,ounitNL)
 
   use spec_grid, only : sem_grid_type, SE_elem_coord
 
@@ -583,7 +582,7 @@ subroutine MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e)
   double precision, optional, intent(in) :: sigmid
   double precision, optional, intent(in) :: siginit(ngll,ngll)
   type(sem_grid_type), intent(in),optional :: grid
-  integer, intent(in),optional :: e 
+  integer, intent(in),optional :: e, ounitNL
 
   double precision :: gref(ngll,ngll), m1, K0, cohesion, cos_phif
   double precision :: ecoord(2,ngll,ngll), WT
@@ -619,6 +618,9 @@ subroutine MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e)
     do j=1,ngll
       gref(i,j) = (m1* m%Peff0(i,j)+cohesion*cos_phif)/ m%Gm0(i,j)
       call MAT_IWAN_backbone_elem(gref(i,j),m%Nspr,m%Gm0(i,j),m%Rgll(i,j,:),m%CNinvgll(i,j,:))
+
+      ecoord = SE_elem_coord(grid,e)
+      write(ounitNL,*) ecoord(1,i,j), ecoord(2,i,j), gref(i,j), m%Gm0(i,j)
     enddo
   enddo
 
@@ -762,8 +764,7 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
 !============================================================================
 ! Constitutive law
 
-  subroutine MAT_IWAN_stress(ndof,m,ngll,dt,de,sigsys,p)
-
+  subroutine MAT_IWAN_stress(ndof,m,ngll,dt,de,sigsys,p,sigeps)
 !  subroutine MAT_IWAN_stress(ndof,m,ngll,dt,de,sigeps,sature,sigsys,p)
 
   use mat_visla, only: MAT_VISLA_strain, MAT_VISLA_strain2
@@ -772,7 +773,7 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
   double precision, intent(in) :: dt
   double precision, intent(in) :: de(ngll,ngll,ndof+1) 
   type (matwrk_iwan_type), intent(inout) :: m
-!  double precision, intent(out) :: sigeps(ngll,ngll,2)
+  double precision, intent(out) :: sigeps(ngll,ngll,2)
 !  double precision, intent(out) :: sature(ngll,ngll,3)
   double precision, intent(out) :: sigsys(ngll,ngll,ndof+1)
   type(matpro_elem_type), intent(in) :: p
@@ -820,8 +821,8 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
 
 
   m%eps = m%eps+ deps 
-!  if (ndof==1)   sigeps(:,:,1) = m%eps(:,:,5)   !yz component to write out    ndof=1  
-!  if (ndof==2)   sigeps(:,:,1) = m%eps(:,:,3)   !xz component to write out    ndof=2
+ if (ndof==1)   sigeps(:,:,1) = m%eps(:,:,5)   !yz component to write out    ndof=1  
+ if (ndof==2)   sigeps(:,:,1) = m%eps(:,:,3)   !xz component to write out    ndof=2
 
 
   ! Stress increment !
@@ -842,8 +843,8 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
     enddo
   enddo
   m%sig = m%sig+ dsig
-!  if (ndof==1)   sigeps(:,:,2) = m%sig(:,:,5)   !yz component to write out    ndof=1  
-!  if (ndof==2)   sigeps(:,:,2) = m%sig(:,:,3)   !xz component to write out    ndof=2
+ if (ndof==1)   sigeps(:,:,2) = m%sig(:,:,5)   !yz component to write out    ndof=1  
+ if (ndof==2)   sigeps(:,:,2) = m%sig(:,:,3)   !xz component to write out    ndof=2
 
   index = -ndof*ndof+ 4
   do i=1,ndof+1

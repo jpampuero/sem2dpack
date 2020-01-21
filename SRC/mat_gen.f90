@@ -337,7 +337,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
   use spec_grid, only : sem_grid_type, SE_isFlat, SE_firstElementTagged, SE_elem_coord
   use echo, only : echo_init,iout,fmt1,fmtok
-  use stdio, only : IO_abort
+  use stdio, only : IO_abort, IO_new_unit
   use memory_info
   use utils, only : unique
 
@@ -347,7 +347,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   integer, intent(in) :: ndof
   double precision, intent(in) :: dt
   integer, pointer :: elist(:), tags(:)
-  integer :: e, e1, ntags
+  integer :: e, e1, ntags, ounitNL
   logical :: flat_grid, initstress
 
   double precision, dimension(:,:,:), allocatable :: siginit
@@ -380,7 +380,9 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   enddo
 
 
-
+  ! write out nonlinearity data (modulus and reference strain)
+  if (initstress) &
+  open(ounitNL, file='Nonlinear_soil_sem2d.dat', status='replace')  
 
 
   do e=1,grid%nelem
@@ -438,7 +440,8 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
       if (initstress) then    
         call MAT_IWAN_init_elem_work(matwrk(e)%iwan,matpro(e),grid%ngll,&
-                          ndof,sigmid(grid%tag(e)),siginit(:,:,e),e,grid)
+                          ndof,sigmid(grid%tag(e)),siginit(:,:,e),e,grid,ounitNL)
+        
       else
         call MAT_IWAN_init_elem_work(matwrk(e)%iwan,matpro(e),grid%ngll,ndof)
       endif
@@ -456,6 +459,8 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   deallocate(elist)
 
   if (echo_init) write(iout,fmtok)
+  if (initstress) close(ounitNL)
+
 
  ! report memory allocations
   call storearray('matwrk', size(transfer(matwrk(1),(/0/)))*grid%nelem,iinteg)
@@ -477,7 +482,7 @@ end subroutine MAT_init_work
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
+subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp,sigeps)
 
   use spec_grid, only : sem_grid_type
 
@@ -491,6 +496,7 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
   double precision, intent(out) :: sg(3),sgp(3)   !stress glut
+  double precision, optional, dimension(ngll,ngll,2), intent(inout) :: sigeps
 
   double precision, dimension(ngll,ngll,ndof+1) :: e,s,de
 
@@ -520,7 +526,7 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
     e  = MAT_strain(d,matwrk,ngll,ndof)
     de = (MAT_strain(v,matwrk,ngll,ndof))* dt
 
-    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de)
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp,de,sigeps)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
 
 
@@ -536,7 +542,7 @@ end subroutine MAT_Fint
 
 !=======================================================================
 ! subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
-subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de)
+subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de,sigeps)
 
 
   integer, intent(in) :: ngll,ndof
@@ -548,6 +554,7 @@ subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de)
   double precision, optional, intent(in) :: dt
   double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
   double precision, optional, intent(in)  :: de(ngll,ngll,ndof+1)  
+  double precision, optional, intent(inout) :: sigeps(ngll,ngll,2)
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
   double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local
@@ -567,7 +574,7 @@ subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de)
   call MAT_VISLA_stress(matwrk%visla,matpro,ngll,ndof,s,e,de,dt)
 
   if (MAT_isIwan(matpro)) &
-  call MAT_IWAN_stress(ndof,matwrk%iwan,ngll,dt,de,s,matpro)
+  call MAT_IWAN_stress(ndof,matwrk%iwan,ngll,dt,de,s,matpro,sigeps)
 
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
 
