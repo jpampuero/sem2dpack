@@ -60,6 +60,7 @@ module mat_iwan
           , MAT_isIwan, MAT_isOverburden, MAT_IWAN_read &
           , MAT_IWAN_init_elem_prop &
           , MAT_IWAN_init_elem_work, MAT_IWAN_stress, MAT_IWAN_initial_stress &
+          , MAT_IWAN_initial_stress_Nepal &
           , MAT_IWAN_mempro, MAT_IWAN_memwrk
 
 
@@ -1166,12 +1167,160 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
 end subroutine MAT_IWAN_Ematris
 !=======================================================================
 
+! Elif (01/2020)
+! Testing for Nepal basin:
+! only NL layer is #1;
+! because of topography, min(z) = 0 condition of the default code 
+! does not work here.
+
+subroutine MAT_IWAN_initial_stress_Nepal(mat_elem,grid,ntags,sigmid,siginit)
+
+  use spec_grid, only : sem_grid_type, SE_elem_coord
+
+  type(matpro_elem_type), intent(in) :: mat_elem(:)
+  type(sem_grid_type), intent(in) :: grid
+  integer, intent(in) :: ntags
+  double precision, intent(inout)   :: sigmid(ntags)
+  double precision, intent(inout)   :: siginit(grid%ngll,grid%ngll,grid%nelem)
+
+  integer :: e, i,j, tag, count, n
+  double precision, dimension(:), allocatable :: sigmax,zmax
+  double precision :: ecoord(2,grid%ngll,grid%ngll)
+  double precision :: rho, minim, maxim, WT, ekle
+
+  double precision :: d2min,d2,surface,min_forced_depth
+  integer :: ip, iglob, ii
+
+
+
+  ! read surface nodes (coordinates) (assuming: tag=3 is free surface)
+!   topo = grid%coord(:, grid%bounds(3)%node)
+!   do ii=1, size(grid%bounds(3)%node)
+!     write(*,*) 'TOPO NODES', ii, topo(:, ii)
+!   enddo
+
+
+  ! zmin means minimum depth (max height)
+  allocate(zmax(ntags),sigmax(ntags))
+
+  ! Reference depth for each domain
+  ! finding max depths of each layer
+  do i=1,ntags
+    count = 0
+    do e=1,grid%nelem
+      tag = grid%tag(e) 
+      if (tag == i) then
+        ecoord  = SE_elem_coord(grid,e)
+        if (count == 0) then 
+          zmax(i) = maxval(abs(ecoord(2,:,:)))
+        else
+          zmax(i) = max(zmax(i), maxval(abs(ecoord(2,:,:))))
+        endif
+        count = count+ 1
+      endif
+    enddo
+  enddo
+
+
+
+! Quick and dirty modification for Nepal simulations
+  ! Relative initial stresses
+  do e=1,grid%nelem
+    ecoord  = SE_elem_coord(grid,e)
+    call MAT_getProp(rho,mat_elem(e),'rho')
+
+    do i=1,grid%ngll
+      do j=1,grid%ngll
+
+        ! find nearest surface node by horizontal distance
+        iglob = 0
+        d2min = huge(d2min)
+        do ii = 1, size(grid%bounds(3)%node)
+          ip = grid%bounds(3)%node(ii)
+          d2 = (ecoord(1,i,j)- grid%coord(1,ip))**2 
+          if (d2 <= d2min) then
+            d2min  = d2
+            iglob = ip
+          endif
+        enddo
+        surface = grid%coord(2,iglob)
+
+        siginit(i,j,e) = 9.8* rho* abs(ecoord(2,i,j)- surface) 
+
+
+        ! avoiding zero confinement near surface
+        min_forced_depth = 0.5d0 
+        if ( abs(ecoord(2,i,j)- surface) < min_forced_depth ) &
+        siginit(i,j,e) = 9.8d0* rho* min_forced_depth
+
+      enddo
+    enddo  
+  enddo
+!
+
+
+
+
+  ! Max initial stress for each domain   !!! CORRECTED
+  ! to be changed for irregular layer interfaces!!!
+  sigmax = 0d0
+  do i=1,ntags-1
+
+    do e=1,grid%nelem
+      if (grid%tag(e) == i) then
+      sigmax(i+1) = max(sigmax(i+1), maxval(siginit(:,:,e)))
+      endif
+    enddo
+    
+    sigmax(i+1) = sigmax(i+1)+ sigmax(i)
+  enddo
+
+  do e=1,grid%nelem
+    do i=1,grid%ngll
+      do j=1,grid%ngll
+        siginit(i,j,e) = siginit(i,j,e)+ sigmax(grid%tag(e))
+      enddo
+    enddo
+  enddo
+
+  
+  ! Midlayer stress for each domain
+  do i=1,ntags
+    count = 0
+    do e=1,grid%nelem
+
+      if (grid%tag(e) == i) then
+        if (count == 0) then
+          minim = minval(siginit(:,:,e))
+          maxim = maxval(siginit(:,:,e))
+        else
+          minim = min(minim, minval(siginit(:,:,e)))
+          maxim = max(maxim, maxval(siginit(:,:,e)))
+        endif
+        count = count+ 1
+      endif
+    enddo
+
+    if (i == 1) then 
+      sigmid(i) = 0.5d0* (maxim)
+    else
+      sigmid(i) = 0.5d0* (minim+maxim)
+    endif
+  enddo
+
+  deallocate(sigmax)
+  return
+
+end  subroutine MAT_IWAN_initial_stress_Nepal
+!=======================================================================
+
 subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
 
-  ! NOTE: While meshing, z coordinate is very important for this part
-  ! The origin z=0 point should not be in the middle because everything
-  ! below is calculated based on absolute values of depth and WT depth.
-  ! it could be modified later !
+! Elif (01/2020)
+! THIS SUBROUTINE IS NOT APPROPRIATE FOR
+! MESHES WHERE THE MIN DEPTH OF THE NONLINEAR LAYER 
+! IS NOT THE SAME FOR ALL POINTS OF THAT LAYER.
+!
 
   use spec_grid, only : sem_grid_type, SE_elem_coord
 
@@ -1211,36 +1360,6 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
     enddo
   enddo
 
-
-  ! ! Relative initial stresses
-  ! do e=1,grid%nelem
-  !   ecoord  = SE_elem_coord(grid,e)
-  !   call MAT_getProp(rho,mat_elem(e),'rho')
-
-  !   do i=1,grid%ngll
-  !     do j=1,grid%ngll
-
-  !       ! Water table level - bulk density correction
-  !       if (abs(WT) <  abs(ecoord(2,i,j))) then
-  !         siginit(i,j,e) = 9.8*(rho-1d3)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
-  !       else
-  !         siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
-  !       endif
-
-  !       ! TO CHANGE LATER - ATTENTION !
-  !       ! how to understand the surface level !
-  !       ! Assuming surface coordinate (z) = 0d0
-  !       if (abs(ecoord(2,i,j)) == 0d0) &
-  !       siginit(i,j,e) = siginit(i,j-1,e)
-
-  !     enddo
-  !   enddo  
-  ! enddo
-
-
-
-
-! Quick and dirt modification for Nepal simulations
   ! Relative initial stresses
   do e=1,grid%nelem
     ecoord  = SE_elem_coord(grid,e)
@@ -1249,17 +1368,22 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
     do i=1,grid%ngll
       do j=1,grid%ngll
 
-        siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
+        ! Water table level - bulk density correction
+        if (abs(WT) <  abs(ecoord(2,i,j))) then
+          siginit(i,j,e) = 9.8*(rho-1d3)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
+        else
+          siginit(i,j,e) = 9.8*(rho)* (abs(ecoord(2,i,j))-zmin(grid%tag(e)))
+        endif
 
-        ! fixing minimum depth to 1 m.
-        if (ecoord(2,i,j) > -0.5d0  ) &
-        siginit(i,j,e) = 9.8* rho* 0.5d0
+        ! TO CHANGE LATER - ATTENTION !
+        ! how to understand the surface level !
+        ! Assuming surface coordinate (z) = 0d0
+        if (abs(ecoord(2,i,j)) == 0d0) &
+        siginit(i,j,e) = siginit(i,j-1,e)
 
       enddo
     enddo  
   enddo
-!
-
 
   ! IF WATER TABLE IS INSIDE THE DOMAIN
   do n=1,ntags
@@ -1283,7 +1407,6 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
       enddo
     endif
   enddo
-
 
   ! Max initial stress for each domain   !!! CORRECTED
   ! to be changed for irregular layer interfaces!!!
