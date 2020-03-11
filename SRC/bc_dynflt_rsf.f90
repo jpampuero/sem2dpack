@@ -210,6 +210,14 @@ contains
   type(rsf_type), intent(inout) :: f
 
   double precision, dimension(size(v)) :: v_new,theta_new
+
+! Reset nagative sliprates as Vstar accounting for the healing effect
+  do it=1,size(v)
+    if(v(it)<f%Vstar) then
+        v(it)=f%Vstar
+    endif
+  enddo
+
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
   v_new = rsf_update_V(tau_stick, sigma, f, theta_new, Z)
@@ -311,8 +319,8 @@ contains
      do it=1,size(tau_stick)
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
        tolerance=0.001*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
-       estimateLow = -10.0 
-       estimateHigh = 10.0
+       estimateLow = 1e-9
+       estimateHigh = tau_stick(it)*2.0
        v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
      enddo     
         
@@ -354,8 +362,8 @@ contains
 
   ! Ensure zero is bounded:
   do while (f_low*f_high>0)
-    xLeft = xLeft*100
-    xRight = xRight*100
+    xLeft = xLeft/2.0
+    xRight = xRight*2.0
     call nr_fric_func_tau(xLeft, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
     call nr_fric_func_tau(xRight, f_high, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
   enddo
