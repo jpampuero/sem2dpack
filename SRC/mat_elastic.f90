@@ -368,17 +368,19 @@ contains
   double precision, intent(in) :: W
   type(matpro_elem_type), intent(in) :: mat
 
-  double precision, dimension(ngll,ngll) :: mu, nu
+  double precision, dimension(ngll,ngll) :: mu, lambda, nu
 
   call MAT_getProp(mu,mat,'mu')
-  call MAT_getProp(nu,mat,'nu')
+  call MAT_getProp(lambda,mat,'lambda')
+
+  nu(:,:) = lambda(:,:) / (lambda(:,:) + mu(:,:)) / 2.0
   if(ndof == 1) then
-      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0) / 2 / W)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)/W)**2
   else
-      beta(:,:) = dvol(:,:) * (mu(:,:)/nu(:,:)) * (4.D0*DATAN(1.D0) / 2 / W)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)*(1-nu(:,:))/W)**2
   endif
 
-  end subroutine MAT_ELAST_init_25D
+end subroutine MAT_ELAST_init_25D
 
 !=======================================================================
 !
