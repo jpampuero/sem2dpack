@@ -437,8 +437,9 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   if (MAT_isElastic(matpro)) then
    ! elastic material has a specialized scheme
    ! that does not require intermediate computation of strain and stress
-    call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof) 
-  !if (MAT_isCrustalPlane(matpro)) call MAT_CP_add_f(d,matwrk%cp,ngll,ndof) !DEVEL
+    call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof)
+    if (grid%W < huge(1d0)) call MAT_ELAST_add_25D_f(f,d,matwrk%elast,ngll,ndof)
+
     E_ep = 0d0
     E_el = 0d0
     sg = 0d0
