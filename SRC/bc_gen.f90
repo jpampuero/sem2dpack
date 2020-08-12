@@ -253,7 +253,7 @@ end subroutine bc_init
 
 !=======================================================================
 !! Applies the boundary condition
-subroutine bc_apply(bc,time,fields,field)
+subroutine bc_apply(bc,time,fields,force)
 
   use sources, only: source_type
   use fields_class, only: fields_type
@@ -262,7 +262,7 @@ subroutine bc_apply(bc,time,fields,field)
   type(bc_type), pointer :: bc(:)
   type (fields_type), intent(inout) :: fields
   type(timescheme_type), intent(in) :: time
-  double precision, dimension(:,:), intent(inout) :: field
+  double precision, dimension(:,:), intent(inout) :: force
 
   integer :: i
 
@@ -288,14 +288,16 @@ contains
 
     select case(bc%kind)
       case(IS_DIRNEU)
-        call bc_DIRNEU_apply(bc%dirneu,field,time)
+        call bc_DIRNEU_apply(bc%dirneu,fields%displ, force, time)
       case(IS_KINFLT)
+          ! fields%accel means Mxa
         call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
       case(IS_ABSORB)
         call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
-        call bc_perio_apply(bc%perio,field)
+        call bc_perio_apply(bc%perio,force)
       case(IS_LISFLT)
+          ! fields%accel means Mxa
         call BC_LSF_apply(bc%lsf,fields%accel,fields%displ_alpha)
       case(IS_DYNFLT)
         call BC_DYNFLT_apply(bc%dynflt,fields%accel,fields%veloc,fields%displ,time)

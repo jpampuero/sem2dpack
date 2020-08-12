@@ -30,7 +30,7 @@ contains
 !
 ! NAME   : BC_DIRNEU
 ! GROUP  : BOUNDARY_CONDITION
-! PURPOSE: Dirichlet (null displacement) 
+! PURPOSE: Dirichlet (null displacement or time-dependent displacement) 
 !          and/or Neumann (null or time-dependent traction) 
 !          boundary conditions on vertical or horizontal boundaries
 ! SYNTAX : &BC_DIRNEU h, v, hsrc, vsrc /
@@ -41,7 +41,7 @@ contains
 !                       'N' : Neumann 
 !                       'D' : Dirichlet
 ! ARG: hsrc     [name]['none'] Name of the source time function for a
-!                time-dependent horizontal traction: 
+!                time-dependent horizontal traction/displacement: 
 !                'RICKER', 'TAB', 'USER', etc  (see STF_XXXX input blocks)
 ! ARG: vsrc     [name]['none'] Same for the vertical component
 !
@@ -76,11 +76,13 @@ subroutine bc_DIRNEU_read(bc,iin)
   elseif (h=='D') then
     bc%kind(1) = IS_DIRICHLET
     htype = 'Dirichlet'
-    hstf ='none' ! time-dependent only for Neumann
+!    hstf ='none' ! time-dependent only for Neumann
   else
     call IO_abort('bc_DIRNEU_read: h must be N or D')
   endif
   if (echo_input) write(iout,200) htype,hstf
+
+  ! Only allocate bc%hstf when hstf is not none
   if (hstf/='none') then
     allocate(bc%hstf)
     call STF_read(hstf,bc%hstf,iin)
@@ -92,11 +94,13 @@ subroutine bc_DIRNEU_read(bc,iin)
   elseif (v=='D') then
     bc%kind(2) = IS_DIRICHLET
     vtype = 'Dirichlet'
-    vstf ='none' ! time-dependent only for Neumann
+!    vstf ='none' ! time-dependent only for Neumann
   else
     call IO_abort('bc_DIRNEU_read: h must be N or D')
   endif
   if (echo_input) write(iout,300) vtype,vstf
+
+  ! Only allocate bc%vstf when vstf is not none
   if (vstf/='none') then
     allocate(bc%vstf)
     call STF_read(vstf,bc%vstf,iin)
@@ -142,30 +146,57 @@ subroutine bc_DIRNEU_init(bc,tag,grid,perio)
 
 end subroutine bc_DIRNEU_init
 
-
 !=======================================================================
+! Apply the Dirichlet or Neumann boundary condition 
 !
-subroutine bc_DIRNEU_apply(bc,field,time)
+! Dirichlet boundary condition: 
+! 
+! Direct overwrite boundary data and nullify the force
+!
+! set the force = 0, which then ==> acceleration = 0. 
+! set     disp  = STF(time)
+!
+! For Neumann boundary condition:
+! set force += B * T 
+! 
+! where T= STF(time)
+!
+! Modified by Chao, 08/12/2020
+!
+
+subroutine bc_DIRNEU_apply(bc, disp, force,time)
 
   type(bc_DIRNEU_type), intent(in) :: bc
   type(timescheme_type), intent(in) :: time
-  double precision, intent(inout) :: field(:,:)
+  double precision, intent(inout) :: disp(:,:)
+  double precision, intent(inout) :: force(:,:)
 
+  select case(bc%kind(1))
+      case(IS_DIRICHLET)
+          ! Dirichle
+          force(bc%topo%node,1) = 0.d0
+          if (associated(bc%hstf)) then
+            disp(bc%topo%node,1) = STF_get(bc%hstf,time%time)
+          endif
+      case(IS_NEUMANN)
+          ! Neumann
+          force(bc%topo%node,1) = force(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
+  end select
 
-  if (bc%kind(1)==IS_DIRICHLET) then
-    field(bc%topo%node,1) = 0.d0
-  elseif (associated(bc%hstf)) then
-    field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
-  endif
+  if (size(force,2)==1) return
 
-  if (size(field,2)==1) return
+  select case(bc%kind(2))
+      case(IS_DIRICHLET)
+          ! Dirichle
+          force(bc%topo%node,2) = 0.d0
+          if (associated(bc%vstf)) then
+            disp(bc%topo%node,2) = STF_get(bc%vstf,time%time)
+          endif
+      case(IS_NEUMANN)
+          ! Neumann
+          force(bc%topo%node,1) = force(bc%topo%node,1) + STF_get(bc%vstf,time%time)*bc%B
+  end select
  
-  if (bc%kind(2)==IS_DIRICHLET) then
-    field(bc%topo%node,2) = 0.d0
-  elseif (associated(bc%vstf)) then
-    field(bc%topo%node,2) = field(bc%topo%node,2) + STF_get(bc%vstf,time%time)*bc%B
-  endif
-
 end subroutine bc_DIRNEU_apply
 
 end module bc_DIRNEU
