@@ -357,6 +357,8 @@ contains
   subroutine bc_apply_single_kind(bc)
 
     type(bc_type), intent(inout) :: bc
+    ! Note at this point fields%accel has been modified by the pointer force
+    ! So fields%accel really means Mxa.
 
     select case(bc%kind)
       case(IS_DIRNEU)

@@ -611,7 +611,7 @@ end subroutine BC_DYNFLT_apply
 ! 4. update fault velocity
 
 subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
-      ! MxA: force
+      ! MxA: force or -K*d
       ! V  : velocity
       ! D  : displacement
 
@@ -626,14 +626,18 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
   double precision, dimension(bc%npoin) :: strength
   double precision, dimension(bc%npoin, size(V, 2)) :: T
-  double precision, dimension(bc%npoin, size(V, 2)) :: dV,dF
+  double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF, dV_pre
   integer :: ndof, i
 
   ndof = size(MxA,2)
 
   ! compute jump in force
-  dF = get_jump(bc, MxA) ! jump in force 
-  dV = get_jump(bc, V)   ! slip velocity  
+  dF = get_jump(bc, MxA)     ! jump in force -Kd 
+  dF = -dF                   ! correct sign, dF = [Kd]
+
+  dV     = get_jump(bc, V)   ! slip velocity  
+  dV_pre = dV                ! store the old slip velocity 
+
 
 ! compute fault traction
   do i =1,ndof
@@ -643,9 +647,17 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
 ! rotate to fault frame (tangent,normal) if P-SV
   if (ndof==2) then
-    dF = rotate(bc,dF,1)
-    T  = rotate(bc,T,1)      
+    dF  = rotate(bc,dF,1)
+    T   = rotate(bc,T,1)      
+    dV  = rotate(bc,dV,1)      
   endif
+  
+  ! add plate rate to the fault slip
+  if (associated(bc%rsf)) then
+      dV(:, 1) = dV(:, 1) + vplate
+  else
+      call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!')
+  end if
 
 ! apply symmetry to normal stress when needed
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
@@ -656,8 +668,10 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
   if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
+  
   ! Update normal stress variables
-  call normal_update(bc%normal,T(:,2), dV(:,1)) 
+  ! Note this regularization is negligible in quasi-statics
+  call normal_update(bc%normal, T(:,2), dV(:,1)) 
 
  !-- velocity and state dependent friction 
  ! compute new slip velocity
@@ -670,6 +684,9 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! Subtract initial stress
   T = T - bc%T0
 
+! Subtract plate rate
+  dV(:, 1) = dV(:, 1) - vplate
+
 ! Save tractions in fault local frame
   bc%T = T
 
@@ -677,16 +694,20 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   if (ndof==2) T  = rotate(bc, T , -1)
   if (ndof==2) dV = rotate(bc, dV, -1)
 
-! Update fault velocity as Kaneko 2011.
-! WARNING: implicitly assumes symmetry
-! v+ =  dV/2
-! v- = -dV/2
+! Update fault velocity following Junpei Seki, 2017
 
-  V(bc%node1,:) = - dV(:,1:ndof)/2.0d0
-  if (associated(bc%bc2)) V(bc%node2,:) = dV(:,1:ndof)/2.0d0 
+! forward transform global velocity
+  call BC_DYNFLT_trans(bc, V, 1)
 
-  bc%V = dV
-  bc%D = bc%D + dV * time%dt
+! update half slip velocity by compute the average 
+! of the current and previous slip velocity
+  V(bc%node1, :) = 0.5d0 * (dV + dV_pre) / 2.0d0
+
+! transform back, global velocity 
+  call BC_DYNFLT_trans(bc, V, -1)
+
+  bc%V = (dV + dV_pre) / 2.0d0
+  bc%D = bc%D + bc%dV * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
 

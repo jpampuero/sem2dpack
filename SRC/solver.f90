@@ -330,7 +330,7 @@ subroutine solve_quasi_static(pb)
     ! solve for forces created by d_fix, finding K_{21}d^f + K_{23}d^{dir} 
     call compute_Fint(f, d_fix, pb%fields%veloc, pb)
     
-    ! apply newmann if there's any
+    ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
     
     f = -f
@@ -339,12 +339,10 @@ subroutine solve_quasi_static(pb)
     !  update d, d_fix in d is not updated in pcg
 
     call pcg_solver(d, f, pb, tolerance)
-    
+   
+    ! recompute the force use the updated total disp
     call compute_Fint(f, d, pb%fields%veloc, pb)
     
-    ! apply newmann boundary condition if there's any
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
-
     ! apply boundary conditions including following: 
     !    1.  compute fault traction, compute state variable 
     !    2.  update slip rate, update fault velocity in fields%veloc 
