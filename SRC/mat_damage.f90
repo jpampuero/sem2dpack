@@ -450,6 +450,8 @@ contains
 !   sigma_ij = ( lambda*i1 - gamma*sqrt(i2) )*delta_ij 
 !             + ( 2*mu - gamma*i1/sqrt(i2) )*e_ij
 !
+! Nonlinearity evaluated explicitly
+!
   subroutine compute_stress(s,e,rl,rm,rg,i1,i2,xi)
 
   double precision, intent(in) :: e(3),rl,rm,rg

@@ -121,7 +121,7 @@ subroutine init_main(pb,InitFile)
 
  ! required for quasi-static solution
  ! DEVEL only implemented in elastic material              
-  if (pb%time%kind =='quasi-static') then
+  if (pb%time%kind =='adaptive') then
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'

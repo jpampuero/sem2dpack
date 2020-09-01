@@ -10,14 +10,15 @@ module bc_dynflt_rsf
   private
 
   type rsf_input_type
-    type(cd_type) :: dc, mus, a, b, Vstar, theta
+    ! plate rate is added
+    type(cd_type) :: dc, mus, a, b, Vstar, theta, vplate
   end type rsf_input_type
 
   type rsf_type
     private
     integer :: kind
     double precision, dimension(:), pointer :: dc=>null(), mus=>null(), a=>null(), b=>null(), &
-                                               Vstar=>null(), theta=>null(), Tc=>null(), coeft=>null()
+                   Vstar=>null(), theta=>null(), Tc=>null(), coeft=>null(), vplate=>null()
     double precision :: dt
     type(rsf_input_type) :: input
   end type rsf_type
@@ -46,6 +47,7 @@ contains
 ! ARG: b        [dble] [0.02d0] Evolution effect coefficient
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
 ! ARG: theta    [dble] [1d0] State variable
+! ARG: vplate   [dble] [1d0] plate rate
 !
 ! END INPUT BLOCK
 
@@ -66,7 +68,8 @@ contains
   integer :: kind
   character(25) :: kind_txt
 
-  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,DcH,MuSH,aH,bH,VstarH,thetaH
+  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
+           DcH,MuSH,aH,bH,VstarH,thetaH,vplate, vplateH
 
   kind = 1
   Dc = 0.5d0
@@ -74,13 +77,15 @@ contains
   a = 0.01d0
   b = 0.02d0
   Vstar = 1d0
-  theta = 0d0;
+  theta = 0d0
+  vplate = 0d0
   DcH = ''
   MuSH = ''
   aH = ''
   bH = ''
   VstarH = ''
-  thetaH = '';
+  thetaH = ''
+  vplateH = ''
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
@@ -99,8 +104,9 @@ contains
   call DIST_CD_Read(rsf%input%b,b,bH,iin,bH)
   call DIST_CD_Read(rsf%input%Vstar,Vstar,VstarH,iin,VstarH)
   call DIST_CD_Read(rsf%input%theta,theta,thetaH,iin,thetaH)
+  call DIST_CD_Read(rsf%input%vplate,vplate,vplateH,iin,vplateH)
 
-  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH
+  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
 
   return
 
@@ -111,7 +117,8 @@ contains
             /5x,'  Direct effect coefficient . . . . . .(a) = ',A,&
             /5x,'  Evolution effect coefficient  . . . .(b) = ',A,&
             /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A,&
-            /5x,'  State variable  . . . . . . . . .(theta) = ',A)
+            /5x,'  State variable  . . . . . . . . .(theta) = ',A,&
+            /5x,'  Plate rate  . . . . . . . . . . .(Vstar) = ',A)
 
   end subroutine rsf_read
 
@@ -130,7 +137,8 @@ contains
   call DIST_CD_Init(rsf%input%b,coord,rsf%b)
   call DIST_CD_Init(rsf%input%Vstar,coord,rsf%Vstar)
   call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
-  
+  call DIST_CD_Init(rsf%input%vplate,coord,rsf%vplate)
+
   n = size(coord,2)
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
@@ -142,6 +150,8 @@ contains
 
 !=====================================================================
 ! Friction coefficient
+! v : slip velocity
+
   function rsf_mu(v,f) result(mu)
 
   double precision, dimension(:), intent(in) :: v
@@ -326,6 +336,7 @@ contains
        estimateHigh = max(0d0, 2d0*tau_stick(it))
        !estimateLow = 1e-9 
        !estimateHigh = tau_stick(it)*2.0
+       !the initial guess assume zero increment of slip velocity
        v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
      enddo     
         
@@ -345,6 +356,7 @@ contains
   function nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z) result(v)
   !WARNING: This is not a well tested portion !!!
  
+  ! maxIteration is hard coded!
   integer, parameter :: maxIteration=200
   integer :: is
   
@@ -553,6 +565,12 @@ end subroutine nr_fric_func_v
 
 !---------------------------------------------------------------------
 !-----------Adapts timestep for quasi-static algorithm----------------
+! limiting time step from fault
+!
+! WARNING: hcell is the element size or the size between nodes?
+! In this implementation: element size hcell is passed in
+! In the matlab code, distance between nodes are used as hcell
+!
 subroutine rsf_timestep(time,f,v,sigma,hcell)
   use time_evol, only : timescheme_type
   

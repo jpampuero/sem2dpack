@@ -858,6 +858,8 @@ end subroutine MAT_stress_dv
 
 !=======================================================================
 ! finds the diagonal of the stiffness matrix, and stores its inverse
+! In fact, invKDiag is the negative diagonal of the stiffness matrix.
+! because MAT_ELAST_f computes f = - K * disp
 
   subroutine MAT_diag_stiffness_init(invKDiag,g,f,matwrk)
 
@@ -877,6 +879,9 @@ end subroutine MAT_stress_dv
   invKDiag = 0.d0
   dloc = 0.0d0
 
+  ! Loop over all the elements and gll points and apply unit displacement
+  ! and measure the force.
+  ! Note this only works for elastic material!
   do e=1,g%nelem
   do j=1,g%ngll
   do i=1,g%ngll

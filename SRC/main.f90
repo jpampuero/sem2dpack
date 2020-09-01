@@ -49,12 +49,12 @@
   cputime0 = cputime1-cputime0
 
   it = 1
-  pb%time%time = pb%time%dt
+  pb%time%time = pb%time%time + pb%time%dt
 
   do while (pb%time%time < pb%time%total) 
-                                                       
+
     call solve(pb)
-  
+
   !-- CPU time info -----------------------------------------------------
 
     if (it == NT_CHECK) then
@@ -74,7 +74,7 @@
 
     if (mod(it,ItInfo) == 0) then
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-      if (pb%time%kind == 'quasi-static') write(iout,*),'dt = ',pb%time%dt
+      if (pb%time%kind == 'adaptive') write(iout,*),'dt = ',pb%time%dt
     endif
 
     if (iexec>0) then
@@ -83,7 +83,8 @@
       call PLOT_FIELD(pb,it,title,iout)
 
       !-- store seismograms
-      if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
+!      if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
+      if(associated(pb%rec)) call REC_store(pb%rec,it,pb%grid)
 
       !-- write data for faults, and possibly other BCs
       call BC_write(pb%bc,it,pb%fields%displ,pb%fields%veloc)

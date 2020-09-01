@@ -5,7 +5,10 @@ module time_evol
   type timescheme_type
     !private !devel: main and solver need it public
     character(12) :: kind
-    double precision :: dt,courant,time,total,alpha,beta,gamma,Omega_max
+    character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
+    Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
+    double precision :: dt,courant,time,total,alpha,beta,gamma,Omega_max, dt_min
+    ! dt_min: minimum time step in adaptive time stepping 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt,nstages
   end type timescheme_type
@@ -21,14 +24,15 @@ contains
 ! SYNTAX : &TIME kind, {Dt or Courant}, {NbSteps or TotalTime} /
 !          Possibly followed by a TIME_XXXX block.
 !
-! ARG: kind      [char*10] ['leapfrog'] Type of scheme:
+! ARG: kind      [char*12] ['leapfrog'] Type of scheme:
 !                'newmark'       Explicit Newmark
 !                'HHT-alpha'     Explicit HHT-alpha
 !                'leapfrog'      Central difference
 !                'symp_PV'       Position Verlet
 !                'symp_PFR'      Position Forest-Ruth (4th order)
 !                'symp_PEFRL'    Extended PFR (4th order)
-!		 'quasi-static'  Quasi-static (Kaneko, et al, 2011)
+!		         'adaptive'      adaptive (Kaneko, et al, 2011)
+!
 ! ARG: Dt        [dble] [none] Timestep (in seconds)
 ! ARG: Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
 !                stability number (CFL), defined as
@@ -36,6 +40,10 @@ contains
 !                where dx is the distance between GLL nodes. Tipically CFL<= 0.5
 ! ARG: NbSteps   [int] [none] Total number of timesteps
 ! ARG: TotalTime [int] [none] Total duration (in seconds)
+!
+! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
+!                when kind='adaptive' 
+!                when kind/='adaptive', kind_dyn=kind 
 !
 ! NOTE   : The leap-frog scheme is recommended for dynamic faults. It is equivalent 
 !          to the default Newmark scheme (beta=0, gamma=1/2). However it is 
@@ -131,14 +139,15 @@ contains
                      ,xi,lambda,chi,theta
   integer :: NbSteps,n
   character(12) :: kind
+  character(12) :: kind_dyn
   
-  NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime
+  NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,kind_dyn
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
 !-------------------------------------------------------------------------------
 
-  kind = 'leapfrog'
+  kind     = 'leapfrog'
   NbSteps  = 0 
   dt       = 0.d0
   courant  = 0.5d0
@@ -161,10 +170,28 @@ contains
     if (TotalTime > 0.d0) NbSteps = ceiling(TotalTime/dt)
     TotalTime = dt*NbSteps
   endif
+  
+  t%nt       = NbSteps
+  t%dt       = dt
+  t%dt_min   = dt  ! set dt_min as the initial dt
+  t%courant  = courant
+  t%total    = TotalTime
+  t%kind     = kind
+
+  select case (kind)
+    case ('adaptive')
+        t%kind_dyn  = kind_dyn
+        t%isDynamic = .false.
+    case default
+        kind_dyn    = kind 
+        t%kind_dyn  = kind_dyn
+        t%isDynamic = .true.
+  end select 
 
   if (echo_input) then
     write(iout,200) 
     write(iout,201) kind
+    write(iout,210) kind_dyn
     if (NbSteps > 0) then
       write(iout,202) NbSteps
     else
@@ -183,12 +210,6 @@ contains
     endif
   endif
 
-  t%nt      = NbSteps
-  t%dt      = dt
-  t%courant = courant
-  t%total   = TotalTime
-  t%kind    = kind
-
 !-------------------------------------------------------------------------------
 
 ! old default was: alpha=1/2, beta=1/2, gamma=1, rho=1
@@ -197,11 +218,13 @@ contains
   beta     = 0d0
   gamma    = 0.5d0
 
-  select case (kind)
-   
-   case ('quasi-static')
-    t%Omega_max = huge(1d0)
-
+! read additional parameters for dynamic/explicit schemes
+  select case (t%kind_dyn)
+!   case ('adaptive')
+!    t%Omega_max = huge(1d0)
+!
+! Note that Omega_max is only used for dynamic/explicit schemes
+!
    case ('leapfrog')
     t%Omega_max = 2d0
 
@@ -296,6 +319,7 @@ contains
 
   200 format(//' T i m e   i n t e g r a t i o n'/1x,31('='),/)
   201 format(5x,'Scheme. . . . . . . . . . . . . .(kind) = ',A)
+  210 format(5x,'Dynamic scheme. . . . . . . .(kind_dyn) = ',A)
   202 format(5x,'Number of time steps. . . . . (NbSteps) = ',I0)
   203 format(5x,'Number of time steps. . . . . (NbSteps) = will be set later')
   204 format(5x,'Time step increment . . . . . . . .(Dt) = ',EN12.3)
@@ -318,7 +342,7 @@ contains
 
 !=======================================================================
 !
-!  Set time integration parameters
+!  Set initial time integration parameters, called once at the beginning
 !
   subroutine TIME_init(t,grid_cfl)
 
@@ -330,14 +354,25 @@ contains
 
   double precision :: critical_CFL
 
- ! Check the Courant number or set the timestep:
+ ! Check the Courant number or set the timestep
+ ! dt and dt_min are for dynamic schemes
+ ! dt are updated if kind = adaptive  
+ ! 
+ ! If damage is significant, dt_min may also need to be updated
+ !
+
   if (t%dt > 0.d0) then
     t%courant =  grid_cfl*t%dt 
   else
     t%dt      =  t%courant/grid_cfl
-   ! Set the total duration or the number of timesteps
-    if (t%total > 0.d0) t%nt = ceiling(t%total/t%dt)
-    t%total = t%nt*t%dt
+    t%dt_min  =  t%dt
+
+   ! Set the total duration or the number of timesteps for uniform time step
+   ! Only update nt or total time when dynamic and non-adaptive step
+   if (t%isDynamic .and. t%kind /= 'adaptive') then
+        if (t%total > 0.d0) t%nt = ceiling(t%total/t%dt)
+        t%total = t%nt*t%dt
+    end if
   endif
 
   if (echo_check) then
@@ -346,12 +381,12 @@ contains
     write(iout,103) ' T i m e   s o l v e r' 
     write(iout,103) ' ====================='
     write(iout,*) 
-    write(iout,101) '    Time step (secs)      = ',t%dt
-    write(iout,104) '    Number of time steps  = ',t%nt
-    write(iout,101) '    Total duration (secs) = ',t%total
-    write(iout,101) '    Courant number        = ',t%courant
+    write(iout,101) '    Time step (secs)     (if not adaptive)  = ',t%dt
+    write(iout,104) '    Number of time steps (if not adaptive)  = ',t%nt
+    write(iout,101) '    Total duration (secs)                   = ',t%total
+    write(iout,101) '    Courant number                          = ',t%courant
     write(iout,*) 
-    write(iout,102) '    STABILITY:  CFL number               = ',grid_cfl*t%dt
+    write(iout,102) '    STABILITY:  CFL number                  = ',grid_cfl*t%dt
     write(iout,*) 
 
   endif
@@ -397,7 +432,7 @@ contains
 !=======================================================================
   logical function TIME_needsAlphaField(t) 
   type(timescheme_type), intent(in) :: t
-  TIME_needsAlphaField = t%kind=='HHT-alpha'
+  TIME_needsAlphaField = (t%kind_dyn=='HHT-alpha' .and. t%isDynamic )
   end function TIME_needsAlphaField
   
 !=======================================================================
@@ -430,13 +465,17 @@ contains
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%beta * t%dt**2
-    case ('leapfrog','quasi-static'); c = 0d0
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
+  if (.not. t%isDynamic) then
+      c = 0d0
+  else
+      select case (t%kind_dyn)
+        case ('newmark','HHT-alpha'); c = t%beta * t%dt**2
+        case ('leapfrog'); c = 0d0
+        case default
+          c=0d0
+          call IO_abort('TIME_getCoefA2D: unknown time scheme')
+      end select
+  end if 
 
   end function TIME_getCoefA2D
 
@@ -448,13 +487,17 @@ contains
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%gamma * t%dt
-    case ('leapfrog','quasi-static'); c = t%dt
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
+  if (.not. t%isDynamic) then
+      c = t%dt 
+  else
+      select case (t%kind_dyn)
+        case ('newmark','HHT-alpha'); c = t%gamma * t%dt
+        case ('leapfrog'); c = t%dt
+        case default
+          c=0d0
+          call IO_abort('TIME_getCoefA2D: unknown time scheme')
+      end select
+  end if
 
   end function TIME_getCoefA2V
 
@@ -471,17 +514,21 @@ contains
   type(timescheme_type), intent(in) :: t
   double precision :: c
 
-  select case (t%kind)
-    case ('newmark','HHT-alpha'); c = t%alpha * TIME_getCoefA2V(t)
-    case ('leapfrog','quasi-static'); c = 0.5d0 * TIME_getCoefA2V(t)
- ! NOTE: for the leapfrog time scheme, v_rhs = v_(n+1)
- !	 but the velocity field is stored at n+1/2, 
- !       v_rhs = v_(n+1/2) + 1/2*dt*a_(n+1)
- !       v_rhs_pre = v_(n+1/2)
-    case default
-      c=0d0
-      call IO_abort('TIME_getCoefA2D: unknown time scheme')
-  end select
+  if (.not. t%isDynamic) then
+      c = 0.5d0 * TIME_getCoefA2V(t)
+  else
+      select case (t%kind_dyn)
+        case ('newmark','HHT-alpha'); c = t%alpha * TIME_getCoefA2V(t)
+        case ('leapfrog'); c = 0.5d0 * TIME_getCoefA2V(t)
+     ! NOTE: for the leapfrog time scheme, v_rhs = v_(n+1)
+     !	 but the velocity field is stored at n+1/2, 
+     !       v_rhs = v_(n+1/2) + 1/2*dt*a_(n+1)
+     !       v_rhs_pre = v_(n+1/2)
+        case default
+          c=0d0
+          call IO_abort('TIME_getCoefA2D: unknown time scheme')
+      end select
+  end if
 
   end function TIME_getCoefA2Vrhs
 

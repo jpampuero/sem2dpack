@@ -21,7 +21,8 @@ module bc_dirneu
 
   integer,parameter :: IS_NEUMANN=1, IS_DIRICHLET=2
 
-  public :: BC_DIRNEU_type, BC_DIRNEU_read, BC_DIRNEU_init, BC_DIRNEU_apply
+  public :: BC_DIRNEU_type, BC_DIRNEU_read, BC_DIRNEU_init, & 
+      BC_DIRNEU_apply, BC_DIRNEU_apply_kind, BC_DIRNEU_set_kind, BC_DIRNEU_select_kind
 
 contains
 
@@ -194,9 +195,96 @@ subroutine bc_DIRNEU_apply(bc, disp, force,time)
           endif
       case(IS_NEUMANN)
           ! Neumann
-          force(bc%topo%node,1) = force(bc%topo%node,1) + STF_get(bc%vstf,time%time)*bc%B
+          force(bc%topo%node,2) = force(bc%topo%node,2) + STF_get(bc%vstf,time%time)*bc%B
   end select
  
 end subroutine bc_DIRNEU_apply
+
+! only apply dirichlet or neumann boundary condition one at a time
+! bc_kind = IS_NEUMANN=1 or IS_DIRICHLET=2
+!
+subroutine bc_DIRNEU_apply_kind(bc, disp, force,time, bc_kind)
+
+  type(bc_DIRNEU_type), intent(in) :: bc
+  type(timescheme_type), intent(in) :: time
+  integer, intent(in) :: bc_kind
+  double precision, intent(inout) :: disp(:,:)
+  double precision, intent(inout) :: force(:,:)
+  
+  if (bc%kind(1) == bc_kind) then
+      select case(bc%kind(1))
+          case(IS_DIRICHLET)
+              ! Dirichle
+              force(bc%topo%node,1) = 0.d0
+              if (associated(bc%hstf)) then
+                disp(bc%topo%node,1) = STF_get(bc%hstf,time%time)
+              endif
+          case(IS_NEUMANN)
+              ! Neumann
+              force(bc%topo%node,1) = force(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
+      end select
+  end if
+
+  if (size(force,2)==1) return
+
+  if (bc%kind(2) == bc_kind) then
+      select case(bc%kind(2))
+          case(IS_DIRICHLET)
+              ! Dirichle
+              force(bc%topo%node,2) = 0.d0
+              if (associated(bc%vstf)) then
+                disp(bc%topo%node,2) = STF_get(bc%vstf,time%time)
+              endif
+          case(IS_NEUMANN)
+              ! Neumann
+              force(bc%topo%node,2) = force(bc%topo%node,2) + STF_get(bc%vstf,time%time)*bc%B
+      end select
+  end if
+ 
+end subroutine bc_DIRNEU_apply_kind
+
+! only apply dirichlet or neumann boundary condition one at a time
+! bc_kind = IS_NEUMANN=1 or IS_DIRICHLET=2
+!
+
+subroutine bc_DIRNEU_set_kind(bc, field, input, bc_kind)
+
+  type(bc_DIRNEU_type), intent(in) :: bc
+  double precision, intent(inout) :: field(:,:)
+  double precision, intent(in) :: input
+
+  integer, intent(in) :: bc_kind
+  
+  if (bc%kind(1) == bc_kind) then
+      field(bc%topo%node, 1) = input
+  end if
+
+  if (size(field,2)==1) return
+
+  if (bc%kind(2) == bc_kind) then
+	  field(bc%topo%node, 2) = input
+  end if
+
+end subroutine bc_DIRNEU_set_kind
+
+subroutine bc_DIRNEU_select_kind(bc, field_in, field_out, bc_kind)
+
+  type(bc_DIRNEU_type), intent(in) :: bc
+  double precision, intent(in) :: field_in(:,:)
+  double precision, dimension(:,:), intent(inout) :: field_out
+
+  integer, intent(in) :: bc_kind
+  
+  if (bc%kind(1) == bc_kind) then
+	  field_out(bc%topo%node, 1) = field_in(bc%topo%node, 1)
+  end if
+
+  if (size(field_in,2)==1) return
+
+  if (bc%kind(2) == bc_kind) then
+	  field_out(bc%topo%node, 2) = field_in(bc%topo%node, 2)
+  end if
+
+end subroutine bc_DIRNEU_select_kind
 
 end module bc_DIRNEU

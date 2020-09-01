@@ -49,7 +49,10 @@ module bc_gen
                         IS_DYNFLT = 6
                         !! IS_USER = 7
 
-  public :: bc_type,bc_read,bc_apply,bc_init,bc_write,bc_set,bc_timestep
+  public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_set,bc_timestep, & 
+            bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
+            bc_select_fix
+
 
 contains
 
@@ -185,7 +188,6 @@ subroutine bc_read(bc,iunit)
 
 end subroutine bc_read
 
-
 !-----------------------------------------------------------------------
 subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
 
@@ -288,7 +290,7 @@ contains
 
     select case(bc%kind)
       case(IS_DIRNEU)
-        call bc_DIRNEU_apply(bc%dirneu,fields%displ, force, time)
+        call bc_DIRNEU_apply(bc%dirneu, fields%displ, force, time)
       case(IS_KINFLT)
           ! fields%accel means Mxa
         call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
@@ -309,6 +311,75 @@ contains
   
 end subroutine bc_apply
 
+
+!=======================================================================
+!! Applies the boundary condition for a single boundary kind
+!
+! bc_kind =
+! IS_EMPTY  = 0, &
+! IS_DIRNEU = 1, &
+! IS_KINFLT = 2, &
+! IS_ABSORB = 3, &
+! IS_PERIOD = 4, &
+! IS_LISFLT = 5, &
+! IS_DYNFLT = 6
+!
+subroutine bc_apply_kind(bc, time, fields, force, bc_kind, dirneu_kindin)
+
+  use sources, only: source_type
+  use fields_class, only: fields_type
+  use time_evol, only : timescheme_type
+
+  type(bc_type), pointer :: bc(:)
+  type (fields_type), intent(inout) :: fields
+  type(timescheme_type), intent(in) :: time
+  double precision, dimension(:,:), intent(inout) :: force
+  integer, intent(in) :: bc_kind 
+  integer, optional, intent(in)::dirneu_kindin
+  integer :: dirneu_kind
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
+
+  integer :: i
+
+  if (.not. associated(bc)) return
+
+  dirneu_kind = IS_NEU 
+  if (present(dirneu_kindin)) dirneu_kind = dirneu_kindin 
+
+  ! apply a single boundary kind
+  do i = 1,size(bc)
+    if ( bc(i)%kind == bc_kind) call bc_apply_single_kind(bc(i))
+  enddo
+
+contains
+
+  subroutine bc_apply_single_kind(bc)
+
+    type(bc_type), intent(inout) :: bc
+
+    select case(bc%kind)
+      case(IS_DIRNEU)
+        call bc_DIRNEU_apply_kind(bc%dirneu, fields%displ, force, time, dirneu_kind)
+      case(IS_KINFLT)
+          ! fields%accel means Mxa
+        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
+      case(IS_ABSORB)
+        call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
+      case(IS_PERIOD)
+        call bc_perio_apply(bc%perio,force)
+      case(IS_LISFLT)
+          ! fields%accel means Mxa
+        call BC_LSF_apply(bc%lsf,fields%accel,fields%displ_alpha)
+      case(IS_DYNFLT)
+        call BC_DYNFLT_apply(bc%dynflt,fields%accel,fields%veloc,fields%displ,time)
+!!      case(IS_USER)
+!!        call BC_USER_apply(bc%user, ... )
+    end select
+
+  end subroutine bc_apply_single_kind
+  
+end subroutine bc_apply_kind
 
 !=======================================================================
 ! Writes data for faults, and possibly other BCs
@@ -338,17 +409,150 @@ subroutine BC_write(bc,itime,d,v)
 
 end subroutine BC_write
 
-!=======================================================================
-!! Sets the field along the boundary to a specific value
-subroutine bc_set(bc,field_in,input,field_out)
+! =================================================
+! select the fields only along the one kind of bc 
+subroutine bc_select_kind(bc, field_in, field_out, bc_kind, dirneu_kind_in)
 
-  use sources, only: source_type
+  use stdio, only: IO_abort
+  use fields_class, only: fields_type
+
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(in) :: field_in
+  double precision, dimension(:,:), intent(inout) :: field_out
+  integer :: i
+  integer, intent(in):: bc_kind
+  integer, intent(in), optional:: dirneu_kind_in
+  integer :: dirneu_kind
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
+
+  dirneu_kind = IS_NEU 
+  if (present(dirneu_kindin)) dirneu_kind = dirneu_kindin 
+  
+  if (.not. associated(bc)) return
+  
+  if (bc_kind /= IS_DYNFLT .or. bc_kind /= IS_DIRNEU) then
+      call IO_abort('bc_select_kind: bc_kind must be IS_DYNFLT or IS_DIRNEU')
+      return
+  end if
+
+  do i = 1,size(bc)
+      if (bc(i)%kind /= bc_kind) continue
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+        call BC_DYNFLT_select(bc(i)%dynflt, field_in, field_out)
+      case (IS_DIRNEU) 
+        call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, dirneu_kind)
+      end select
+  enddo
+end subroutine bc_select_kind
+
+! ====================================================================
+! select field on the nodes where degree of freedom is fixed
+!
+! first transform the field, d to d'
+! select the following bc:
+!       dirichlet boundaries,
+!       kinematic fault boundary (side -1, node1)
+!       dynflt boundary (side -1, node1) 
+!
+! undo the transform after the selection
+!
+! used only in quasi-statics
+!
+
+subroutine bc_select_fix(bc, field_in, field_out)
+
+  use fields_class, only: fields_type
+
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(inout) :: field_in
+  double precision, dimension(:,:), intent(inout) :: field_out
+  integer :: i, side
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
+
+  side = -1
+
+  ! transform field_in 
+  call bc_trans(bc, field_in, 1)
+
+  if (.not. associated(bc)) return
+
+  do i = 1,size(bc)
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+          ! select dynflt side -1
+        call BC_DYNFLT_select(bc(i)%dynflt, field_in, field_out, side)
+      case (IS_DIRNEU) 
+          ! select dirichlet 
+        call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, IS_DIR)
+      case (IS_KINFLT) 
+  !      TO BE DEVELOPED!
+  !      select kinflt side -1
+  !      call BC_KINFLT_select(bc(i)%kinflt, field_in, field_out, side)
+      end select
+  enddo
+  ! undo the transform
+  call bc_trans(bc, field_in, -1)
+  call bc_trans(bc, field_out, -1)
+
+end subroutine bc_select_fix
+
+!======================================================================
+! set the field on the fixed degree of freedom to zero
+!
+! used only in quasi-static for static condensation
+!
+!       dirichlet boundaries,
+!       kinematic fault boundary (side -1)
+!       dynflt boundary (side -1) 
+!
+
+subroutine bc_set_fix_zero(bc, field)
+
+  use fields_class, only: fields_type
+
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(inout) :: field
+  integer :: i, side
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
+
+  side = -1
+
+  if (.not. associated(bc)) return
+
+  do i = 1,size(bc)
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+          ! select dynflt side -1
+        call BC_DYNFLT_set(bc(i)%dynflt, field, 0d0, side)
+      case (IS_DIRNEU) 
+          ! select dirichlet 
+        call BC_DIRNEU_set_kind(bc(i)%dirneu, field, 0d0, IS_DIR)
+      case (IS_KINFLT) 
+  !      TO BE DEVELOPED!
+  !      select kinflt side -1
+  !      call BC_KINFLT_set(bc(i)%kinflt, field, 0d0, side)
+      end select
+  enddo
+end subroutine bc_set_fix_zero
+
+
+!=======================================================================
+! Sets the field along the boundary to a specific value
+! Only used in quasi-static solver
+! use to fix values along certain boundary
+!
+
+subroutine bc_set(bc,field,input)
+
   use fields_class, only: fields_type
 
   type(bc_type), pointer :: bc(:)
   double precision, intent(in) :: input
-  double precision, dimension(:,:), intent(in) :: field_in
-  double precision, dimension(:,:), intent(out) :: field_out
+  double precision, dimension(:,:), intent(inout) :: field
 
   integer :: i
 
@@ -384,7 +588,7 @@ contains
       case(IS_LISFLT)
         !call BC_LSF_set(bc%lsf,field_in,input,field_out)
       case(IS_DYNFLT)
-        call BC_DYNFLT_set(bc%dynflt,field_in,input,field_out)
+        call BC_DYNFLT_set(bc%dynflt,field,input)
 !!      case(IS_USER)
 !!        call BC_USER_set(bc%user,field_in,input,field_out)
     end select
@@ -393,59 +597,152 @@ contains
   
 end subroutine bc_set
 
-!=======================================================================
-!! Sets the field along the boundary to a specific value
-subroutine bc_timestep(bc,time,hcell)
+! set fields on the boundary for a specific kind
+! Note only dirichlet and dynflt is supported
+subroutine bc_set_kind(bc, field, input, bc_kind, dirneu_kind, side_in)
 
-  use sources, only: source_type
+  use stdio, only: IO_abort
   use fields_class, only: fields_type
-  use time_evol, only : timescheme_type
 
-  double precision, intent(in) :: hcell
-  type(bc_type), pointer, intent(in) :: bc(:)
-  type(timescheme_type), intent(inout) :: time
+  type(bc_type), pointer :: bc(:)
+  double precision, intent(in) :: input
+  double precision, dimension(:,:), intent(inout) :: field
+  integer, intent(in):: bc_kind, dirneu_kind
+  integer, intent(in), optional :: side_in 
+  integer :: side
 
   integer :: i
 
+  side  = 2 ! default, select all available sides
+  if (present(side_in)) side = side_in
+
   if (.not. associated(bc)) return
- ! apply first periodic, then absorbing, then the rest
- ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
-  do i = 1,size(bc)
-    if ( bc(i)%kind == IS_PERIOD) call bc_timestep_single(bc(i),time,hcell)
-  enddo
-  do i = 1,size(bc)
-    if ( bc(i)%kind == is_absorb) call bc_timestep_single(bc(i),time,hcell)
-  enddo
-  do i = 1,size(bc)
-    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_timestep_single(bc(i),time,hcell)
+
+  do i = 1, size(bc)
+      if (bc(i)%kind /= bc_kind) continue
+      select case (bc(i)%kind)
+          case (IS_DYNFLT)
+             call BC_DYNFLT_set(bc(i)%dynflt, field, input, side) 
+          case (IS_KINFLT)
+!		    Need to implement the kinematic faults
+!             call BC_KINFLT_set(bc(i)%kinflt, field, input, side) 
+          case (IS_DIRNEU)
+             call BC_DIRNEU_set_kind(bc(i)%dirneu, field, input, dirneu_kind) 
+          case default
+             call IO_abort('bc_set_kind: unsupported bc kind') 
+     end select
   enddo
     
-contains
+end subroutine bc_set_kind
 
-  subroutine bc_timestep_single(bc,time,hcell)
+! ==============================================================
+! Transform a field on the fault boundary
+! direction = 1
+! 
+! fout(node1) = (fin(node2) - fin(node1))/2    Half jump
+! fout(node2) = (fin(node2) + fin(node1))/2    Average
+!
+! If symmetry is assumed, then node2 is not stored
+! fin(node2) = - fin(node1) 
+!
+! After transform:
+! fout(node1) = - fin(node1)                 Half jump
+!
+! direction = -1 perform the inverse transformation
+!
+! This is used to impose slip on the fault
+! for both dynflt/kinematic faults
+!
+! See master thesis of Junpei Seki
+!
 
-    type(bc_type), intent(in) :: bc
-    double precision, intent(in) :: hcell
-    type(timescheme_type), intent(inout) :: time
-    ! DEVEL these other set functions will have to be created 
-    ! in their respective files.
-    select case(bc%kind)
-      case(IS_DIRNEU,IS_ABSORB,IS_PERIOD)
-        !do nothing
-      case(IS_KINFLT)
-        !not implemented yet
-        !call bc_KINFLT_timestep(bc%kinflt,time)
-      case(IS_LISFLT)
-        !not implemented yet
-        !call BC_LSF_timestep(bc%lisflt,time)
-      case(IS_DYNFLT)
-        call BC_DYNFLT_timestep(time,bc%dynflt,hcell)
-!!      case(IS_USER)
-!!        call BC_USER_timestep(bc%user,time)
-    end select
+subroutine bc_trans(bc, field, direction)
 
-  end subroutine bc_timestep_single
+  use stdio, only: IO_abort
+
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(inout) :: field
+  integer, intent(in) :: direction
+  integer :: i
+
+  if (direction/=1 .or. direction/= -1) then
+     call IO_abort('bc_trans: direction must be 1 or -1')
+  end if
+
+  if (.not. associated(bc)) return
   
+  do i = 1,size(bc)
+    select case(bc(i)%kind)
+    case (IS_KINFLT)
+! Need DEVEL to allow two sided kinflt
+!        call bc_kinflt_trans(bc(i)%kinflt, field, direction)
+    case (IS_DYNFLT)
+        call bc_dynflt_trans(bc(i)%dynflt, field, direction)
+    end select
+  enddo
+
+end subroutine bc_trans
+
+! ============================================
+! update displacement only on the faults
+! d(fault_node) = dpre(fault_node) + dt
+! only used by dynflt in quasi-static mode
+
+subroutine bc_update_dfault(bc, dpre, d, v, dt)
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(in) :: dpre
+  double precision, dimension(:,:), intent(out) :: d
+  double precision, intent(in) :: dt 
+  integer :: i
+  
+  if (.not. associated(bc)) return
+  
+  do i = 1,size(bc)
+    if (bc(i)%kind==IS_DYNFLT) then
+      call bc_dynflt_update_disp(bc(i)%dynflt, dpre, d, v, dt)
+    end if
+  enddo
+
+end subroutine bc_update_dfault
+
+subroutine bc_set_fault(bc, field, field_set, side)
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(inout) :: field
+  double precision, dimension(:,:), intent(in) :: field_set
+  integer, intent(in), optional :: side_in 
+  integer :: side
+  integer :: i
+
+  side  = 2 ! default, select all available sides
+  if (present(side_in)) side = side_in
+  
+  if (.not. associated(bc)) return
+  
+  do i = 1,size(bc)
+    if (bc(i)%kind==IS_DYNFLT) then
+      call bc_dynflt_set_array(bc(i)%dynflt, field, field_set, side)
+    end if
+  enddo
+
+end subroutine bc_update_dfault
+
+
+subroutine bc_timestep(bc, time)
+
+  use time_evol, only : timescheme_type
+  type(bc_type), pointer, intent(in) :: bc(:)
+  type(timescheme_type), intent(inout) :: time
+  integer :: i
+
+  if (.not. associated(bc)) return
+
+  do i = 1, size(bc)
+    select case(bc(i)%kind)
+    case (IS_DYNFLT)
+        call BC_DYNFLT_timestep(time, bc(i)%dynflt)
+    end select
+  enddo
+    
 end subroutine bc_timestep
 
 end module bc_gen

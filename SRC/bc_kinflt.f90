@@ -149,6 +149,8 @@ end subroutine bc_kinflt_read
 
 !=======================================================================
 !
+! tag is an integer here and assumes symmetry, kinematic bc must be on 
+! a boundary.
 subroutine bc_kinflt_init(bc,tag,grid,M,time,perio)
 
   use echo, only : echo_init,iout
@@ -284,6 +286,12 @@ end subroutine bc_kinflt_init
 !
 ! SEE ALSO:	bc_dynflt::bc_dynflt_apply
 !   
+! Kinematic faults are treated as traction boundary condition
+!
+! The traction is computed using prescribed slip, this traction 
+! then automatically leads to the relative velocity between 
+! two split nodes 
+!
 subroutine bc_kinflt_apply(bc,MxA,v,time)
 
   type(bc_kinflt_type), intent(inout) :: bc
@@ -295,6 +303,10 @@ subroutine bc_kinflt_apply(bc,MxA,v,time)
 
  ! WARNING: boundary is horizontal
 
+ ! Note symmetry is assumed!
+ ! The boundary is assumed to be minus side or node 1.
+ ! dV = V2 - V1 = -2V1 
+ !  T = T1 = -T2
  ! prescribed velocity (kinematic source)
   ic = bc%comp
   do i=1,bc%topo%npoin
@@ -306,7 +318,6 @@ subroutine bc_kinflt_apply(bc,MxA,v,time)
  ! Tz component is assumed null
 
 end subroutine bc_kinflt_apply
-
 
 !=====================================================================
 !

@@ -229,6 +229,8 @@ contains
   double precision, dimension(ngll,ngll) :: sm,tau,Y,i1,i2 ,factor
 
  ! relative elastic strain
+ ! plastic strain is stored in the material properties as a state variable
+ ! at each element.
   e = etot - m%ep
 
   lambda = m%lambda
@@ -273,6 +275,7 @@ contains
     sd(:,:,3) = factor * sd_tr(:,:,3)
   
    ! update plastic strain
+   ! no plastic dilatancy is allowed!
     dep = (sd_tr - sd)/two_mu
     m%ep = m%ep + dep
   

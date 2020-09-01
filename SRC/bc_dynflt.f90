@@ -1,6 +1,5 @@
 module bc_dynflt
 ! slip weakening friction fault
-
   use bnd_grid, only: bnd_grid_type
   use distribution_cd
   use bc_dynflt_normal
@@ -18,6 +17,8 @@ module bc_dynflt
   type bc_dynflt_type
     private
     integer :: npoin
+    double precision :: hnode ! average node spacing
+    double precision :: hnode_min ! minimum node spacing
     integer, dimension(:), pointer :: node1=>null(), node2=>null()
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
@@ -37,7 +38,10 @@ module bc_dynflt
     logical :: osides
   end type bc_dynflt_type
 
-  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init, BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, BC_DYNFLT_timestep
+  public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init,  & 
+            BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
+            BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
+            BC_DYNFLT_set_array
 
 contains
 
@@ -250,6 +254,7 @@ contains
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
   logical :: two_sides
+  double precision :: hnode, hnode_i
   
   nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
 
@@ -305,6 +310,16 @@ contains
       .OR.any(abs(bc%coord(2,:)-grid%coord(2,bc%node2))>TINY_XABS) )&
       call IO_abort('bc_dynflt_init: coordinates on boundaries do not match properly')
   endif
+
+  ! compute average and minimal node spacing on the fault boundary
+  bc%hnode     = 0.0d0 
+  bc%hnode_min = huge(0.0d0) 
+  do i = 1, bc%npoin-1
+     hnode_i = sqrt(sum((bc%coord(:, i) - bc%coord(:,i+1))**2.0d0))
+     bc%hnode   = bc%hnode + hnode_i
+     bc%hnode_min   = min(bc%hnode_min, hnode_i)
+  end do
+  bc%hnode     = bc%hnode/(bc%npoin-1)
 
 ! NOTE: the mesh being conformal, the weights B=GLL_weights*jac1D are equal on both
 !       sides of the fault. 
@@ -545,6 +560,8 @@ contains
 ! Convention:   T = sigma*n1
 !               V = v2-v1
 ! => T and V have same sign
+! 1: minus side
+! 2: plus  side
 !
 ! NOTE: possible periodicity does not need to be enforced at this level
 !       because it is assumed that MxA and D are already periodic
@@ -559,8 +576,124 @@ contains
 
 !! DEVEL: This subroutine needs significant modifications and refactoring
 !! for rate-and-state friction: a two-loop solver for second order accuracy
+!
 
-  subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
+subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
+      ! MxA: force
+      ! V  : velocity
+      ! D  : displacement
+
+  use stdio, only: IO_abort
+  use constants, only : PI
+  use time_evol, only : timescheme_type
+
+  type(timescheme_type), intent(in) :: time
+  type(bc_dynflt_type), intent(inout) :: bc
+  double precision, intent(inout) :: V(:,:)
+  double precision, intent(in) :: D(:,:)
+  double precision, intent(inout) :: MxA(:,:)
+  if (.not. time%isDynamic) then
+      call BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
+  else
+      call BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
+  end if
+
+end subroutine BC_DYNFLT_apply
+
+
+
+! ==============================================================================
+! quasi-static kaneko 2011.
+! Only works with classic rate-state friction
+! 1. obtain fault traction
+! 2. update state variable
+! 3. update fault slip velocity
+! 4. update fault velocity
+
+subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
+      ! MxA: force
+      ! V  : velocity
+      ! D  : displacement
+
+  use stdio, only: IO_abort
+  use time_evol, only : timescheme_type
+
+  type(timescheme_type), intent(in) :: time
+  type(bc_dynflt_type), intent(inout) :: bc
+  double precision, intent(inout) :: V(:,:)
+  double precision, intent(in) :: D(:,:)
+  double precision, intent(inout) :: MxA(:,:)
+
+  double precision, dimension(bc%npoin) :: strength
+  double precision, dimension(bc%npoin, size(V, 2)) :: T
+  double precision, dimension(bc%npoin, size(V, 2)) :: dV,dF
+  integer :: ndof, i
+
+  ndof = size(MxA,2)
+
+  ! compute jump in force
+  dF = get_jump(bc, MxA) ! jump in force 
+  dV = get_jump(bc, V)   ! slip velocity  
+
+! compute fault traction
+  do i =1,ndof
+      ! Conforming mesh is assumed here
+      T(:, i) = -dF(:, i)/(2.0d0*bc%B(:,1))
+  enddo
+
+! rotate to fault frame (tangent,normal) if P-SV
+  if (ndof==2) then
+    dF = rotate(bc,dF,1)
+    T  = rotate(bc,T,1)      
+  endif
+
+! apply symmetry to normal stress when needed
+  if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
+
+! add initial stress
+  T = T + bc%T0
+
+! Solve for normal stress (negative is compressive)
+  ! Opening implies free stress
+  if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
+  ! Update normal stress variables
+  call normal_update(bc%normal,T(:,2), dV(:,1)) 
+
+ !-- velocity and state dependent friction 
+ ! compute new slip velocity
+  if (associated(bc%rsf)) then
+      call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
+  else
+   call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
+  endif
+
+! Subtract initial stress
+  T = T - bc%T0
+
+! Save tractions in fault local frame
+  bc%T = T
+
+! Rotate tractions back to (x,z) frame 
+  if (ndof==2) T  = rotate(bc, T , -1)
+  if (ndof==2) dV = rotate(bc, dV, -1)
+
+! Update fault velocity as Kaneko 2011.
+! WARNING: implicitly assumes symmetry
+! v+ =  dV/2
+! v- = -dV/2
+
+  V(bc%node1,:) = - dV(:,1:ndof)/2.0d0
+  if (associated(bc%bc2)) V(bc%node2,:) = dV(:,1:ndof)/2.0d0 
+
+  bc%V = dV
+  bc%D = bc%D + dV * time%dt
+
+end subroutine BC_DYNFLT_apply_quasi_static
+
+subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
+      ! MxA: force
+      ! V  : velocity
+      ! D  : displacement
 
   use stdio, only: IO_abort
   use constants, only : PI
@@ -612,11 +745,7 @@ contains
 
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
-    if (time%kind=='quasi-static') then
-      call rsf_qs_solver(bc%V(:,1),T(:,1), normal_getSigma(bc%normal), bc%rsf)
-    else
-      call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
-    endif
+    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
                                         
    !DEVEL combined with time-weakening
@@ -677,7 +806,7 @@ contains
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
 
-  end subroutine BC_DYNFLT_apply
+  end subroutine BC_DYNFLT_apply_dynamic
 
 !---------------------------------------------------------------------
   function get_jump (bc,v) result(dv)
@@ -801,21 +930,195 @@ contains
   end subroutine export_side
 
 !=====================================================================
-  ! Sets the displacement on the boundary to a specific value
+! set values along boundary nodes with scalar input
 
-  subroutine BC_DYNFLT_set(bc,field_in,input,field_out)
+subroutine BC_DYNFLT_set(bc, field, input, side_in)
+
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, intent(inout) :: field(:,:)
+  double precision, intent(in) :: input
+  integer, intent(in), optional :: side_in 
+  integer :: side 
+  
+  side  = 2 ! default, select all available sides
+  if (present(side_in)) side = side_in
+
+  ! side = -1, node1
+  ! side =  1, node2
+  ! side =  2, node1 + node2
+
+  select case(side)
+  case (-1)
+      field(bc%node1,:) = input
+      return
+  case (1)
+      if (associated(bc%bc2)) then
+          field(bc%node2, :) = input
+      end if
+      return
+  case (2)
+      field(bc%node1,:) = input
+      if (associated(bc%bc2)) then
+          field(bc%node2, :) = input
+      end if
+  end select
+
+end subroutine BC_DYNFLT_set
+
+! ======================================================
+! set values along boundary nodes with array input
+subroutine BC_DYNFLT_set_array(bc, field, input, side_in)
+
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, intent(inout) :: field(:,:)
+  double precision, intent(in) :: input(:,:)
+  integer, intent(in), optional :: side_in 
+  integer :: side 
+  
+  side  = 2 ! default, select all available sides
+  if (present(side_in)) side = side_in
+
+  ! side = -1, node1
+  ! side =  1, node2
+  ! side =  2, node1 + node2
+
+  select case(side)
+  case (-1)
+      field(bc%node1,:) = input(bc%node1,:)
+      return
+  case (1)
+      if (associated(bc%bc2)) then
+          field(bc%node2, :) = input(bc%node2,:)
+      end if
+      return
+  case (2)
+      field(bc%node1,:) = input(bc%node1,:)
+      if (associated(bc%bc2)) then
+          field(bc%node2, :) = input(bc%node2,:)
+      end if
+  end select
+
+end subroutine BC_DYNFLT_set_array
+ 
+! select fields only on dynamic fault boundary and zero other components
+subroutine BC_DYNFLT_select(bc, field_in, field_out, side_in)
    
   use stdio, only: IO_abort
   
   type(bc_dynflt_type), intent(in) :: bc
   double precision, intent(in) :: field_in(:,:)
-  double precision, intent(in) :: input
-  double precision, dimension(:,:), intent(out) :: field_out
-  
-  field_out = field_in
-  field_out(bc%node1,:) = input
+  double precision, dimension(:,:), intent(inout) :: field_out
+  integer, intent(in), optional :: side_in 
+  integer :: side 
 
-  end subroutine BC_DYNFLT_set
+  side  = 2 ! default, select all available sides
+  if (present(side_in)) side = side_in
+
+  ! side = -1, node1
+  ! side =  1, node2
+  ! side =  2, node1 + node2
+
+  select case(side)
+  case(-1)
+      field_out(bc%node1,:) = field_in(bc%node1, :)
+      return
+  case(1)
+      if (associated(bc%bc2)) then
+      field_out(bc%node2,:) = field_in(bc%node2, :)
+      end if
+      return
+  case(2)
+      field_out(bc%node1,:) = field_in(bc%node1, :)
+      if (associated(bc%bc2)) then
+          field_out(bc%node2, :) = field_in(bc%node2, :)
+      end if
+  end select
+  
+  end subroutine BC_DYNFLT_select
+
+! ==============================================================
+! Transform a field on the fault boundary
+! direction = 1
+! 
+! fout(node1) = (fin(node2) - fin(node1))/2    Half jump
+! fout(node2) = (fin(node2) + fin(node1))/2    Average
+!
+! After the transformation, node1 stores half jump 
+! and node2 stores the average between two split nodes
+!
+! If symmetry is assumed, then node2 is not stored
+! fin(node2) = - fin(node1) 
+!
+! After transform:
+! fout(node1) = - fin(node1)                 Half jump
+!
+! direction = -1 perform the inverse transformation
+!
+! This is used to impose slip on the fault
+!
+! See master thesis of Junpei Seki
+!
+subroutine BC_DYNFLT_trans(bc, field, direction)
+  ! note that field is directly modified
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, dimension(:,:), intent(inout) :: field
+  double precision, dimension(:,:) :: tmp1, tmp2
+  integer, intent(in) :: direction
+  integer :: i, Nbcnode, ndof
+
+  ndof    = size(field, 2)
+  Nbcnode = size(bc%node1, 1)
+  allocate(tmp1(Nbcnode, ndof)) 
+  allocate(tmp2(Nbcnode, ndof)) 
+
+  tmp1    = field(bc%node1, :)  
+  tmp2    = 0d0
+
+  if (associated(bc%bc2)) then
+        tmp2 = field(bc%node2, :)
+  end if
+
+  select case(direction)
+  case (1)
+      ! forward transform
+      if (associated(bc%bc2)) then
+          ! two sided fault
+          field(bc%node1, :) = 0.5d0 * (tmp2 - tmp1)
+          field(bc%node2, :) = 0.5d0 * (tmp2 + tmp1)
+      else
+          ! one sided fault
+          field(bc%node1,:) = - field(bc%node1, :)
+      end if
+  case (-1)
+      ! backward transform
+      if (associated(bc%bc2)) then
+          ! two sided fault
+          field(bc%node1, :) = tmp2 - tmp1 
+          field(bc%node2, :) = tmp2 + tmp1 
+      else
+          ! one sided fault
+          field(bc%node1,:) = - field(bc%node1, :)
+      end if
+  end select
+
+end subroutine BC_DYNFLT_trans
+
+! update displacement on the fault nodes 
+! only used by quasi-static
+subroutine BC_DYNFLT_update_disp(bc, dpre, d, v, dt)
+  type(bc_dynflt_type), intent(in) :: bc  
+  double precision, dimension(:,:), intent(in) :: dpre
+  double precision, dimension(:,:), intent(out) :: d
+  double precision, intent(in) :: dt 
+  integer :: i
+  
+  d(bc%node1, :) = dpre(bc%node1, :) + dt * v(bc%node1, :)
+  if (associated(bc%bc2)) then
+	  ! two sided fault
+	  d(bc%node2, :) = dpre(bc%node2, :) + dt * v(bc%node2, :) 
+  end if
+
+end subroutine bc_update_dfault
 
 !=====================================================================
   function BC_DYNFLT_potency(bc,d) result(p)
@@ -843,20 +1146,17 @@ contains
 
   end function BC_DYNFLT_potency
 
-!=====================================================================
-  ! Adapts timestep for quasi-static solver
-
-  subroutine BC_DYNFLT_timestep(time,bc,hcell)
+  subroutine BC_DYNFLT_timestep(time, bc)
  
-  use time_evol, only : timescheme_type
-
-  type(timescheme_type), intent(inout) :: time
-  type(bc_dynflt_type), intent(in) :: bc
-  double precision, intent(in) :: hcell
-
-  if (associated(bc%rsf)) then 
-    call rsf_timestep(time,bc%rsf,bc%V(:,1),normal_getSigma(bc%normal),hcell)
-  endif  
+    use time_evol, only : timescheme_type
+    type(timescheme_type), intent(inout) :: time
+    type(bc_dynflt_type), intent(in) :: bc
+    double precision :: hnode
+    hnode = bc%hnode ! use average node spacing
+  
+    if (associated(bc%rsf)) then 
+      call rsf_timestep(time,bc%rsf,bc%V(:,1),normal_getSigma(bc%normal),hnode)
+    endif 
 
   end subroutine
 

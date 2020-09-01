@@ -1,12 +1,13 @@
 module solver
 
-! SOLVER: Newmark solver for elasto-dynamic equation
+! SOLVER: solver for elasto-dynamic equation
 !         M.a = - K.d + F
 
   use problem_class
   use stdio, only : IO_Abort
   use sources, only : SO_add
-  use bc_gen , only : BC_apply, BC_set, BC_timestep
+  use bc_gen , only : BC_apply, BC_set, bc_apply_kind, bc_select_kind, bc_set_kind, &
+                      bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault 
 
   implicit none
   private
@@ -20,21 +21,63 @@ contains
 subroutine solve(pb)
 
   type(problem_type), intent(inout) :: pb
-
   select case (pb%time%kind)
+    case ('adaptive')
+      call solve_adaptive(pb)
     case ('leapfrog')
       call solve_leapfrog(pb)
     case ('newmark')
       call solve_Newmark(pb)
     case ('HHT-alpha')
       call solve_HHT_alpha(pb)
-    case ('quasi-static')
-      call solve_quasi_static(pb)
     case default
       call solve_symplectic(pb)
   end select
 
-  end subroutine solve
+end subroutine solve
+
+!=====================================================================
+! adaptive solver, a wrapper for dynamic and quasi-static solver
+! depending on the 'isDynamic' flag
+!
+subroutine solve_adaptive(pb)
+  type(problem_type), intent(inout) :: pb
+
+  if (.not. pb%time%isDynamic) then
+      ! quasi-static
+      call solve_quasi_static(pb)
+  else
+      ! dynamic
+      call solve_dynamic(pb)
+  end if
+  call update_adaptive_step(pb)
+
+end subroutine solve_adaptive
+
+! update time step 
+subroutine update_adaptive_step(pb)
+  use bc_gen, only: BC_timestep
+  type(problem_type), intent(inout) :: pb
+
+  ! rate-state time step following Lapusta et al., 2010
+  call BC_timestep(pb%bc,pb%time)
+end subroutine update_adaptive_step
+
+!=====================================================================
+! a wrapper over all dynamic solver
+subroutine solve_dynamic(pb)
+    type(problem_type), intent(inout) :: pb
+    select case (pb%time%kind_dyn)
+      case ('leapfrog')
+        call solve_leapfrog(pb)
+      case ('newmark')
+        call solve_Newmark(pb)
+      case ('HHT-alpha')
+        call solve_HHT_alpha(pb)
+      case default
+        call solve_symplectic(pb)
+    end select
+end subroutine solve_dynamic
 
 ! SOLVE: advance ONE time step
 !        using single predictor-corrector Newmark (explicit)
@@ -127,7 +170,6 @@ subroutine solve_HHT_alpha(pb)
   
 end subroutine solve_HHT_alpha
 
-
 !=====================================================================
 !
 ! Second-order central difference (leap-frog)
@@ -158,7 +200,6 @@ subroutine solve_leapfrog(pb)
   v_mid = v_mid + pb%time%dt * a 
   
 end subroutine solve_leapfrog
-
 
 !=====================================================================
 !
@@ -202,74 +243,197 @@ end subroutine solve_symplectic
 ! SOLVE: advance ONE time step
 !        using quasi-static algorithm defined in Kaneko, et. al. 2011
 !        in acceleration form
+!
+! Solve nonlinear RS BC and off-fault elasticity in two iterations.
+!
+! Currently, this solver only works for RS frictional faults and elasticity
+!
+! The elasticity is solved with (Jacobi-)preconditioned conjugate gradient
+!
+! The state and slip velocity of the fault is updated in an explicit
+! but iterative way.
+!
+! Kinematic boundary condition must be modified
+! 
+! In Quasi-statics, only DIRNEU, KINFLT, DYNFLT BCs are applied.
+!
+! Symmetry assumption must be relaxed following Junpei Seki, 2017 
+!
+! bc_kind
+! IS_EMPTY  = 0, &
+! IS_DIRNEU = 1, &
+! IS_KINFLT = 2, &
+! IS_ABSORB = 3, &
+! IS_PERIOD = 4, &
+! IS_LISFLT = 5, &
+! IS_DYNFLT = 6
+
 subroutine solve_quasi_static(pb)
-  use mesh_gen, only : mesh_h
   type(problem_type), intent(inout) :: pb
+  double precision, dimension(:,:), pointer :: d, v, a, f
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre,d_fix
+  double precision, parameter :: tolerance = 1.0d-5
 
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
-  double precision, parameter :: tolerance = 10.0d-5
-  double precision :: plate_rate
-  double precision :: hcell
+  ! vplate is built into the rate-state b.c.
+  double precision :: dt 
   integer :: i
- 
-  ! store initial 
-  plate_rate = (2.0d-3)/(365*24*60*60) !DEVEL Trevor: ad hoc 
-  v_pre = pb%fields%veloc
-  d_pre = pb%fields%displ
- 
-  ! create field with plate velocity on fault, zeros in medium
-  v_f0 = 0d0
-  call BC_set(pb%bc, v_f0, plate_rate, v_plate)
+
+  integer :: IS_DIRNEU = 1, & 
+             IS_KINFLT = 2, & 
+             IS_DYNFLT = 6
+         
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
+
+  ! both d and d_medium points to displacement
+  ! save some memory by modifying in place
+  d => pb%fields%displ
+  d_medium => pb%fields%displ
+
+  v => pb%fields%veloc
+
+  ! use acceleration and f to work with force
+  a => pb%fields%accel
+  f => pb%fields%accel
+
+  dt = pb%time%dt
   
-  ! add plate velocity to fault
-  pb%fields%veloc = pb%fields%veloc + v_plate 
-  v_f0 = pb%fields%veloc
+  ! use additional memory to keep the previous displacement
+  ! use to update predictor for rsf faults
+  d_pre = pb%fields%displ
+  
+  ! update displacement to obtain a better initial guess for pcg solver
+  ! update both d and pb%fields%displ
+  d   = d + dt * v
 
-  do i=1,2
-    ! correct velocity for improved estimate and
-    ! make prediction of all displacements 
-    pb%fields%veloc = 0.5*(v_f0 + pb%fields%veloc)
-    d = d_pre + pb%time%dt*pb%fields%veloc
-   
-    ! set displacements in medium to be zero
-    call BC_set(pb%bc, d, 0.0d0, d_medium)
-    d_fault = d - d_medium
-                  
-    ! solve for forces created by d_fault, finding K_{21}d^f 
-    ! (v_pre doesn't influence force, just energy, which isn't used)
-    call compute_Fint(f, d_fault, pb%fields%veloc, pb)
-    f = -f
-    call BC_set(pb%bc, f, 0.0d0, f) 
+  ! apply dirichlet boundary condition and kinematic boundary condition
+  ! set displacement to desired value and zero-out forcing f at DIR nodes
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
 
-    ! inputting the previous displacements as the initial guess into
-    ! (preconditioned) conjugate gradient method solver for the 
-    ! displacements in the medium
-    call BC_set(pb%bc, pb%fields%displ, 0.0d0, d_medium)
-    call pcg_solver(d_medium, f, pb, tolerance)
+  ! transform fields, apply half slip rate on side -1 and then transform back
+  ! different from dynamic
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
+
+  d_fix = 0.0d0
+  
+  ! start 2 passes
+
+  do i = 1, 2
+
+    ! update fault displacement for rsf 
+    ! d(fault) = d_pre(fault) + dt * v(fault)
+    call bc_update_dfault(pb%bc, d_pre, d, v, dt)
+
+    ! obtain d_fix, d'_fix rotated back to d_fix
+    call bc_select_fix(pb%bc, d, d_fix)
+
+    ! solve for forces created by d_fix, finding K_{21}d^f + K_{23}d^{dir} 
+    call compute_Fint(f, d_fix, pb%fields%veloc, pb)
     
-    ! combine displacements and calculate forces
-    d = d_fault + d_medium
+    ! apply newmann if there's any
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
+    
+    f = -f
+   
+    ! (preconditioned) conjugate gradient method solver
+    !  update d, d_fix in d is not updated in pcg
+
+    call pcg_solver(d, f, pb, tolerance)
+    
     call compute_Fint(f, d, pb%fields%veloc, pb)
+    
+    ! apply newmann boundary condition if there's any
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
 
-    ! apply boundary conditions 
-    call BC_apply(pb%bc, pb%time, pb%fields, f)
+    ! apply boundary conditions including following: 
+    !    1.  compute fault traction, compute state variable 
+    !    2.  update slip rate, update fault velocity in fields%veloc 
+    !
+    ! v  = 0.5 * (vpre + v)
+    !
+    ! velocity is updated inside this subroutine
+    !
+
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT, IS_NEU)
+
   enddo
-
-  ! subtract plate velocity from fault for delta v 
-  pb%fields%veloc = pb%fields%veloc - v_plate
-
-  ! store final displacements
-  pb%fields%displ = d
-
-  ! adapt timestep
-  call MESH_h(pb%mesh,hcell)
-  call BC_timestep(pb%bc,pb%time,hcell)
+  
+  ! update final velocity and zero out acceleration
+  v  = (d - d_pre)/dt
+  a  = 0.0d0
   
 end subroutine solve_quasi_static
 
-!=====================================================================
+!subroutine solve_quasi_static(pb)
+!  type(problem_type), intent(inout) :: pb
 !
+!  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
+!  ! Note the d_fault and d_medium still have the same dimension of the d and d_pre.
+!  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
+!  double precision, parameter :: tolerance = 10.0d-5
+!  double precision :: plate_rate
+!  integer :: i
+! 
+!  ! store initial 
+!  ! the plate rate should be treated as dirichlet boundary condition
+!  plate_rate = (2.0d-3)/(365*24*60*60) !DEVEL Trevor: ad hoc 
+!  v_pre = pb%fields%veloc
+!  d_pre = pb%fields%displ
+! 
+!  ! create field with plate velocity on fault, zeros in medium
+!  v_f0 = 0d0
+!  call BC_set(pb%bc, v_f0, plate_rate, v_plate)
+!  ! Note that BC_set is only used for DYNFLT with RSF.
+!  
+!  ! add plate velocity to fault
+!  ! veloc = v + vp on the fault plane 
+!  ! veloc = v     off the fault plane
+!
+!  pb%fields%veloc = pb%fields%veloc + v_plate 
+!
+!  ! update the slip velocity
+!  v_f0 = pb%fields%veloc
+!
+!  do i=1,2
+!    ! correct velocity for improved estimate and
+!    ! make prediction of all displacements 
+!    pb%fields%veloc = 0.5*(v_f0 + pb%fields%veloc)
+!    d = d_pre + pb%time%dt*pb%fields%veloc
+!   
+!    ! set displacements in medium to be zero
+!   call BC_set(pb%bc, d, 0.0d0, d_medium)
+!    d_fault = d - d_medium
+!                  
+!    ! solve for forces created by d_fault, finding K_{21}d^f 
+!    ! (v_pre doesn't influence force, just energy, which isn't used)
+!    call compute_Fint(f, d_fault, pb%fields%veloc, pb)
+!    f = -f
+!    call BC_set(pb%bc, f, 0.0d0, f) 
+!
+!    ! inputting the previous displacements as the initial guess into
+!    ! (preconditioned) conjugate gradient method solver for the 
+!    ! displacements in the medium
+!    call BC_set(pb%bc, pb%fields%displ, 0.0d0, d_medium)
+!    call pcg_solver(d_medium, f, pb, tolerance)
+!    
+!    ! combine displacements and calculate forces
+!    d = d_fault + d_medium
+!    call compute_Fint(f, d, pb%fields%veloc, pb)
+!
+!    ! apply boundary conditions 
+!    call BC_apply(pb%bc, pb%time, pb%fields, f)
+!  enddo
+!
+!  ! subtract plate velocity from fault for delta v 
+!  pb%fields%veloc = pb%fields%veloc - v_plate
+!
+!  ! store final displacements
+!  pb%fields%displ = d
+!
+!end subroutine solve_quasi_static
+
+!=====================================================================
+! f = - K * d 
 subroutine compute_Fint(f,d,v,pb)
 
   use fields_class, only : FIELD_get_elem, FIELD_add_elem
@@ -319,7 +483,7 @@ subroutine compute_Fint(f,d,v,pb)
 end subroutine compute_Fint
 
 !=====================================================================
-!
+! NOT SUPPORTED
 subroutine cg_solver(d, f, pb, tolerance)
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(in) :: f
@@ -331,16 +495,30 @@ subroutine cg_solver(d, f, pb, tolerance)
   double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
   double precision :: norm_f,norm_r
   integer, parameter :: maxIterations=10000
+  integer :: IS_DIRNEU = 1, & 
+             IS_DYNFLT = 6
+         
+  integer :: IS_DIR    = 2, & 
+             IS_NEU    = 1 
   integer :: it  
  
+  call compute_Fint(K_p,p,pb%fields%veloc,pb)
+  call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DYNFLT, IS_NEU)
+  call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DIRNEU, IS_DIR)
+  !call BC_set(pb%bc, K_p, 0.0d0, K_p) 
+  
+  ! initial residual
+  r = f - K_p
   norm_f = norm2(f)
-  r = f
+
   p = r
 
   do it=1,maxIterations
     ! compute stiffness*p for later steps
     call compute_Fint(K_p,p,pb%fields%veloc,pb)
-    call BC_set(pb%bc, K_p, 0.0d0, K_p) 
+    call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DYNFLT, IS_NEU)
+    call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DIRNEU, IS_DIR)
+    !call BC_set(pb%bc, K_p, 0.0d0, K_p) 
     
     ! find step length
     alpha_n = sum(r*r)
@@ -375,39 +553,72 @@ double precision function norm2(x)
   double precision, dimension(:,:), intent(in) :: x
   norm2 = sqrt( sum(x*x) )
 end function norm2
-  
-! DEVEL: not finished yet!
+
+
+!=====================================================================
+! Preconditioned conjugate gradient with Jacobi preconditioner
+!
+! Jacobi preconditioner is precomputed, inverse of diagonal of stiffness
+! matrix. Global stiffness matrix is never assembled.
+!
+! d, f are untransformed as inputs
+!
+
 subroutine pcg_solver(d, f, pb, tolerance)
 
   double precision, dimension(:,:), intent(inout) :: d
-  double precision, dimension(:,:), intent(in) :: f
+  double precision, dimension(:,:), intent(inout) :: f
   double precision, intent(in) :: tolerance
   type(problem_type), intent(inout) :: pb
 
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
   double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
   double precision :: norm_f, norm_r
-  integer, parameter :: maxIterations=4000
-  integer :: it  
+  
+  ! two hardwired parameters
+  integer, parameter :: maxIterations = 4000
+  integer, parameter :: eps_stable = 1.0d-15
 
-  norm_f = norm2(f)
-  call compute_Fint(K_p,d,pb%fields%veloc,pb)
-  call BC_set(pb%bc, K_p, 0.0d0, K_p) 
+  integer :: it  
+  
+  call bc_trans(pb%bc, f, -1) ! f -> f'
+  call bc_trans(pb%bc, d,  1) ! d to d'
+
+  ! From here on work with f', d', p', K' * p'
+  call compute_kp_prime(K_p, d, pb)
+  
+  ! set the left hand side of fixed DOFs to zero
+  call BC_set_fix_zero(pb%bc, K_p)
+  call BC_set_fix_zero(pb%bc,   f)
+
   r = f - K_p
-  z = pb%invKDiag * r
-  p = z
+
+  norm_f = norm2(f) ! initial right hand side 
+
+  ! obtain transformed preconditioner
+  pb%invKDiag = 1d0/pb%invKDiag
+  call bc_trans(pb%bc, pb%invKDiag, -1)
+  
+  ! might be zero at fault node 2, stablize before division
+  where (abs(pb%invKDiag)<eps_stable) pb%invKDiag = eps_stable
+  pb%invKDiag = 1d0/pb%invKDiag
+
+  z = pb%invKDiag * r ! z'
+  p = z ! p'
   
   do it=1,maxIterations
-    ! compute stiffness*p for later steps
-    call compute_Fint(K_p,p,pb%fields%veloc,pb)
-    call BC_set(pb%bc, K_p, 0.0d0, K_p) 
 
+    ! compute stiffness*p for later steps
+    call compute_kp_prime(K_p, p, pb) 
+    call BC_set_fix_zero(pb%bc, K_p)
+    
+    ! the following steps work with p', K' * p'
     ! find step length
     alpha_n = sum(z*r)
     alpha_d = sum(p*K_p)
     alpha = alpha_n/alpha_d
 
-    ! determine approximate solution
+    ! determine approximate solution work with d'
     d = d + alpha*p
 
     ! find new residual
@@ -415,7 +626,17 @@ subroutine pcg_solver(d, f, pb, tolerance)
 
     ! test if within tolerance
     norm_r = norm2(r)
-    if (norm_r/norm_f < tolerance) return
+
+    ! if |LHS-RHS|<tolerance*|RHS|
+    if (norm_r/norm_f < tolerance) then 
+        print *, "PCG solver converges in ", it, " iterations." 
+        ! transform after convergence.
+        ! convert d' to d, back transform
+         call bc_trans(pb%bc, d, -1) 
+        ! convert f' to f, forward transform
+         call bc_trans(pb%bc, f,  1) 
+        return
+    end if
     if (norm_r/norm_f > 10.0d10) exit
 
     z = pb%invKDiag * r
@@ -432,5 +653,25 @@ subroutine pcg_solver(d, f, pb, tolerance)
   call IO_Abort('Preconditioned Conjugate Gradient does not converge')
   
 end subroutine pcg_solver
+
+! ==============================================================
+! Compute K' * p' according to the transform of Junpei Seki, 2017 
+!
+subroutine compute_kp_prime(kp, pprime, pb)
+  type(problem_type), intent(inout) :: pb
+  double precision, dimension(:,:), intent(inout) :: pprime
+  double precision, dimension(:,:), intent(inout) :: kp
+
+  ! Transform P' to P
+  ! P = X^{-1} * P'
+  call bc_trans(pb%bc, pprime, -1) ! p' -> p 
+  ! KP = K * P
+  call compute_Fint(kp, pprime, pb%fields%veloc, pb) !K*p
+  ! K'* P' = X^{-1} * KP = X^{-1} * K * X^{-1} P' = K' * P'
+  call bc_trans(pb%bc, kp, -1)     ! K' * p'
+  ! rotate P to P'
+  call bc_trans(pb%bc, pprime, 1)  ! p -> p'
+
+end subroutine compute_kp_prime
 
 end module solver
