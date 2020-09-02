@@ -12,9 +12,8 @@ module stf_gen
   use stf_harmonic
   use stf_brune
   use stf_gaussian
+  use stf_empty
   use stf_user
-  !! use stf_XXX
-  !! Add here your new stf_XXX module
   
   implicit none
   private
@@ -28,8 +27,10 @@ module stf_gen
     type (stf_harmonic_type), pointer :: harmonic => null()
     type (stf_brune_type), pointer :: brune => null()
     type (stf_gaussian_type), pointer :: gaussian => null()
+    type (stf_empty_type), pointer :: empty => null()
     type (stf_user_type), pointer :: user => null()
     !! Add here your new stf_XXX_type pointer
+
   end type stf_type
 
   integer, parameter :: IS_RICKER   = 1 &
@@ -38,7 +39,8 @@ module stf_gen
                        ,IS_HARMONIC = 4 &
                        ,IS_BRUNE    = 5 &
                        ,IS_GAUSSIAN = 6 &
-                       ,IS_USER     = 7
+                       ,IS_EMPTY    = 7,&
+                       ,IS_USER     = 8
   !! add here a unique tag number for your new source time function
 
   public :: stf_type, STF_read, STF_get
@@ -85,6 +87,11 @@ contains
         stf%kind = IS_GAUSSIAN
         allocate(stf%gaussian)
         call STF_GAUSSIAN_read(stf%gaussian,iin)
+      
+    case('EMPTY')
+        stf%kind = IS_EMPTY
+        allocate(stf%empty)
+        call STF_EMPTY_read(stf%empty,iin)
 
       case('USER')
         stf%kind = IS_USER
@@ -117,6 +124,7 @@ contains
     case(IS_HARMONIC);   STF_get = STF_HARMONIC_fun(stf%harmonic,t)
     case(IS_BRUNE);  STF_get = STF_BRUNE_fun(stf%brune,t)
     case(IS_GAUSSIAN); STF_get = STF_GAUSSIAN_fun(stf%gaussian,t)
+    case(IS_EMPTY);  STF_get = STF_EMPTY_fun(stf%empty,t)
     case(IS_USER);   STF_get = STF_USER_fun(stf%user,t)
     !! add here a call to your new source time function
     case default

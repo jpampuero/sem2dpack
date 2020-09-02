@@ -121,7 +121,7 @@ src_wave.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o stf_ricker.o
 stf_brune.o: constants.o echo.o stdio.o
 stf_gaussian.o: constants.o echo.o stdio.o
 stf_gen.o: butterworth_filter.o stdio.o stf_brune.o stf_gaussian.o \
-	stf_harmonic.o stf_ricker.o stf_tabulated.o stf_user.o
+	stf_harmonic.o stf_ricker.o stf_tabulated.o stf_user.o stf_empty.o
 stf_harmonic.o: constants.o echo.o stdio.o
 stf_ricker.o: constants.o echo.o stdio.o
 stf_tabulated.o: echo.o stdio.o utils.o
