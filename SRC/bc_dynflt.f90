@@ -41,7 +41,7 @@ module bc_dynflt
   public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init,  & 
             BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
-            BC_DYNFLT_set_array
+            BC_DYNFLT_set_array, BC_DYNFLT_update_disp
 
 contains
 
@@ -254,7 +254,7 @@ contains
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
   logical :: two_sides
-  double precision :: hnode, hnode_i
+  double precision :: hnode_i
   
   nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
 
@@ -624,7 +624,6 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   double precision, intent(in) :: D(:,:)
   double precision, intent(inout) :: MxA(:,:)
 
-  double precision, dimension(bc%npoin) :: strength
   double precision, dimension(bc%npoin, size(V, 2)) :: T
   double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF, dV_pre
   integer :: ndof, i
@@ -654,7 +653,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   
   ! add plate rate to the fault slip
   if (associated(bc%rsf)) then
-      dV(:, 1) = dV(:, 1) + vplate
+      dV(:, 1) = dV(:, 1) + rsf_vplate(bc%rsf)
   else
       call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!')
   end if
@@ -676,17 +675,21 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
  !-- velocity and state dependent friction 
  ! compute new slip velocity
   if (associated(bc%rsf)) then
-      call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
+    call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
   else
-   call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
+    call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
 
 ! Subtract initial stress
   T = T - bc%T0
 
 ! Subtract plate rate
-  dV(:, 1) = dV(:, 1) - vplate
-
+  if (associated(bc%rsf)) then
+    dV(:, 1) = dV(:, 1) - rsf_vplate(bc%rsf)
+  else
+    call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!')
+  end if
+  
 ! Save tractions in fault local frame
   bc%T = T
 
@@ -707,7 +710,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   call BC_DYNFLT_trans(bc, V, -1)
 
   bc%V = (dV + dV_pre) / 2.0d0
-  bc%D = bc%D + bc%dV * time%dt
+  bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
 
@@ -1083,14 +1086,12 @@ subroutine BC_DYNFLT_trans(bc, field, direction)
   ! note that field is directly modified
   type(bc_dynflt_type), intent(in) :: bc
   double precision, dimension(:,:), intent(inout) :: field
-  double precision, dimension(:,:) :: tmp1, tmp2
+  double precision, dimension(size(bc%node1, 1),size(field, 2)) :: tmp1, tmp2
   integer, intent(in) :: direction
   integer :: i, Nbcnode, ndof
 
   ndof    = size(field, 2)
   Nbcnode = size(bc%node1, 1)
-  allocate(tmp1(Nbcnode, ndof)) 
-  allocate(tmp2(Nbcnode, ndof)) 
 
   tmp1    = field(bc%node1, :)  
   tmp2    = 0d0
@@ -1128,8 +1129,8 @@ end subroutine BC_DYNFLT_trans
 ! only used by quasi-static
 subroutine BC_DYNFLT_update_disp(bc, dpre, d, v, dt)
   type(bc_dynflt_type), intent(in) :: bc  
-  double precision, dimension(:,:), intent(in) :: dpre
-  double precision, dimension(:,:), intent(out) :: d
+  double precision, dimension(:,:), intent(in) :: dpre, v
+  double precision, dimension(:,:) :: d
   double precision, intent(in) :: dt 
   integer :: i
   
@@ -1139,7 +1140,7 @@ subroutine BC_DYNFLT_update_disp(bc, dpre, d, v, dt)
 	  d(bc%node2, :) = dpre(bc%node2, :) + dt * v(bc%node2, :) 
   end if
 
-end subroutine bc_update_dfault
+end subroutine BC_DYNFLT_update_disp
 
 !=====================================================================
   function BC_DYNFLT_potency(bc,d) result(p)

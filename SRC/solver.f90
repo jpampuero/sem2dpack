@@ -282,16 +282,12 @@ subroutine solve_quasi_static(pb)
              IS_KINFLT = 2, & 
              IS_DYNFLT = 6
          
-  integer :: IS_DIR    = 2, & 
-             IS_NEU    = 1 
+  integer :: IS_DIR    = 2, IS_NEU = 1 
 
   ! both d and d_medium points to displacement
   ! save some memory by modifying in place
   d => pb%fields%displ
-  d_medium => pb%fields%displ
-
   v => pb%fields%veloc
-
   ! use acceleration and f to work with force
   a => pb%fields%accel
   f => pb%fields%accel
@@ -303,7 +299,7 @@ subroutine solve_quasi_static(pb)
   d_pre = pb%fields%displ
   
   ! update displacement to obtain a better initial guess for pcg solver
-  ! update both d and pb%fields%displ
+  ! update both d and pb%fields%disp
   d   = d + dt * v
 
   ! apply dirichlet boundary condition and kinematic boundary condition
@@ -311,7 +307,7 @@ subroutine solve_quasi_static(pb)
   call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
 
   ! transform fields, apply half slip rate on side -1 and then transform back
-  ! different from dynamic
+  ! different from dynamic, update displacement as well.
   call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
 
   d_fix = 0.0d0
@@ -507,7 +503,7 @@ subroutine cg_solver(d, f, pb, tolerance)
   
   ! initial residual
   r = f - K_p
-  norm_f = norm2(f)
+  norm_f = norml2(f)
 
   p = r
 
@@ -530,7 +526,7 @@ subroutine cg_solver(d, f, pb, tolerance)
     r = r - alpha*K_p
 
     ! test if within tolerance
-    norm_r = norm2(r)
+    norm_r = norml2(r)
     if (norm_r/norm_f < tolerance) return
     if (norm_r/norm_f > 10.0d10) call IO_Abort('Conjugate Gradient does not converge')
 
@@ -547,10 +543,10 @@ subroutine cg_solver(d, f, pb, tolerance)
 
 end subroutine cg_solver
 
-double precision function norm2(x)
+double precision function norml2(x)
   double precision, dimension(:,:), intent(in) :: x
-  norm2 = sqrt( sum(x*x) )
-end function norm2
+  norml2 = sqrt( sum(x*x) )
+end function norml2
 
 
 !=====================================================================
@@ -575,7 +571,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
   
   ! two hardwired parameters
   integer, parameter :: maxIterations = 4000
-  integer, parameter :: eps_stable = 1.0d-15
+  double precision, parameter :: eps_stable = 1.0d-15
 
   integer :: it  
   
@@ -591,7 +587,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
 
   r = f - K_p
 
-  norm_f = norm2(f) ! initial right hand side 
+  norm_f = norml2(f) ! initial right hand side 
 
   ! obtain transformed preconditioner
   pb%invKDiag = 1d0/pb%invKDiag
@@ -623,7 +619,7 @@ subroutine pcg_solver(d, f, pb, tolerance)
     r = r - alpha*K_p
 
     ! test if within tolerance
-    norm_r = norm2(r)
+    norm_r = norml2(r)
 
     ! if |LHS-RHS|<tolerance*|RHS|
     if (norm_r/norm_f < tolerance) then 

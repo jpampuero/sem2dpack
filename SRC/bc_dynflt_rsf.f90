@@ -23,7 +23,8 @@ module bc_dynflt_rsf
     type(rsf_input_type) :: input
   end type rsf_type
 
-  public :: rsf_type, rsf_read, rsf_init, rsf_mu, rsf_solver, rsf_qs_solver, rsf_timestep
+  public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
+            rsf_solver, rsf_qs_solver, rsf_timestep, rsf_vplate
 
 contains
 
@@ -63,13 +64,13 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar,theta
-  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH
+  double precision :: Dc,MuS,a,b,Vstar,theta,vplate
+  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
   character(25) :: kind_txt
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
-           DcH,MuSH,aH,bH,VstarH,thetaH,vplate, vplateH
+           DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH
 
   kind = 1
   Dc = 0.5d0
@@ -611,5 +612,11 @@ subroutine rsf_timestep(time,f,v,sigma,hcell)
   time%dt = min_timestep 
 
 end subroutine
+
+  function rsf_vplate(f) result(vplate)
+  type(rsf_type), intent(in) :: f
+  double precision, dimension(size(f%vplate)) :: vplate
+  vplate = f%vplate
+  end function 
 
 end module bc_dynflt_rsf

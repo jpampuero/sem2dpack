@@ -39,7 +39,7 @@ module stf_gen
                        ,IS_HARMONIC = 4 &
                        ,IS_BRUNE    = 5 &
                        ,IS_GAUSSIAN = 6 &
-                       ,IS_EMPTY    = 7,&
+                       ,IS_EMPTY    = 7 &
                        ,IS_USER     = 8
   !! add here a unique tag number for your new source time function
 
@@ -88,7 +88,7 @@ contains
         allocate(stf%gaussian)
         call STF_GAUSSIAN_read(stf%gaussian,iin)
       
-    case('EMPTY')
+    case('EMPTY','')
         stf%kind = IS_EMPTY
         allocate(stf%empty)
         call STF_EMPTY_read(stf%empty,iin)

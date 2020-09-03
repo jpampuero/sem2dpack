@@ -235,7 +235,7 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
       case(IS_DIRNEU)
         call BC_DIRNEU_init(bc(i)%dirneu,bc(i)%tag(1),grid,perio)
       case(IS_KINFLT)
-        call BC_KINFLT_init(bc(i)%kinflt,bc(i)%tag(1),grid,M,tim,perio)
+        call BC_KINFLT_init(bc(i)%kinflt,bc(i)%tag,grid,M,tim,perio)
       case(IS_ABSORB)
         call BC_ABSO_init(bc(i)%abso,bc(i)%tag(1),grid,mat,M,tim,src,perio)
       case(IS_LISFLT)
@@ -293,7 +293,7 @@ contains
         call bc_DIRNEU_apply(bc%dirneu, fields%displ, force, time)
       case(IS_KINFLT)
           ! fields%accel means Mxa
-        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
+        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,fields%displ,time)
       case(IS_ABSORB)
         call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
@@ -365,7 +365,7 @@ contains
         call bc_DIRNEU_apply_kind(bc%dirneu, fields%displ, force, time, dirneu_kind)
       case(IS_KINFLT)
           ! fields%accel means Mxa
-        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,time)
+        call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,fields%displ,time)
       case(IS_ABSORB)
         call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
@@ -403,7 +403,7 @@ subroutine BC_write(bc,itime,d,v)
       if (bc(i)%kind == IS_DYNFLT) then
         call BC_DYNFLT_write(bc(i)%dynflt,itime,d,v)
       else
-        call BC_KINFLT_write(bc(i)%kinflt,itime)
+        call BC_KINFLT_write(bc(i)%kinflt,itime,d,v)
       endif
       if (echo_init .and. itime==0) write(iout,fmtok)
     endif
@@ -429,7 +429,7 @@ subroutine bc_select_kind(bc, field_in, field_out, bc_kind, dirneu_kind_in)
              IS_NEU    = 1 
 
   dirneu_kind = IS_NEU 
-  if (present(dirneu_kindin)) dirneu_kind = dirneu_kindin 
+  if (present(dirneu_kind_in)) dirneu_kind = dirneu_kind_in 
   
   if (.not. associated(bc)) return
   
@@ -490,9 +490,7 @@ subroutine bc_select_fix(bc, field_in, field_out)
           ! select dirichlet 
         call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, IS_DIR)
       case (IS_KINFLT) 
-  !      TO BE DEVELOPED!
-  !      select kinflt side -1
-  !      call BC_KINFLT_select(bc(i)%kinflt, field_in, field_out, side)
+        call BC_KINFLT_select(bc(i)%kinflt, field_in, field_out, side)
       end select
   enddo
   ! undo the transform
@@ -676,8 +674,7 @@ subroutine bc_trans(bc, field, direction)
   do i = 1,size(bc)
     select case(bc(i)%kind)
     case (IS_KINFLT)
-! Need DEVEL to allow two sided kinflt
-!        call bc_kinflt_trans(bc(i)%kinflt, field, direction)
+        call bc_kinflt_trans(bc(i)%kinflt, field, direction)
     case (IS_DYNFLT)
         call bc_dynflt_trans(bc(i)%dynflt, field, direction)
     end select
@@ -692,8 +689,8 @@ end subroutine bc_trans
 
 subroutine bc_update_dfault(bc, dpre, d, v, dt)
   type(bc_type), pointer :: bc(:)
-  double precision, dimension(:,:), intent(in) :: dpre
-  double precision, dimension(:,:), intent(out) :: d
+  double precision, dimension(:,:), intent(in) :: dpre,v
+  double precision, dimension(:,:), intent(inout) :: d
   double precision, intent(in) :: dt 
   integer :: i
   
@@ -707,7 +704,7 @@ subroutine bc_update_dfault(bc, dpre, d, v, dt)
 
 end subroutine bc_update_dfault
 
-subroutine bc_set_fault(bc, field, field_set, side)
+subroutine bc_set_fault(bc, field, field_set, side_in)
   type(bc_type), pointer :: bc(:)
   double precision, dimension(:,:), intent(inout) :: field
   double precision, dimension(:,:), intent(in) :: field_set
@@ -726,7 +723,7 @@ subroutine bc_set_fault(bc, field, field_set, side)
     end if
   enddo
 
-end subroutine bc_update_dfault
+end subroutine bc_set_fault
 
 
 subroutine bc_timestep(bc, time)
