@@ -51,7 +51,7 @@ module bc_gen
 
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_set,bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
-            bc_select_fix
+            bc_select_fix, bc_has_dynflt
 
 
 contains
@@ -471,8 +471,7 @@ subroutine bc_select_fix(bc, field_in, field_out)
   double precision, dimension(:,:), intent(inout) :: field_in
   double precision, dimension(:,:), intent(inout) :: field_out
   integer :: i, side
-  integer :: IS_DIR    = 2, & 
-             IS_NEU    = 1 
+  integer :: IS_DIR    = 2 
 
   side = -1
 
@@ -516,8 +515,7 @@ subroutine bc_set_fix_zero(bc, field)
   type(bc_type), pointer :: bc(:)
   double precision, dimension(:,:), intent(inout) :: field
   integer :: i, side
-  integer :: IS_DIR    = 2, & 
-             IS_NEU    = 1 
+  integer :: IS_DIR  = 2 
 
   side = -1
 
@@ -725,6 +723,19 @@ subroutine bc_set_fault(bc, field, field_set, side_in)
 
 end subroutine bc_set_fault
 
+function bc_has_dynflt(bc) result(has_dynflt)
+  type(bc_type), pointer, intent(in) :: bc(:)
+  logical :: has_dynflt 
+  integer :: i
+
+  has_dynflt = .false.
+  do i = 1, size(bc)
+      if (bc(i)%kind==IS_DYNFLT) then
+          has_dynflt=.true.
+          return
+      end if
+  end do
+end function bc_has_dynflt
 
 subroutine bc_timestep(bc, time)
 

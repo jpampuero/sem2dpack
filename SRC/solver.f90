@@ -7,7 +7,8 @@ module solver
   use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_apply, BC_set, bc_apply_kind, bc_select_kind, bc_set_kind, &
-                      bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault 
+                      bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
+                      bc_has_dynflt
 
   implicit none
   private
@@ -277,6 +278,7 @@ subroutine solve_quasi_static(pb)
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
   integer :: i
+  logical :: has_dynflt = .false.
 
   integer :: IS_DIRNEU = 1, & 
              IS_KINFLT = 2, & 
@@ -311,6 +313,10 @@ subroutine solve_quasi_static(pb)
   call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
 
   d_fix = 0.0d0
+
+
+  ! check if there's dynflt boundary
+  has_dynflt = bc_has_dynflt (pb%bc)
   
   ! start 2 passes
 
@@ -347,8 +353,14 @@ subroutine solve_quasi_static(pb)
     !
     ! velocity is updated inside this subroutine
     !
+    
+    ! detect if there's dynflt fault boundary
 
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT, IS_NEU)
+    ! if not, break the loop and exit after the pcg solver
+
+    if (.not. has_dynflt) exit
+
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
 
   enddo
   

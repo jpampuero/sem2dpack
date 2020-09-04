@@ -1,6 +1,6 @@
 module bc_dirneu
 
-! Dirichlet (null displacement) and/or Neumann (null traction) conditions
+! Dirichlet (displacement) and/or Neumann (traction) conditions
 ! on vertical or horizontal boundaries
 ! possibly time-dependent
   

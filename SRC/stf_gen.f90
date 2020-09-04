@@ -13,6 +13,7 @@ module stf_gen
   use stf_brune
   use stf_gaussian
   use stf_empty
+  use stf_linear
   use stf_user
   
   implicit none
@@ -28,6 +29,7 @@ module stf_gen
     type (stf_brune_type), pointer :: brune => null()
     type (stf_gaussian_type), pointer :: gaussian => null()
     type (stf_empty_type), pointer :: empty => null()
+    type (stf_linear_type), pointer :: linear => null()
     type (stf_user_type), pointer :: user => null()
     !! Add here your new stf_XXX_type pointer
 
@@ -40,7 +42,8 @@ module stf_gen
                        ,IS_BRUNE    = 5 &
                        ,IS_GAUSSIAN = 6 &
                        ,IS_EMPTY    = 7 &
-                       ,IS_USER     = 8
+                       ,IS_LINEAR    = 8 &
+                       ,IS_USER     = 9
   !! add here a unique tag number for your new source time function
 
   public :: stf_type, STF_read, STF_get
@@ -92,6 +95,11 @@ contains
         stf%kind = IS_EMPTY
         allocate(stf%empty)
         call STF_EMPTY_read(stf%empty,iin)
+    
+    case('LINEAR')
+        stf%kind = IS_LINEAR
+        allocate(stf%linear)
+        call STF_LINEAR_read(stf%linear, iin)
 
       case('USER')
         stf%kind = IS_USER
@@ -125,6 +133,7 @@ contains
     case(IS_BRUNE);  STF_get = STF_BRUNE_fun(stf%brune,t)
     case(IS_GAUSSIAN); STF_get = STF_GAUSSIAN_fun(stf%gaussian,t)
     case(IS_EMPTY);  STF_get = STF_EMPTY_fun(stf%empty,t)
+    case(IS_LINEAR);  STF_get = STF_LINEAR_fun(stf%linear,t)
     case(IS_USER);   STF_get = STF_USER_fun(stf%user,t)
     !! add here a call to your new source time function
     case default

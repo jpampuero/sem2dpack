@@ -2,7 +2,7 @@
 
 %-- you can modify the following parameters:
 FAULT_BOTTOM = 15e3; 	% depth of the bottom tip of the fault
-FAULT_X = 0;
+FAULT_X = 0e3;
 BOX = [-15e3 15e3 -30e3 0]; 	% domain limits [xmin xmax zmin zmax]
 h = 500;			% element size
 
@@ -20,11 +20,11 @@ p3 = [BOX(2) BOX(4)];
 p4 = [BOX(1) BOX(4)];
 
 % points on the fault
-p7 = [0 0];
-p9 = [0 -FAULT_BOTTOM];
+p7 = [FAULT_X 0];
+p9 = [FAULT_X -FAULT_BOTTOM];
 
 % points on box edges, projecting fault bottom tip
-p5 = [0 BOX(3)];
+p5 = [FAULT_X BOX(3)];
 p6 = [BOX(2) -FAULT_BOTTOM];
 p8 = [BOX(1) -FAULT_BOTTOM];
 
@@ -46,7 +46,7 @@ domain(4) = mesh2d_quad(ps(:,1),ps(:,2),NELX_L,NELZ_T);
 
 % tag the elements close to the fault
 % to create a Kelvin-Voigt viscous layer
-e = sub2ind([NELX_R NELZ_B], NELX_L,NELZ_B);
+e = sub2ind([NELX_L NELZ_B], NELX_L,NELZ_B);
 domain(1).etag(e) = 2;
 e = sub2ind([NELX_R NELZ_B], 1,NELZ_B);
 domain(2).etag(e) = 2;
