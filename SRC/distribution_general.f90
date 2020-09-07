@@ -22,6 +22,7 @@ module distribution_general
   use distribution_gradient
   use distribution_pwconr
   use distribution_hete1
+  use distribution_elliptic1D
 !!  use distribution_new
 
   use stdio, only: IO_abort
@@ -40,6 +41,7 @@ module distribution_general
     type (gradient_dist_type), pointer :: gradient => null()
     type (pwconr_dist_type)  , pointer :: pwconr => null()
     type (hete1_dist_type)   , pointer :: hete1 => null()
+    type (elliptic1D_dist_type), pointer :: elliptic1D => null()
 !!    type (new_dist_type)   , pointer :: new => null()
   end type distribution_type
 
@@ -48,18 +50,19 @@ module distribution_general
   end interface DIST_generate
 
 !!--- List here the tags, must be different for each distribution type
-  integer, parameter :: tag_order0   = 1 &
-                       ,tag_gaussian = 2 &
-                       ,tag_spline   = 3 &
-                       ,tag_linear   = 4 &
-                       ,tag_gradient = 5 &
-                       ,tag_pwconr   = 6 &
-                       ,tag_hete1    = 7
+  integer, parameter :: tag_order0     = 1 &
+                       ,tag_gaussian   = 2 &
+                       ,tag_spline     = 3 &
+                       ,tag_linear     = 4 &
+                       ,tag_gradient   = 5 &
+                       ,tag_pwconr     = 6 &
+                       ,tag_hete1      = 7 &
+                       ,tag_elliptic1D = 8
 !!                       ,tag_new = next_number
 
 !!                  dist_name(number_of_tags_above)
-  character(10) :: dist_name(7) = (/ 'ORDER0    ','GAUSSIAN  ','SPLINE    ','LINEAR    ', &
-                                     'GRADIENT  ','PWCONR    ','HETE1     ' /)  
+  character(10) :: dist_name(8) = (/ 'ORDER0    ','GAUSSIAN  ','SPLINE    ','LINEAR    ', &
+                                     'GRADIENT  ','PWCONR    ','HETE1     ','ELLIPTIC1D'/)  
 !!                                    'NEW       '
 
   public :: distribution_type,DIST_read,DIST_generate,DIST_destructor
@@ -103,6 +106,9 @@ subroutine DIST_read(d,name,iin)
     case(tag_hete1)
       allocate(d%hete1)
       call read_hete1_dist(d%hete1,iin)
+    case(tag_elliptic1D)
+      allocate(d%elliptic1D)
+      call read_elliptic1D_dist(d%elliptic1D,iin)
 !!    case(tag_new)
 !!      allocate(d%new)
 !!      call read_new_dist(d%new,iin)
@@ -136,6 +142,8 @@ subroutine DIST_generate_1 (field, coord, d)
       call generate_pwconr_dist(field,coord,d%pwconr)
     case(tag_hete1)
       call generate_hete1_dist(field,coord,d%hete1)
+    case(tag_elliptic1D)
+      call generate_elliptic1D_dist(field,coord,d%elliptic1D)
 !!    case(tag_new)
 !!      call generate_new_dist(field,coord,d%new)
     case default
@@ -182,6 +190,8 @@ subroutine DIST_destructor(d)
       call destroy_pwconr_dist(d%pwconr)
     case(tag_hete1)
       call destroy_hete1_dist(d%hete1)
+    case(tag_elliptic1D)
+      call destroy_elliptic1D_dist(d%elliptic1D)
 !!    case(tag_new)
 !!      call destroy_new_dist(d%new)
     case default

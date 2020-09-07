@@ -46,6 +46,7 @@ s22 = sem2d_snapshot_read('s22', it , wdir);
 assert(abs(mean(s11(:)) - s11a)/s11a<1e-6);
 assert(abs(mean(s22(:)) - s22a)/s22a<1e-6);
 
+fprintf('Test = 1\n');
 fprintf('Biaxial Loading: TEST PASSED!\n')
 fprintf('s11 sem: %8.6f, s11 analytical: %8.6f\n', mean(s11(:)) , s11a);
 fprintf('s22 sem: %8.6f, s22 analytical: %8.6f\n', mean(s22(:)) , s22a);

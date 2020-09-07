@@ -10,7 +10,7 @@
 
 # ----------- build a simple mesh ------------------------
 &MESH_DEF  method = 'CARTESIAN' /
-&MESH_CART xlim=0.d0,1.d0, zlim=0.d0,1.d0, nelem=20,20 /
+&MESH_CART xlim=0.d0,1.d0, zlim=0.d0,1.d0, nelem= 20,20 /
 
 # ----------- Elastic material parameters ----------------
 &MATERIAL tag=1, kind='ELAST' /
