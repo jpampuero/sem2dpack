@@ -41,10 +41,10 @@ contains
 ! ARG: v        [char]['N'] Boundary condition on the vertical component :
 !                       'N' : Neumann 
 !                       'D' : Dirichlet
-! ARG: hsrc     [name]['none'] Name of the source time function for a
+! ARG: hstf     [name]['none'] Name of the source time function for a
 !                time-dependent horizontal traction/displacement: 
 !                'RICKER', 'TAB', 'USER', etc  (see STF_XXXX input blocks)
-! ARG: vsrc     [name]['none'] Same for the vertical component
+! ARG: vstf     [name]['none'] Same for the vertical component
 !
 ! END INPUT BLOCK
 
@@ -64,8 +64,8 @@ subroutine bc_DIRNEU_read(bc,iin)
 
   h = 'N'
   v = 'N'
-  hstf = 'none'
-  vstf = 'none'
+  hstf = 'EMPTY'
+  vstf = 'EMPTY'
 
   read(iin,BC_DIRNEU,END=100)
 
@@ -84,10 +84,8 @@ subroutine bc_DIRNEU_read(bc,iin)
   if (echo_input) write(iout,200) htype,hstf
 
   ! Only allocate bc%hstf when hstf is not none
-  if (hstf/='none') then
-    allocate(bc%hstf)
-    call STF_read(hstf,bc%hstf,iin)
-  endif
+  allocate(bc%hstf)
+  call STF_read(hstf,bc%hstf,iin)
 
   if (v=='N') then
     bc%kind(2) = IS_NEUMANN
@@ -102,10 +100,8 @@ subroutine bc_DIRNEU_read(bc,iin)
   if (echo_input) write(iout,300) vtype,vstf
 
   ! Only allocate bc%vstf when vstf is not none
-  if (vstf/='none') then
-    allocate(bc%vstf)
-    call STF_read(vstf,bc%vstf,iin)
-  endif
+  allocate(bc%vstf)
+  call STF_read(vstf,bc%vstf,iin)
 
   return
   100 call IO_abort('bc_DIRNEU_read: no BC_DIRNEU block found')
@@ -210,7 +206,6 @@ subroutine bc_DIRNEU_apply_kind(bc, disp, force,time, bc_kind)
   integer, intent(in) :: bc_kind
   double precision, intent(inout) :: disp(:,:)
   double precision, intent(inout) :: force(:,:)
-  
   if (bc%kind(1) == bc_kind) then
       select case(bc%kind(1))
           case(IS_DIRICHLET)

@@ -273,7 +273,7 @@ subroutine solve_quasi_static(pb)
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
   double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre,d_fix
-  double precision, parameter :: tolerance = 1.0d-5
+  double precision, parameter :: tolerance = 1.0d-8
 
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
@@ -286,7 +286,7 @@ subroutine solve_quasi_static(pb)
          
   integer :: IS_DIR    = 2, IS_NEU = 1 
 
-  ! both d and d_medium points to displacement
+  ! points to displacement
   ! save some memory by modifying in place
   d => pb%fields%displ
   v => pb%fields%veloc
@@ -337,11 +337,11 @@ subroutine solve_quasi_static(pb)
     
     f = -f
    
+    ! set the fixed dofs to 0
+    call BC_set_fix_zero(pb%bc, d)
     ! (preconditioned) conjugate gradient method solver
-    !  update d, d_fix in d is not updated in pcg
-
     call pcg_solver(d, f, pb, tolerance)
-   
+    d = d + d_fix
     ! recompute the force use the updated total disp
     call compute_Fint(f, d, pb%fields%veloc, pb)
     

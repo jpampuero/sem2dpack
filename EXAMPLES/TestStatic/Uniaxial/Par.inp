@@ -1,0 +1,44 @@
+# Bi-axial loading of elastic material
+# 
+# testing module: solver, dirneu, stf_linear
+#
+
+# ----------- General Parameters -------------------------
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=2,
+         title = 'Test static Bi-axial', verbose='1111',
+         itInfo = 1 /
+
+# ----------- build a simple mesh ------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=0.d0,1.d0, zlim=0.d0,1.d0, nelem=20,20 /
+
+# ----------- Elastic material parameters ----------------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=1.d0, cp=1.7321d0, cs=1.0d0 /
+
+# ----------- Boundary condition -------------------------
+# bottom fixed vertically
+&BC_DEF tag=1, kind='DIRNEU' /
+&BC_DIRNEU v='D', vstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = 0.0d0 /
+
+# top boundary extension, 0.001 length/time
+&BC_DEF tag=3, kind='DIRNEU' /
+&BC_DIRNEU v='D', vstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = 1.d-3 /
+
+# right compression horizontally
+&BC_DEF tag=2, kind='DIRNEU' /
+&BC_DIRNEU h='D', hstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = -2.0d-3 /
+
+# left fixed horizontally
+&BC_DEF tag=4, kind='DIRNEU' /
+&BC_DIRNEU h='D', hstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = 0.0d0 /
+
+# ------------- Time stepping ---------------------------
+&TIME kind='adaptive', kind_dyn='leapfrog', Dt = 0.1d0, TotalTime=1.d0 /
+
+# ------------ Output block -----------------------------
+&SNAP_DEF it1=0, itd=10, fields='DVES', ps=F, bin=T / 

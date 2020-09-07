@@ -663,7 +663,7 @@ subroutine bc_trans(bc, field, direction)
   integer, intent(in) :: direction
   integer :: i
 
-  if (direction/=1 .or. direction/= -1) then
+  if (direction/=1 .and. direction/= -1) then
      call IO_abort('bc_trans: direction must be 1 or -1')
   end if
 

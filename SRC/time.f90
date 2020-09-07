@@ -21,7 +21,7 @@ contains
 !
 ! NAME   : TIME
 ! PURPOSE: Defines time integration scheme
-! SYNTAX : &TIME kind, {Dt or Courant}, {NbSteps or TotalTime} /
+! SYNTAX : &TIME kind, kind_dyn, {Dt or Courant}, {NbSteps or TotalTime} /
 !          Possibly followed by a TIME_XXXX block.
 !
 ! ARG: kind      [char*12] ['leapfrog'] Type of scheme:
@@ -407,7 +407,8 @@ contains
 ! Example: 2D leapfrog CFL <~ 0.6
   critical_CFL = t%Omega_max * 3d0/7d0/sqrt(2d0) 
 
-  if (t%courant > critical_CFL) then
+  if ((t%courant > critical_CFL) .and. &
+      (.not. ((t%kind == 'adaptive') .and. (.not. t%isDynamic)))) then
     write(iout,*)
     write(iout,103) '*******************************************************'
     write(iout,102) '** WARNING: Courant number too high = ',t%courant,'   **'
