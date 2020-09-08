@@ -1,0 +1,49 @@
+# elliptical dislocation from kinematic fault 
+#
+# reproduces constant fault stress change
+# 
+# testing module: solver, dirneu, stf_linear
+#
+
+# ----------- General Parameters -------------------------
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=2,
+         title = 'Test static Bi-axial', verbose='1111',
+         itInfo = 1 /
+
+# ------- build a simple mesh with one kinematic fault ---
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-10.d0, 10.d0, zlim= -10.d0, 10d0, ezflt=-1, nelem= 200, 200 /
+
+# ----------- Elastic material parameters ----------------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=1.d0, cp=1.7321d0, cs=1.0d0 /
+
+# ----------- Boundary condition -------------------------
+# all the bounding bcs are fixed dirichlet
+&BC_DEF tag=1, kind='DIRNEU' /
+&BC_DIRNEU h='D', v='D' /
+
+&BC_DEF tag=2, kind='DIRNEU' /
+&BC_DIRNEU h='D', v='D' /
+
+&BC_DEF tag=3, kind='DIRNEU' /
+&BC_DIRNEU h='D', v='D' /
+
+&BC_DEF tag=4, kind='DIRNEU' /
+&BC_DIRNEU h='D', v='D' /
+
+# kinematic fault boundary
+# slip rate is constant in time and elliptical in space
+# fault normal opening is zero
+&BC_DEF tags= 5, 6, kind='KINFLT' /
+&BC_KINFLT stf1='LINEAR', slipr1H='ELLIPTIC1D' /
+#distribution block, 1D elliptical
+&DIST_ELLIPTIC1D dim=1, x0=0.d0, L=2.0d0 /
+#source time function linear
+&STF_LINEAR  intercept= 1.0d-3, slope = 0.d0 /
+
+# ------------- Time stepping ---------------------------
+&TIME kind='adaptive', Dt = 0.1d0, TotalTime=0.5d0 /
+
+# ------------ Output block -----------------------------
+&SNAP_DEF it1=0, itd=1, fields='DVS', ps=F, bin=T / 

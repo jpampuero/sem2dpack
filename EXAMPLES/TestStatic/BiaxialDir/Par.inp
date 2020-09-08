@@ -10,7 +10,7 @@
 
 # ----------- build a simple mesh ------------------------
 &MESH_DEF  method = 'CARTESIAN' /
-&MESH_CART xlim=0.d0,1.d0, zlim=0.d0,1.d0, nelem= 20,20 /
+&MESH_CART xlim=0.d0,1.d0, zlim=0.d0,1.d0, nelem= 100,100 /
 
 # ----------- Elastic material parameters ----------------
 &MATERIAL tag=1, kind='ELAST' /
@@ -38,7 +38,8 @@
 &STF_LINEAR  intercept= 0.d0, slope = 0.0d0 /
 
 # ------------- Time stepping ---------------------------
-&TIME kind='adaptive', kind_dyn='leapfrog', Dt = 0.1d0, TotalTime=1.d0 /
+&TIME kind='adaptive', kind_dyn='leapfrog', Dt = 0.1d0, TotalTime=1.d0 
+      MaxIterLin = 2000, TolLin = 1.0d-5 /
 
 # ------------ Output block -----------------------------
 &SNAP_DEF it1=0, itd=10, fields='DVES', ps=F, bin=T / 

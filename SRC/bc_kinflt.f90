@@ -522,7 +522,7 @@ subroutine BC_KINFLT_apply_quasi_static(bc,MxA,V,D,time)
   
   if (ndof==2) then
       do i=1,bc%npoin
-          bc%V(i,1) = bc%slipr1(i)*STF_get(bc%stf(1),(time%time-bc%trup1(i))/bc%tris1(i))
+          bc%V(i,2) = bc%slipr2(i)*STF_get(bc%stf(2),(time%time-bc%trup2(i))/bc%tris2(i))
       enddo
   end if
 
@@ -624,7 +624,7 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
   
   if (ndof==2) then
       do i=1,bc%npoin
-          bc%V(i,1) = bc%slipr1(i)*STF_get(bc%stf(1),(time%time-bc%trup1(i))/bc%tris1(i))
+          bc%V(i,2) = bc%slipr2(i)*STF_get(bc%stf(2),(time%time-bc%trup2(i))/bc%tris2(i))
       enddo
   end if
 

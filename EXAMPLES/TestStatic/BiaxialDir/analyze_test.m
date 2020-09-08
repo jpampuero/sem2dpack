@@ -16,7 +16,7 @@ K = vp^2*rho - 4/3*Mu;
 
 E = 9*K*Mu/(3*K + Mu);
 Lam =  K - 2*Mu/3;
-% Nu = (3*K - 2*Mu)/2/(3*K + Mu);
+Nu = (3*K - 2*Mu)/2/(3*K + Mu);
 
 % Lam=1;
 e_11 = -2e-3;

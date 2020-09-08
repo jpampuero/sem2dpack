@@ -272,9 +272,8 @@ end subroutine solve_symplectic
 subroutine solve_quasi_static(pb)
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
-  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre,d_fix
-  double precision, parameter :: tolerance = 1.0d-8
-
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, d_fix
+  
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
   integer :: i
@@ -338,12 +337,18 @@ subroutine solve_quasi_static(pb)
     f = -f
    
     ! set the fixed dofs to 0
+    call BC_trans(pb%bc, d,  1)
     call BC_set_fix_zero(pb%bc, d)
+    call BC_trans(pb%bc, d, -1)
+    
     ! (preconditioned) conjugate gradient method solver
-    call pcg_solver(d, f, pb, tolerance)
+    call pcg_solver(d, f, pb)
     d = d + d_fix
-    ! recompute the force use the updated total disp
-    call compute_Fint(f, d, pb%fields%veloc, pb)
+    
+    ! detect if there's dynflt fault boundary
+    ! if not, break the loop and exit after the pcg solver
+
+    if (.not. has_dynflt) exit
     
     ! apply boundary conditions including following: 
     !    1.  compute fault traction, compute state variable 
@@ -352,14 +357,9 @@ subroutine solve_quasi_static(pb)
     ! v  = 0.5 * (vpre + v)
     !
     ! velocity is updated inside this subroutine
-    !
-    
-    ! detect if there's dynflt fault boundary
 
-    ! if not, break the loop and exit after the pcg solver
-
-    if (.not. has_dynflt) exit
-
+    ! recompute the force use the updated total disp
+    call compute_Fint(f, d, pb%fields%veloc, pb)
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
 
   enddo
@@ -570,22 +570,22 @@ end function norml2
 ! d, f are untransformed as inputs
 !
 
-subroutine pcg_solver(d, f, pb, tolerance)
+subroutine pcg_solver(d, f, pb)
 
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(inout) :: f
-  double precision, intent(in) :: tolerance
   type(problem_type), intent(inout) :: pb
 
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
   double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
-  double precision :: norm_f, norm_r
-  
-  ! two hardwired parameters
-  integer, parameter :: maxIterations = 4000
+  double precision :: norm_f, norm_r, tolerance
+  integer :: maxIterations
+  ! one hardwired parameter to ensure stable division
   double precision, parameter :: eps_stable = 1.0d-15
-
   integer :: it  
+
+  tolerance     = pb%time%TolLin
+  maxIterations = pb%time%MaxIterLin
   
   call bc_trans(pb%bc, f, -1) ! f -> f'
   call bc_trans(pb%bc, d,  1) ! d to d'

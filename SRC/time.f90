@@ -7,10 +7,11 @@ module time_evol
     character(12) :: kind
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
-    double precision :: dt,courant,time,total,alpha,beta,gamma,Omega_max, dt_min
+    double precision :: dt,courant,time,total,alpha,beta,& 
+                        gamma,Omega_max, dt_min, TolLin
     ! dt_min: minimum time step in adaptive time stepping 
     double precision, dimension(:), pointer :: a,b 
-    integer :: nt,nstages
+    integer :: nt, nstages, MaxIterLin
   end type timescheme_type
 
 contains
@@ -44,6 +45,9 @@ contains
 ! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
 !                when kind='adaptive' 
 !                when kind/='adaptive', kind_dyn=kind 
+!
+! ARG: TolLin     [dble] [1e-6] Tolerance for linear solver (pcg), quasistatics 
+! ARG: MaxIterLin [int]  [4000] Maximum iteration # for linear solver, quasistatics
 !
 ! NOTE   : The leap-frog scheme is recommended for dynamic faults. It is equivalent 
 !          to the default Newmark scheme (beta=0, gamma=1/2). However it is 
@@ -136,22 +140,26 @@ contains
   type(timescheme_type), intent(out) :: t
 
   double precision :: alpha,beta,gamma,dt,courant,TotalTime,rho &
-                     ,xi,lambda,chi,theta
-  integer :: NbSteps,n
+                     ,xi,lambda,chi, theta, TolLin
+  integer :: NbSteps,n, MaxIterLin
   character(12) :: kind
   character(12) :: kind_dyn
   
-  NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,kind_dyn
+  NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
+                    kind_dyn, TolLin, MaxIterLin
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
 !-------------------------------------------------------------------------------
 
-  kind     = 'leapfrog'
-  NbSteps  = 0 
-  dt       = 0.d0
-  courant  = 0.5d0
-  TotalTime = 0.d0
+  kind         = 'leapfrog'
+  kind_dyn     = 'leapfrog'
+  NbSteps      = 0 
+  dt           = 0.d0
+  courant      = 0.5d0
+  totaltime    = 0.d0
+  TolLin       = 1.0d-6
+  MaxIterLin   = 4000
 
   rewind(iin)
   read(iin,TIME,END = 100) 
@@ -177,6 +185,8 @@ contains
   t%courant  = courant
   t%total    = TotalTime
   t%kind     = kind
+  t%TolLin   = TolLin
+  t%MaxIterLin= MaxIterLin
 
   select case (kind)
     case ('adaptive')
@@ -207,7 +217,17 @@ contains
       write(iout,208) TotalTime
     else
       write(iout,209)
+    if (TotalTime > 0) then
+      write(iout,208) TotalTime
+    else
+      write(iout,209)
     endif
+    endif
+     
+    if (.not. t%isDynamic) then
+        write(iout,211) TolLin
+        write(iout,212) MaxIterLin
+    end if
   endif
 
 !-------------------------------------------------------------------------------
@@ -327,6 +347,8 @@ contains
   206 format(5x,'Courant number. . . . . . . . (Courant) = ',F0.2)
   208 format(5x,'Total simulation duration . (TotalTime) = ',EN12.3)
   209 format(5x,'Total simulation duration . (TotalTime) = will be set later')
+  211 format(5x,'Tolerance for linear solver. . (TolLin) = ',EN12.3)
+  212 format(5x,'Maximum iteration linear. .(MaxIterLin) = ',I6)
 
   300   format(///' N e w m a r k   p a r a m e t e r s '/1x,35('=')//5x, &
       'First integration parameter . . . . (beta) = ',F0.3,/5x, &

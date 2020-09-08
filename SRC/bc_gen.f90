@@ -519,6 +519,9 @@ subroutine bc_set_fix_zero(bc, field)
 
   side = -1
 
+  ! transform
+  !call bc_trans(bc, field, 1)
+
   if (.not. associated(bc)) return
 
   do i = 1,size(bc)
@@ -530,11 +533,11 @@ subroutine bc_set_fix_zero(bc, field)
           ! select dirichlet 
         call BC_DIRNEU_set_kind(bc(i)%dirneu, field, 0d0, IS_DIR)
       case (IS_KINFLT) 
-  !      TO BE DEVELOPED!
-  !      select kinflt side -1
-  !      call BC_KINFLT_set(bc(i)%kinflt, field, 0d0, side)
+        call BC_KINFLT_set(bc(i)%kinflt, field, 0d0, side)
       end select
   enddo
+  !call bc_trans(bc, field, -1)
+
 end subroutine bc_set_fix_zero
 
 
