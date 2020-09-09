@@ -6,8 +6,8 @@
 #
 
 # ----------- General Parameters -------------------------
-&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=2,
-         title = 'Test kinematic mode 2', verbose='1111',
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=1,
+         title = 'Test kinematic mode 3', verbose='1111',
          itInfo = 1 /
 
 # ------- build a simple mesh with one kinematic fault ---
