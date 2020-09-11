@@ -8,7 +8,8 @@ module time_evol
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
     double precision :: dt,courant,time,total,alpha,beta,& 
-                        gamma,Omega_max, dt_min, TolLin
+                        gamma, Omega_max, dt_min, dtev_max, & 
+                        TolLin, dt_incf 
     ! dt_min: minimum time step in adaptive time stepping 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin
@@ -35,6 +36,8 @@ contains
 !		         'adaptive'      adaptive (Kaneko, et al, 2011)
 !
 ! ARG: Dt        [dble] [none] Timestep (in seconds)
+! ARG: dtev_max  [dble] [432000.0] Maximum timestep (in seconds), adaptive stepping
+! ARG: dt_incf    [dble] [2.0d0] dt increase factor, dt_next <= dt_incf*dt_curr 
 ! ARG: Courant   [dble] [0.5d0] the maximum value of the Courant-Friedrichs-Lewy 
 !                stability number (CFL), defined as
 !                  CFL = Dt*wave_velocity/dx 
@@ -140,13 +143,15 @@ contains
   type(timescheme_type), intent(out) :: t
 
   double precision :: alpha,beta,gamma,dt,courant,TotalTime,rho &
-                     ,xi,lambda,chi, theta, TolLin
+                     ,xi,lambda,chi, theta, TolLin,dtev_max,dt_incf
+  double precision :: sec2day
   integer :: NbSteps,n, MaxIterLin
   character(12) :: kind
   character(12) :: kind_dyn
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
-                    kind_dyn, TolLin, MaxIterLin
+                    kind_dyn, TolLin, MaxIterLin, dtev_max,&
+                    dt_incf
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -160,6 +165,10 @@ contains
   totaltime    = 0.d0
   TolLin       = 1.0d-6
   MaxIterLin   = 4000
+  
+  !dteve_max only used in quasi-static adaptive time stepping
+  dtev_max     = 5.0d0*24*3600.0 ! default 5 days
+  dt_incf      = 2.0d0  
 
   rewind(iin)
   read(iin,TIME,END = 100) 
@@ -179,14 +188,17 @@ contains
     TotalTime = dt*NbSteps
   endif
   
-  t%nt       = NbSteps
-  t%dt       = dt
-  t%dt_min   = dt  ! set dt_min as the initial dt
-  t%courant  = courant
-  t%total    = TotalTime
-  t%kind     = kind
-  t%TolLin   = TolLin
+  t%nt        = NbSteps
+  t%dt        = dt
+  t%dt_min    = dt  ! set dt_min as the initial dt
+  t%courant   = courant
+  t%total     = TotalTime
+  t%kind      = kind
+  t%TolLin    = TolLin
   t%MaxIterLin= MaxIterLin
+  t%dtev_max  = dtev_max
+  t%dt_incf   = dt_incf
+  sec2day     = 1.0d0/(24*3600) 
 
   select case (kind)
     case ('adaptive')
@@ -227,6 +239,8 @@ contains
     if (.not. t%isDynamic) then
         write(iout,211) TolLin
         write(iout,212) MaxIterLin
+        write(iout,213) dtev_max*sec2day
+        write(iout,214) dt_incf
     end if
   endif
 
@@ -342,13 +356,15 @@ contains
   210 format(5x,'Dynamic scheme. . . . . . . .(kind_dyn) = ',A)
   202 format(5x,'Number of time steps. . . . . (NbSteps) = ',I0)
   203 format(5x,'Number of time steps. . . . . (NbSteps) = will be set later')
-  204 format(5x,'Time step increment . . . . . . . .(Dt) = ',EN12.3)
+  204 format(5x,'Time step increment . . . . . . . .(Dt) = ',EN12.3, ' seconds')
   205 format(5x,'Time step increment . . . . . . . .(Dt) = will be set later')
   206 format(5x,'Courant number. . . . . . . . (Courant) = ',F0.2)
-  208 format(5x,'Total simulation duration . (TotalTime) = ',EN12.3)
+  208 format(5x,'Total simulation duration . (TotalTime) = ',EN12.3,' seconds')
   209 format(5x,'Total simulation duration . (TotalTime) = will be set later')
   211 format(5x,'Tolerance for linear solver. . (TolLin) = ',EN12.3)
   212 format(5x,'Maximum iteration linear. .(MaxIterLin) = ',I6)
+  213 format(5x,'Maximum adaptive time step. .(dtev_max) = ',F6.1,' days')
+  214 format(5x,'Maximum dt increase factor. . (dt_incf) = ',F6.3)
 
   300   format(///' N e w m a r k   p a r a m e t e r s '/1x,35('=')//5x, &
       'First integration parameter . . . . (beta) = ',F0.3,/5x, &

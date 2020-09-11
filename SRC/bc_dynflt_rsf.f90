@@ -11,7 +11,7 @@ module bc_dynflt_rsf
 
   type rsf_input_type
     ! plate rate is added
-    type(cd_type) :: dc, mus, a, b, Vstar, theta, vplate
+    type(cd_type) :: dc, mus, a, b, Vstar, theta, vplate 
   end type rsf_input_type
 
   type rsf_type
@@ -20,6 +20,7 @@ module bc_dynflt_rsf
     double precision, dimension(:), pointer :: dc=>null(), mus=>null(), a=>null(), b=>null(), &
                    Vstar=>null(), theta=>null(), Tc=>null(), coeft=>null(), vplate=>null()
     double precision :: dt
+    double precision :: vmaxD2S, vmaxS2D
     type(rsf_input_type) :: input
   end type rsf_type
 
@@ -35,26 +36,27 @@ contains
 ! GROUP  : DYNAMIC_FAULT
 ! PURPOSE: Velocity and state dependent friction
 ! SYNTAX : &BC_DYNFLT_RSF kind, Dc | DcH, Mus | MusH , 
-!                         a | aH, b | bH, Vstar | VstarH /
+!                         a | aH, b | bH, Vstar | VstarH 
+!                         vmaxS2D, vmaxD2S /
 !          followed by &DIST_XXX blocks (from the DISTRIBUTIONS group) for
 !          arguments with suffix H, if present, in the order listed above.
 !
 ! ARG: kind     [int] [1] Type of rate-and-state friction law:
 !                       1 = strong velocity-weakening at high speed
 !                           as in Ampuero and Ben-Zion (2008)
+!                       2 = logarithmic rate-and-state with aging state law
+!                       3 = logarithmic rate-and-state with slip state law
 ! ARG: Dc       [dble] [0.5d0] Critical slip 
 ! ARG: MuS      [dble] [0.6d0] Static friction coefficient
 ! ARG: a        [dble] [0.01d0] Direct effect coefficient
 ! ARG: b        [dble] [0.02d0] Evolution effect coefficient
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
 ! ARG: theta    [dble] [1d0] State variable
-! ARG: vplate   [dble] [1d0] plate rate
+! ARG: vplate   [dble] [1d0] plate rate used for 'back-slip' loading
+! ARG: vmaxS2D  [dble] [0.5d-3] max slip velocity for switch from static to dynamic 
+! ARG: vmaxD2S  [dble] [0.2d-3] max slip velocity for switch from dynamic to static
 !
 ! END INPUT BLOCK
-
-! not implement yet:
-!                       2 = logarithmic rate-and-state with aging state law
-!                       3 = logarithmic rate-and-state with slip state law
 
 ! Read parameters from input file
   subroutine rsf_read(rsf,iin)
@@ -64,13 +66,14 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar,theta,vplate
+  double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
   character(25) :: kind_txt
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
-           DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH
+           DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
+           vmaxS2D, vmaxD2S
 
   kind = 1
   Dc = 0.5d0
@@ -87,6 +90,8 @@ contains
   VstarH = ''
   thetaH = ''
   vplateH = ''
+  vmaxS2D = 0.5d-3 ! 0.5 mm/s
+  vmaxD2S = 0.2d-3 ! 0.2 mm/s
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
@@ -107,7 +112,11 @@ contains
   call DIST_CD_Read(rsf%input%theta,theta,thetaH,iin,thetaH)
   call DIST_CD_Read(rsf%input%vplate,vplate,vplateH,iin,vplateH)
 
-  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
+  rsf%vmaxS2D = vmaxS2D
+  rsf%vmaxD2S = vmaxD2S
+
+  if (echo_input) write(iout,400) kind_txt,DcH, &
+               MuSH,aH,bH,VstarH,thetaH,vplateH,vmaxS2D,vmaxD2S
 
   return
 
@@ -119,7 +128,9 @@ contains
             /5x,'  Evolution effect coefficient  . . . .(b) = ',A,&
             /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A,&
             /5x,'  State variable  . . . . . . . . .(theta) = ',A,&
-            /5x,'  Plate rate  . . . . . . . . . . .(Vstar) = ',A)
+            /5x,'  Plate rate  . . . . . . . . . . (vplate) = ',A,&
+            /5x,'  V threshold (Static to Dyanmic) (vmaxS2D) = ',EN12.3,&
+            /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3)
 
   end subroutine rsf_read
 
@@ -145,6 +156,10 @@ contains
   allocate(rsf%coeft(n))
                                               
   rsf%Tc = rsf%dc / rsf%Vstar
+  ! if adaptive stepping is activated, 
+  ! dt and coeft needs to be updated
+  ! however coeft and Tc seems only been used
+  ! in the kind = 1 case.
   rsf%coeft = exp(-dt/rsf%Tc)
   rsf%dt = dt
   end subroutine rsf_init
@@ -274,10 +289,9 @@ contains
   select case(f%kind)
     case(1) 
      ! exact integration assuming constant V over the timestep
-     ! Tc = Dc/Vstar
-     ! coeft = exp(-dt/Tc)
+     ! Tc = Dc/Vstar, precomputed
+     ! coeft = exp(-dt/Tc), precomputed
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
-
     case(2) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
      ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
@@ -338,7 +352,8 @@ contains
        !estimateLow = 1e-9 
        !estimateHigh = tau_stick(it)*2.0
        !the initial guess assume zero increment of slip velocity
-       v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
+       v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
+           tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
      enddo     
         
   end select
@@ -568,48 +583,67 @@ end subroutine nr_fric_func_v
 !-----------Adapts timestep for quasi-static algorithm----------------
 ! limiting time step from fault
 !
-! WARNING: hcell is the element size or the size between nodes?
-! In this implementation: element size hcell is passed in
-! In the matlab code, distance between nodes are used as hcell
+! I follow the matlab code to pass in the average node distance
+! dt in rsf type must also be updated
 !
-subroutine rsf_timestep(time,f,v,sigma,hcell)
+subroutine rsf_timestep(time,f,v,sigma,hnode)
   use time_evol, only : timescheme_type
   
   use constants, only: PI
 
-  type(rsf_type), intent(in) :: f
-  double precision, intent(in) :: hcell  
+  type(rsf_type), intent(inout) :: f
+  double precision, intent(in) :: hnode  
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
 
-  double precision :: k, xi, chi, tmp, min_timestep
+  double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
   integer :: it
 
-  min_timestep = time%dt 
-  
-  xi = 0.5d0 ! xi critical
-  k = (PI/4d0)*maxval(f%mus(:))/hcell ! single-cell stiffness
+  ! determine if the timestepping scheme needs to be changed
+  ! using the maximum slip velocity on the fault
 
-  do it=1,size(v)
-    ! Determine xi, as in Lapusta et al, 2000
-    tmp = k*f%Dc(it)/(f%a(it)*sigma(it))
-    chi = (0.25d0)*(tmp - (f%b(it) - f%a(it))/f%a(it))**2 - tmp ! Eq. 15c
-    if (chi >= 0.0d0) then
-      tmp = f%a(it)*sigma(it)/(k*f%Dc(it) - sigma(it)*(f%b(it) - f%a(it))) ! Eq. 15a
-    else
-      tmp = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
-    endif
-    xi = min(tmp,0.5d0) ! Eq. 15a,b
+  vmax  = maxval(abs(v)) 
+  dti   = 0.0d0
 
-    ! Determine minimum timestep allowed
-    tmp = xi*f%Dc(it)/abs(v(it))
-    if (tmp > 0.0d0 .and. tmp < min_timestep) min_timestep = tmp
-    
-    !DEVEL Trevor - in MATLAB code, there is a limitation on how quickly the timestep 
-    ! can change. However, this is not mentioned in Kaneko et al, 2011.
-  enddo
+  if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
+      ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
 
-  time%dt = min_timestep 
+      ! stay in static
+      time%isDynamic = .false.
+
+      ! calculate time step
+      max_timestep = time%dtev_max
+      
+      xi = 0.5d0 ! xi critical
+      k = (PI/4d0)*maxval(f%mus(:))/hnode ! single-cell stiffness
+
+      do it=1,size(v)
+        ! Determine xi, as in Lapusta et al, 2000
+        tmp = k*f%Dc(it)/(f%a(it)*sigma(it))
+        chi = (0.25d0)*(tmp - (f%b(it) - f%a(it))/f%a(it))**2 - tmp ! Eq. 15c
+        if (chi >= 0.0d0) then
+          xi = f%a(it)*sigma(it)/(k*f%Dc(it) - sigma(it)*(f%b(it) - f%a(it))) ! Eq. 15a
+        else
+          xi = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
+        endif
+        xi = min(xi, 0.5d0) ! Eq. 15a,b
+
+        ! Determine maximum timestep allowed for each fault node
+        dti = xi*f%Dc(it)/abs(v(it))
+        if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
+        
+      enddo
+      
+      ! ---------- Limit the time step increase by a factor ---------
+      if (max_timestep>time%dt*time%dt_incf) max_timestep = time%dt*time%dt_incf
+
+      time%dt = max_timestep 
+      f%dt    = max_timestep
+  else
+      ! switch to Dynamic and minimal time step
+      time%isDynamic = .true.
+      time%dt        = time%dt_min
+  end if
 
 end subroutine
 
