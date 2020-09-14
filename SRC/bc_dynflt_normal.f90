@@ -12,7 +12,9 @@ module bc_dynflt_normal
     double precision :: T,L,V,coef
   end type normal_type
 
-  public :: normal_type, normal_read, normal_init, normal_update, normal_getSigma
+  public :: normal_type, normal_read, normal_init, normal_update,&
+            normal_getSigma, normal_update_dt
+
 
 contains
 
@@ -113,12 +115,31 @@ contains
   n%sigma = sigma_0
 
   end subroutine normal_init
+  
+  subroutine normal_update_dt(n, dt)
+
+  type(normal_type), intent(inout) :: n
+  double precision, intent(in) :: dt
+
+  select case (n%kind)
+    case (0,1) ! cohesion or Coulomb friction
+      continue
+    case (2) ! modified Prakash Clifton law #1
+      n%coef = exp(-dt/n%T)
+    case (3) ! modified Prakash Clifton law #2
+      n%coef = dt/n%L
+  end select
+
+  end subroutine normal_update_dt
 
 !=====================================================================
-  subroutine normal_update(n,Tn,V)
+  subroutine normal_update(n, Tn, V, dt)
 
   type(normal_type), intent(inout) :: n
   double precision, intent(in) :: Tn(:),V(:)
+  double precision, intent(in), optional :: dt 
+
+  if present(dt) call normal_update_dt(n, dt)
 
   select case (n%kind)
     case (0) ! cohesion
