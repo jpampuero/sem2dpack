@@ -60,7 +60,7 @@ distribution_gaussian.o: stdio.o
 distribution_general.o: distribution_gaussian.o distribution_gradient.o \
 	distribution_hete1.o distribution_linear.o distribution_order0.o \
 	distribution_pwconr.o distribution_spline.o stdio.o \
-	distribution_elliptic1d.o
+	distribution_elliptic1d.o distribution_order0cos.o
 distribution_gradient.o: stdio.o utils.o
 distribution_hete1.o: constants.o stdio.o
 distribution_linear.o: stdio.o utils.o

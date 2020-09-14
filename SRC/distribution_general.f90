@@ -23,6 +23,7 @@ module distribution_general
   use distribution_pwconr
   use distribution_hete1
   use distribution_elliptic1D
+  use distribution_order0cos
 !!  use distribution_new
 
   use stdio, only: IO_abort
@@ -42,6 +43,7 @@ module distribution_general
     type (pwconr_dist_type)  , pointer :: pwconr => null()
     type (hete1_dist_type)   , pointer :: hete1 => null()
     type (elliptic1D_dist_type), pointer :: elliptic1D => null()
+    type (order0cos_dist_type)  , pointer :: order0cos => null()
 !!    type (new_dist_type)   , pointer :: new => null()
   end type distribution_type
 
@@ -57,12 +59,14 @@ module distribution_general
                        ,tag_gradient   = 5 &
                        ,tag_pwconr     = 6 &
                        ,tag_hete1      = 7 &
-                       ,tag_elliptic1D = 8
+                       ,tag_elliptic1D = 8 &
+                       ,tag_order0cos  = 9
 !!                       ,tag_new = next_number
 
 !!                  dist_name(number_of_tags_above)
-  character(10) :: dist_name(8) = (/ 'ORDER0    ','GAUSSIAN  ','SPLINE    ','LINEAR    ', &
-                                     'GRADIENT  ','PWCONR    ','HETE1     ','ELLIPTIC1D'/)  
+  character(10) :: dist_name(9) = (/ 'ORDER0    ','GAUSSIAN  ','SPLINE    ','LINEAR    ', &
+                                     'GRADIENT  ','PWCONR    ','HETE1     ','ELLIPTIC1D', &
+                                     'ORDER0COS '/)  
 !!                                    'NEW       '
 
   public :: distribution_type,DIST_read,DIST_generate,DIST_destructor
@@ -88,6 +92,9 @@ subroutine DIST_read(d,name,iin)
     case(tag_order0)
       allocate(d%order0)
       call read_order0_dist (d%order0,iin)
+    case(tag_order0cos)
+      allocate(d%order0cos)
+      call read_order0cos_dist (d%order0cos,iin)
     case(tag_gaussian)
       allocate(d%gaussian)
       call read_gaussian_dist (d%gaussian,iin)
@@ -130,6 +137,8 @@ subroutine DIST_generate_1 (field, coord, d)
   select case (d%kind)
     case(tag_order0)
       call generate_order0_dist(field,coord,d%order0)
+    case(tag_order0cos)
+      call generate_order0cos_dist(field,coord,d%order0cos)
     case(tag_gaussian)
       call generate_gaussian_dist(field,coord,d%gaussian)
     case(tag_spline)
@@ -178,6 +187,8 @@ subroutine DIST_destructor(d)
   select case (d%kind)
     case(tag_order0)
       call destroy_order0_dist(d%order0)
+    case(tag_order0cos)
+      call destroy_order0cos_dist(d%order0cos)
     case(tag_gaussian)
       call destroy_gaussian_dist(d%gaussian)
     case(tag_spline)
