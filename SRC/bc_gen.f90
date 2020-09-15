@@ -248,7 +248,7 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
   enddo
 
  ! write initial data
-  call BC_write(bc,0,d,v)
+  call BC_write(bc,tim,d,v)
 
 end subroutine bc_init
 
@@ -385,12 +385,11 @@ end subroutine bc_apply_kind
 
 !=======================================================================
 ! Writes data for faults, and possibly other BCs
-subroutine BC_write(bc,itime,d,v)
-
+subroutine BC_write(bc,time,d,v)
+  use time_evol, only : timescheme_type
   use echo, only : iout,echo_init, fmt1,fmtok
-
+  type(timescheme_type), intent(in) :: time
   type(bc_type), pointer :: bc(:)
-  integer, intent(in) :: itime
   double precision, dimension(:,:), intent(in) :: d,v
 
   integer :: i
@@ -399,13 +398,13 @@ subroutine BC_write(bc,itime,d,v)
 
   do i = 1,size(bc)
     if (bc(i)%kind == IS_DYNFLT .or. bc(i)%kind == IS_KINFLT) then
-      if (echo_init .and. itime==0) write(iout,fmt1,advance='no') 'Exporting initial boundary data'
+      if (echo_init .and. time%it==0) write(iout,fmt1,advance='no') 'Exporting initial boundary data'
       if (bc(i)%kind == IS_DYNFLT) then
-        call BC_DYNFLT_write(bc(i)%dynflt,itime,d,v)
+        call BC_DYNFLT_write(bc(i)%dynflt, time, d, v)
       else
-        call BC_KINFLT_write(bc(i)%kinflt,itime,d,v)
+        call BC_KINFLT_write(bc(i)%kinflt, time, d, v)
       endif
-      if (echo_init .and. itime==0) write(iout,fmtok)
+      if (echo_init .and. time%it==0) write(iout,fmtok)
     endif
   enddo
 

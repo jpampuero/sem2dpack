@@ -34,8 +34,9 @@ module bc_kinflt
     type(stf_type), dimension(2) :: stf ! source time functions, 2 components
 
    ! for outputs:
-    double precision :: ot1,odt
-    integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot
+    double precision :: ot1, odt,ot
+    integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
+    integer :: otdD, otdS
     logical :: osides
   end type
 
@@ -95,6 +96,10 @@ contains
 ! ARG: ot1      [dble] [0d0] Time of first output (in seconds)
 !                Internally adjusted to the nearest multiple of the timestep
 !                Its value can be found in the output file FltXX_sem2d.hdr
+!
+! ARG: otdD     [dble] time lag between outputs dynamic 
+! ARG: otdS     [dble] time lag between outputs static 
+
 ! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output
 !                The default resets oxi(2) = last fault node
 ! 
@@ -113,19 +118,20 @@ contains
   integer, intent(in) :: iin
 
   double precision :: trup1, slipr1, tris1, &
-                      trup2, slipr2, tris2, ot1, otd 
+                      trup2, slipr2, tris2, ot1, otd, & 
+                      otdD, otdS
   character(20) :: trup1H, slipr1H, tris1H, & 
                    trup2H, slipr2H, tris2H, dt_txt, oxi2_txt
   
   character(15) :: stf1, stf2 
 
-  integer :: i,oxi(3)
+  integer :: i,oxi(3) 
   logical :: osides
 
   NAMELIST / BC_KINFLT /  &
       stf1, trup1, trup1H, slipr1, slipr1H, tris1, tris1H, &
       stf2, trup2, trup2H, slipr2, slipr1H, tris2, tris2H, &
-      ot1, otd, oxi, osides
+      ot1, otd, oxi, osides, otdD, otdS 
 
 ! default parameters:
 ! component 1
@@ -148,6 +154,10 @@ contains
 
   ot1 = 0.d0
   otd = 0.d0
+
+  otdD = 0.d0
+  otdS = 0.d0
+
   oxi(1) = 1
   oxi(2) = huge(i)
   oxi(3) = 1
@@ -158,6 +168,11 @@ contains
 
   bc%ot1 = ot1
   bc%odt = otd
+  bc%ot  = bc%ot1
+
+  bc%otdD = otdD
+  bc%otdS = otdS
+
   bc%oix1 = oxi(1)
   bc%oixn = oxi(2) 
   bc%oixd = oxi(3) 
@@ -176,18 +191,24 @@ contains
   call STF_read(stf2, bc%stf(2), iin)
 
   if (echo_input) then
-    if (otd==0d0) then
-      write(dt_txt,'(A)') 'dt'
-    else
-      write(dt_txt,'(EN13.3)') otd
+     if (otdD+otdS) then
+        write(dt_txt, '(A)') 'adaptive'
+     else
+        if (otd==0d0) then
+          write(dt_txt,'(A)') 'dt'
+        else
+          write(dt_txt,'(EN13.3)') otd
+         end if
     endif
+
     if (oxi(2)==huge(i)) then
       write(oxi2_txt,'(A)') 'Last fault node'
     else
       write(oxi2_txt,'(I0)') oxi(2)
     endif
     write(iout,200) stf1, trup1H, tris1H, slipr1H, stf2, trup2H, tris2H, slipr2H,& 
-                    ot1, dt_txt,oxi(1), oxi2_txt, oxi(3), osides
+                    ot1, dt_txt, otdD, otdS, & 
+					oxi(1), oxi2_txt, oxi(3), osides
   endif
 
   return
@@ -205,6 +226,8 @@ contains
             /5x,'  Slip rate . . . . . . . . . . . .(slipr2)  = ',A,&
             /5x,'  Output first time . . . . . . . . .(ot1)   = ',EN13.3,&
             /5x,'       time step  . . . . . . . . . .(otd)   = ',A,&
+            /5x,'       time step dynamic. . . . . . (otdD)   = ',EN16.8,&
+            /5x,'       time step static . . . . . . (otdS)   = ',EN16.8,&
             /5x,'       first node . . . . . . . . (oxi(1))   = ',I0,&
             /5x,'       last node  . . . . . . . . (oxi(2))   = ',A,&
             /5x,'       node stride  . . . . . . . (oxi(3))   = ',I0,&
@@ -234,7 +257,7 @@ contains
   double precision :: dt
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
-  logical :: two_sides
+  logical :: two_sides, adapt_time
   
   ndof = size(M,2)
 
@@ -360,6 +383,7 @@ contains
 
   bc%oix1 = max(bc%oix1, 1)
   bc%oixn = min(bc%oixn, npoin)
+  adapt_time =  time%kind=='adaptive'
 
 ! NOTE: file names limited to tags(1)<100
   write(oname,'("Flt",I2.2,"_sem2d.dat")') tags(1)
@@ -369,12 +393,23 @@ contains
   !open(bc%ounit,file=oname,status='replace',access='direct',recl=iol)
   open(bc%ounit,file=oname,status='replace',form='unformatted')
 
+  ! File to store the output time information if adaptive time stepping
+  if (adapt_time) then
+      write(oname,'("Flt",I2.2,"_time_sem2d.tab")') tags(1)
+      bc%ou_time = IO_new_unit()
+      open(bc%ou_time, file=oname, status='replace')
+  end if
+
  ! adjust output timestep to the nearest multiple of dt:
   dt = TIME_getTimeStep(time)
-  bc%oitd = max(1,nint(bc%odt/dt))
-  bc%odt = dt * dble(bc%oitd)
-  bc%odt = dt * bc%oitd
-  bc%oit = nint(bc%ot1/dt)
+
+  if (.not. adapt_time) then
+      bc%oitd = max(1,nint(bc%odt/dt))
+      bc%odt = dt * dble(bc%oitd)
+      bc%odt = dt * bc%oitd
+      bc%oit = nint(bc%ot1/dt)
+      bc%ot  = dble(bc%oit) * dt
+  end if
 
  ! HEADER FILE FORMAT:
  !      Name            FltXX_sem2d.hdr where XX=tags(1) of the BC_KINFLT
@@ -394,6 +429,15 @@ contains
  !      => number of columns in output file = nb of data columns +2
  !
 
+ !
+ ! WARNING: 
+ ! Header file is different if adaptive time stepping is used
+ !
+ ! NSAMP and DELT is not known before the end of simulation
+ !
+ ! And should be estimated from the FltXX_time_sem2d.tab file
+ !
+ 
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
   NDAT = 4
   if (bc%osides) NDAT = NDAT + 4*ndof
@@ -402,8 +446,16 @@ contains
 
   onx = (bc%oixn-bc%oix1)/bc%oixd +1
   open(hunit,file=trim(hname)//'.hdr',status='replace')
-  write(hunit,*) 'NPTS NDAT NSAMP DELT'
-  write(hunit,*) onx,NDAT,NSAMP,bc%odt
+
+  if (adapt_time) then
+      write(hunit,*) 'NPTS NDAT'
+      write(hunit,*) onx, NDAT
+  else
+      NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
+      write(hunit,*) 'NPTS NDAT NSAMP DELT'
+      write(hunit,*) onx,NDAT,NSAMP,bc%odt
+  end if
+
   if (bc%osides) then 
     if (ndof==1) then
       write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:D1t:D2t:V1t:V2t'
@@ -711,13 +763,17 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
 ! 3: Shear stress 
 ! 4: Normal stress 
 !
-  subroutine BC_KINFLT_write(bc,itime,d,v)
+  subroutine BC_KINFLT_write(bc,time,d,v)
 
+  use time_evol, only : timescheme_type
   type(bc_kinflt_type), intent(inout) :: bc
-  integer, intent(in) :: itime
+  type(timescheme_type), intent(in) :: time 
   double precision, dimension(:,:), intent(in) :: d,v
 
-  if ( itime < bc%oit ) return
+
+  ! reset ot for each step that a switch in time scheme takes place
+  if (time%switch) bc%ot = time%time
+  if ( time%time < bc%ot ) return
 
   !DEVEL: use direct access, and rec
   !D,V,T are fault tangential and fault normal directions
@@ -733,7 +789,20 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
     call export_side(bc,get_side(bc,v,2))
   endif
 
-  bc%oit = bc%oit + bc%oitd
+  ! update the next output time step index
+  if (.not. time%kind=='adaptive') then
+      bc%ot = bc%ot + bc%otd
+  else
+      ! adaptive time stepping
+      if (time%isDynamic) then
+          bc%ot = bc%ot + bc%otdD
+      else
+          bc%ot = bc%ot + bc%otdS
+      end if
+      ! write time information if adaptive time
+      write(bc%ou_time, *)  time%it, time%dt, time%time, &
+                        time%EQNum, time%isDynamic, time%switch
+  end if
 
   end subroutine BC_KINFLT_write
 

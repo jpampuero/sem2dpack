@@ -136,11 +136,16 @@ contains
 
 !=====================================================================
 ! Initialize parameters
-  subroutine rsf_init(rsf,coord,dt)
+! TO DO: Change the initialization method for rsf
+! Initialising the state variable by specifing initial slip velocity
+! and initial stress (or Mu)
+!
+
+  subroutine rsf_init(rsf,coord, dt, mu, v)
 
   type(rsf_type), intent(inout) :: rsf
   double precision, intent(in) :: coord(:,:),dt
-
+  double precision, intent(in) :: mu(:), v(:)
   integer :: n
   
   call DIST_CD_Init(rsf%input%dc,coord,rsf%dc)
@@ -151,7 +156,10 @@ contains
   call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
   call DIST_CD_Init(rsf%input%vplate,coord,rsf%vplate)
 
+  ! reinitialize state variable theta using initial mu and v
+  call rsf_init_theta(rsf, mu, v)
   n = size(coord,2)
+
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
                                               
@@ -163,6 +171,15 @@ contains
   rsf%coeft = exp(-dt/rsf%Tc)
   rsf%dt = dt
   end subroutine rsf_init
+
+  subroutine rsf_init_theta(f, mu, v)
+      type(rsf_type), intent(inout) :: f
+      double precision, intent(in) :: coord(:,:),dt
+      double precision, intent(in) :: mu(:), v(:)
+
+      f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
+               * f%Dc / f%Vstar
+  end subroutine rsf_init_theta
 
 !=====================================================================
 ! Friction coefficient
@@ -608,6 +625,12 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
   if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
       ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
 
+      if (time%isDynamic) then
+          time%switch = .true.
+      else
+          time%switch = .false.
+      end if
+
       ! stay in static
       time%isDynamic = .false.
 
@@ -640,10 +663,21 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
       time%dt = max_timestep 
       f%dt    = max_timestep
   else
-      ! switch to Dynamic and minimal time step
-      time%isDynamic = .true.
+      ! dynamic stepping
+      ! if previous state was static switch to dynamic
+      ! update number of earthquakes occurred so far 
+      if (.not. time%isDynamic) then
+          time%EQNum  = time%EQNum + 1
+          time%switch = .true.
+          ! switch to Dynamic and minimal time step
+          time%isDynamic = .true.
+      end if
+      time%switch    = .false.
       time%dt        = time%dt_min
+      f%dt        = time%dt_min
   end if
+
+  if (f%kind==1) f%coeft = exp(-f%dt/f%Tc)
 
 end subroutine
 

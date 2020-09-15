@@ -53,6 +53,9 @@
 
   do while (pb%time%time < pb%time%total) 
 
+    ! save the time step number
+    pb%time%it = it
+    
     call solve(pb)
 
   !-- CPU time info -----------------------------------------------------
@@ -74,7 +77,7 @@
 
     if (mod(it,ItInfo) == 0) then
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
-      if (pb%time%kind == 'adaptive') write(iout,*),'dt = ',pb%time%dt
+      if (pb%time%kind == 'adaptive') write(iout,*) 'dt = ', pb%time%dt
     endif
 
     if (iexec>0) then
@@ -87,7 +90,7 @@
       if(associated(pb%rec)) call REC_store(pb%rec,it,pb%grid)
 
       !-- write data for faults, and possibly other BCs
-      call BC_write(pb%bc,it,pb%fields%displ,pb%fields%veloc)
+      call BC_write(pb%bc,pb%time,pb%fields%displ,pb%fields%veloc)
     
       !-- export energies
       if (COMPUTE_ENERGIES) then

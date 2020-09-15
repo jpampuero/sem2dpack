@@ -7,10 +7,16 @@ module time_evol
     character(12) :: kind
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
+    Logical :: switch          ! a flag to indicate if there's change in time scheme 
+    ! dt_min: minimum time step in adaptive time stepping 
     double precision :: dt,courant,time,total,alpha,beta,& 
                         gamma, Omega_max, dt_min, dtev_max, & 
                         TolLin, dt_incf 
-    ! dt_min: minimum time step in adaptive time stepping 
+
+    ! some additional parameters for adaptive time stepping
+    ! EQNum: number of earthquakes
+    ! it: time step index
+    integer :: EQNum, it 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin
   end type timescheme_type
@@ -199,6 +205,7 @@ contains
   t%dtev_max  = dtev_max
   t%dt_incf   = dt_incf
   sec2day     = 1.0d0/(24*3600) 
+  t%switch    = .false. 
 
   select case (kind)
     case ('adaptive')
@@ -412,6 +419,14 @@ contains
         t%total = t%nt*t%dt
     end if
   endif
+  
+  if (t%isDynamic) then
+      t%EQNum = 1
+  else
+      t%EQNum = 0
+  end if
+  
+  t%it = 0
 
   if (echo_check) then
 

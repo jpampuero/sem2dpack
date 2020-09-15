@@ -33,8 +33,8 @@ module bc_dynflt
     type(bnd_grid_type), pointer :: bc1 => null(), bc2 => null()
     type(bc_dynflt_input_type) :: input
    ! for outputs:
-    double precision :: ot1,odt
-    integer :: oit,oitd,ounit,oix1,oixn,oixd, ou_pot
+   double precision :: ot1, odt, odtD, odtS, ot
+    integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
     logical :: osides
   end type bc_dynflt_type
 
@@ -86,11 +86,24 @@ contains
 ! ARG: ot1      [dble] [0.d0] Time of first output (in seconds).
 !                Internally adjusted to the nearest multiple of the timestep.
 !                Its value can be found in the output file FltXX_sem2d.hdr
+! ARG: otdD     [dble] [0d0] Time lag between outputs for dynamic 
+! ARG: otdS     [dble] [0d0] Time lag between outputs for static
 ! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output.
 !                The default resets oxi(2) = last fault node
+!
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
-! ARG: V        [dble] [1d-12] Initial velocity (needed for RSF)
+! ARG: V        [dble] [1d-12] Initial slip velocity (needed for RSF)
+!
+!
+! NOTE:
+!     if otdD=0, otdS=0, then uniform time step is used
+!     output steps are set using ot1 and otd, internally adjusted.
+!
+!     if adaptive time step is used, ot1, otdD, otdS are used to set 
+!     output steps and are not internally adjusted as time step is
+!     changing every step. (otdS may still be internally adjustable
+!     if uniform step is used for dynamic case) 
 !
 ! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
@@ -109,16 +122,18 @@ contains
   type(bc_dynflt_type), intent(out) :: bc
   integer, intent(in) :: iin
   double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V
+  double precision :: otdD, otdS
   character(20) :: TtH,TnH, SxxH,SxyH,SxzH,SyzH,SzzH &
                   ,dt_txt,oxi2_txt, cohesionH, VH
   character(3) :: friction(2)
-  integer :: i,oxi(3)
-  logical :: opening,osides
+  integer :: i,oxi(3) 
+  logical :: opening, osides
 
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH &
                          ,ot1,otd,oxi,osides, friction, opening &
-                         ,cohesion, cohesionH, V, VH
+                         ,cohesion, cohesionH, V, VH, &
+                         otdD, otdS
 
   Tt = 0d0
   Tn = 0d0
@@ -136,11 +151,14 @@ contains
   SyzH = ''
   SzzH = ''
 
-  V = 1d-12
-  VH = ''
+  V    = 1d-12
+  VH   = ''
 
   ot1 = 0.d0
   otd = 0.d0
+  otdD = 0.d0
+  otdS = 0.d0
+
   oxi(1) = 1
   oxi(2) = huge(i)
   oxi(3) = 1
@@ -157,7 +175,11 @@ contains
   read(iin,BC_DYNFLT,END=100)
 
   bc%ot1 = ot1
+  bc%ot  = ot1
   bc%odt = otd
+  bc%odtD = otdD
+  bc%odtS = otdS
+
   bc%oix1 = oxi(1)
   bc%oixn = oxi(2) 
   bc%oixd = oxi(3) 
@@ -176,18 +198,24 @@ contains
   bc%allow_opening = opening
 
   if (echo_input) then
-    if (otd==0d0) then
-      write(dt_txt,'(A)') 'dt'
-    else
-      write(dt_txt,'(EN13.3)') otd
+      if (otdD+otdS>0d0) then
+        write(dt_txt, '(A)') 'adaptive'
+     else
+        if (otd==0d0) then
+          write(dt_txt,'(A)') 'dt'
+        else
+          write(dt_txt,'(EN13.3)') otd
+         end if
     endif
+
     if (oxi(2)==huge(i)) then
       write(oxi2_txt,'(A)') 'Last fault node'
     else
       write(oxi2_txt,'(I0)') oxi(2)
     endif
     write(iout,200) TnH,TtH,SxxH,SxyH,SxzH,SyzH,SzzH,VH, & 
-                    cohesionH,opening,ot1,dt_txt,oxi(1),oxi2_txt,oxi(3),osides
+                    cohesionH,opening,ot1,dt_txt,&
+                    otdD, otdS, oxi(1),oxi2_txt,oxi(3),osides 
   endif
 
   do i=1,2
@@ -218,11 +246,13 @@ contains
             /5x,'               xz . . . . . . . . . .(Sxz) = ',A,&
             /5x,'               yz . . . . . . . . . .(Syz) = ',A,&
             /5x,'               zz . . . . . . . . . .(Szz) = ',A,&
-            /5x,'Initial velocity on boundary . . . . . (V) = ',A,&
+            /5x,'Initial slip velocity . . . . . . . . .(V) = ',A,&
             /5x,'Cohesion  . . . . . . . . . . . (cohesion) = ',A,&
             /5x,'Allow opening . . . . . . . . . .(opening) = ',L1,&
-            /5x,'Output first time . . . . . . . . . .(ot1) = ',EN13.3,&
+            /5x,'Output first time . . . . . . . . . .(ot1) = ',EN16.8,&
             /5x,'       time step  . . . . . . . . . .(otd) = ',A,&
+            /5x,'       time step in dynamic. . . . .(otdD) = ', EN16.8,&
+            /5x,'       time step in static . . . . .(otdS) = ', EN16.8,&
             /5x,'       first node . . . . . . . . (oxi(1)) = ',I0,&
             /5x,'       last node  . . . . . . . . (oxi(2)) = ',A,&
             /5x,'       node stride  . . . . . . . (oxi(3)) = ',I0,&
@@ -253,7 +283,7 @@ contains
   double precision :: dt
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
-  logical :: two_sides
+  logical :: two_sides, adapt_time
   double precision :: hnode_i
   
   nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
@@ -368,22 +398,16 @@ contains
     bc%Z = 0.5d0/(bc%CoefA2V * bc%B * bc%invM1 )
   endif
 
-  dt = TIME_getTimeStep(time)
-
-  if (associated(bc%swf)) then
-    call swf_init(bc%swf,bc%coord,dt)
-  elseif (associated(bc%rsf)) then
-    call rsf_init(bc%rsf,bc%coord,dt)
-  endif
 
   allocate(bc%T(npoin,2))
   allocate(bc%D(npoin,ndof))
   allocate(bc%V(npoin,ndof))
+
   bc%T = 0d0
   bc%D = 0d0
   !bc%V = 0d0  ! DEVEL: RSF can't have zero slip velocity !
-  call DIST_CD_Init(bc%input%V,bc%coord,V)
-  bc%V(:,1)=V
+  call DIST_CD_Init(bc%input%V, bc%coord, V)
+  bc%V(:,1) = V
   deallocate(V)
 
 ! Initial stress
@@ -395,6 +419,7 @@ contains
   call DIST_CD_Init(bc%input%Sxz,bc%coord,Sxz)
   call DIST_CD_Init(bc%input%Syz,bc%coord,Syz)
   call DIST_CD_Init(bc%input%Szz,bc%coord,Szz)
+
   nx => bc%n1(:,1)
   nz => bc%n1(:,2)
   allocate(Tx(npoin))
@@ -411,14 +436,29 @@ contains
   bc%T0(:,2) = Tn0 + Tx*nx + Tz*nz
   deallocate(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz)
 
+  dt =  time%dt 
+
+  ! Normal stress response
+  call normal_init(bc%normal, dt, bc%T0(:,2))
+
 ! Initial friction
   allocate(bc%MU(npoin))
+
   if (associated(bc%swf)) then
+    call swf_init(bc%swf,bc%coord,dt)
     bc%MU = swf_mu(bc%swf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    if (associated(bc%twf)) then 
+        bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    end if
   elseif (associated(bc%rsf)) then
-    bc%MU = rsf_mu(bc%V(:,1),bc%rsf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    ! bc%MU = rsf_mu(bc%V(:,1),bc%rsf)
+    ! Let mu be computed directly from initial stress
+    bc%Mu = abs(bc%T0(:, 1)/bc%T0(:, 2))
+    if (associated(bc%twf)) then
+        bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    end if
+    call rsf_init(bc%rsf,bc%coord, dt, bc%Mu, abs(bc%V(:, 1)))
+
   elseif (associated(bc%twf)) then
     bc%MU = twf_mu(bc%twf,bc%coord,0d0)
   endif
@@ -427,27 +467,34 @@ contains
   call DIST_CD_Init(bc%input%cohesion,bc%coord,bc%cohesion)
   if (any(bc%cohesion < 0d0)) call IO_abort('bc_dynflt_init: cohesion must be positive')
 
-  ! Normal stress response
-  call normal_init(bc%normal,dt,bc%T0(:,2))
-
 !-- Open output files -----
 ! Set output parameters
 
   bc%oix1 = max(bc%oix1, 1)
   bc%oixn = min(bc%oixn, npoin)
 
+  adapt_time =  time%kind=='adaptive'  
 ! NOTE: file names limited to tags(1)<100
+
+  ! Binary file that stores data for outputing time steps
   write(oname,'("Flt",I2.2,"_sem2d.dat")') tags(1)
   bc%ounit = IO_new_unit()
-  !DEVEL: use direct access, and recl
-  !inquire( IOLENGTH=iol ) real( bc%D(bc%oix1:bc%oixn:bc%oixd,1) )
-  !open(bc%ounit,file=oname,status='replace',access='direct',recl=iol)
   open(bc%ounit,file=oname,status='replace',form='unformatted')
-
+  
+  ! File to store the potency
   write(oname,'("Flt",I2.2,"_potency_sem2d.tab")') tags(1)
   bc%ou_pot = IO_new_unit()
   open(bc%ou_pot,file=oname,status='replace')
+  
+  ! File to store the output time information if adaptive time stepping
+  ! write into binary files
+  if (adapt_time) then
+      write(oname,'("Flt",I2.2,"_time_sem2d.tab")') tags(1)
+      bc%ou_time = IO_new_unit()
+      open(bc%ou_time, file=oname, status='replace')
+  end if
 
+  ! write the initial stress and friction
   write(oname,'("Flt",I2.2,"_init_sem2d.tab")') tags(1)
   ounit = IO_new_unit()
   open(ounit,file=oname,status='replace')
@@ -456,11 +503,16 @@ contains
   enddo
   close(ounit)
 
- ! adjust output timestep to the nearest multiple of dt:
-  bc%oitd = max(1,nint(bc%odt/dt))
-  bc%odt = dt * dble(bc%oitd)
-  bc%odt = dt * bc%oitd
-  bc%oit = nint(bc%ot1/dt)
+ ! output times 
+ ! Only adjust times when using uniform time step
+ ! Actual time should be read in _time_sem2d.tab
+  if (.not. adapt_time) then
+      bc%oitd = max(1,nint(bc%odt/dt))
+      bc%odt = dt * dble(bc%oitd)
+      bc%odt = dt * bc%oitd
+      bc%oit = nint(bc%ot1/dt)
+      bc%ot  = dt * dble(bc%oit) 
+  end if
 
  ! HEADER FILE FORMAT:
  !      Name            FltXX_sem2d.hdr where XX=tags(1) of the BC_DYNFLT
@@ -470,6 +522,12 @@ contains
  !      Line 3          Name of data fields, separated by ":"
  !      Line 4          Name of coordinate axis
  !      Line 5:end      Two column table of nodes coordinates
+ !
+ ! TIME FILE FORMAT:
+ !      Name            FltXX_time_sem2d.tab where XX=tags(1) of the BC_DYNFLT
+ !                      input block, the tag of the first side of the fault.
+ !                      fields: 'it', 'dt', 'time', 'EqNum', 'isDynamic' 
+ !      Line 1:end      6 columns: it, dt, time, EQNum, isDynamic, switch
  !
  ! OUTPUT FILE FORMAT:
  !      At each time (lag DELT, total NSAMP), NDAT data lines with
@@ -481,16 +539,33 @@ contains
  !      a record tag is also written at the beginning and end of line,
  !      => number of columns in output file = nb of data columns +2
  !
-  write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
+
+ !
+ ! WARNING: 
+ ! Header file is different if adaptive time stepping is used
+ !
+ ! NSAMP and DELT is not known before the end of simulation
+ !
+ ! And should be estimated from the FltXX_time_sem2d.tab file
+ !
+  
   NDAT = 5
   if (bc%osides) NDAT = NDAT + 4*ndof
-  NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
-  hunit = IO_new_unit()
-
   onx = (bc%oixn-bc%oix1)/bc%oixd +1
+
+  write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
+  hunit = IO_new_unit()
   open(hunit,file=trim(hname)//'.hdr',status='replace')
-  write(hunit,*) 'NPTS NDAT NSAMP DELT'
-  write(hunit,*) onx,NDAT,NSAMP,bc%odt
+  
+  if (adapt_time) then
+      write(hunit,*) 'NPTS NDAT'
+      write(hunit,*) onx, NDAT
+  else
+      NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
+      write(hunit,*) 'NPTS NDAT NSAMP DELT'
+      write(hunit,*) onx,NDAT,NSAMP,bc%odt
+  end if
+
   if (bc%osides) then 
     if (ndof==1) then
       write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D2t:V1t:V2t'
@@ -891,15 +966,18 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 ! 4: Normal stress 
 ! 5: Friction coefficient
 !
-  subroutine BC_DYNFLT_write(bc,itime,d,v)
-
+  subroutine BC_DYNFLT_write(bc,time,d,v)
+  use time_evol, only : timescheme_type
   type(bc_dynflt_type), intent(inout) :: bc
-  integer, intent(in) :: itime
+  type(timescheme_type), intent(in) :: time
   double precision, dimension(:,:), intent(in) :: d,v
 
   write(bc%ou_pot,'(6D24.16)') BC_DYNFLT_potency(bc,d), BC_DYNFLT_potency(bc,v)
 
-  if ( itime < bc%oit ) return
+  ! reset ot for each step that a switch in time scheme takes place
+  if (time%switch) bc%ot = time%time
+
+  if ( time%time < bc%ot ) return
 
   !DEVEL: use direct access, and rec
   write(bc%ounit) real( bc%D(bc%oix1:bc%oixn:bc%oixd,1) )
@@ -915,8 +993,20 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
     call export_side(bc,get_side(bc,v,2))
   endif
 
-  bc%oit = bc%oit + bc%oitd
-
+  ! update the next output time step index
+  if (.not. time%kind=='adaptive') then
+      bc%ot = bc%ot + bc%otd
+  else
+      ! adaptive time stepping
+      if (time%isDynamic) then
+          bc%ot = bc%ot + bc%otdD 
+      else
+          bc%ot = bc%ot + bc%otdS 
+      end if
+      ! write time information if adaptive time into bindary
+      write(bc%ou_time, *)  time%it, time%dt, time%time, & 
+                        time%EQNum, time%isDynamic, time%switch  
+  end if
   end subroutine BC_DYNFLT_write
 
   !----------
