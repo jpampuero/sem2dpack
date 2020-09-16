@@ -52,10 +52,10 @@ contains
 ! ARG: TotalTime [int] [none] Total duration (in seconds)
 !
 ! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
-!                when kind='adaptive' 
+!                when kind='adaptive', default 'leapfog'
 !                when kind/='adaptive', kind_dyn=kind 
 !
-! ARG: TolLin     [dble] [1e-6] Tolerance for linear solver (pcg), quasistatics 
+! ARG: TolLin     [dble] [1d-6] Tolerance for linear solver (pcg), quasistatics 
 ! ARG: MaxIterLin [int]  [4000] Maximum iteration # for linear solver, quasistatics
 !
 ! NOTE   : The leap-frog scheme is recommended for dynamic faults. It is equivalent 

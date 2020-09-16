@@ -53,7 +53,7 @@ contains
 ! PURPOSE: Dynamic fault with friction
 ! SYNTAX : &BC_DYNFLT friction, cohesion|cohesionH, opening, Tn|TnH, Tt|TtH,
 !                     Sxx|SxxH, Sxy|SxyH, Sxz|SxzH, Syz|SyzH, Szz|SzzH
-!                     ot1, otd, oxi, osides /
+!                     ot1, otd, oxi, osides , otdS, otdD, V/
 !          followed, in order, by:
 !          1. &DIST_XXX blocks (from the DISTRIBUTIONS group) for arguments
 !             with suffix H, if present, in the order listed above.
