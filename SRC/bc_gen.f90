@@ -204,7 +204,7 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
   type(timescheme_type), intent(in) :: tim
   double precision, intent(inout) :: M(:,:)
   type (source_type), pointer :: src(:)
-  double precision, dimension(:,:), intent(in) :: d,v
+  double precision, dimension(:,:), intent(inout) :: d,v
 
   type(bc_periodic_type), pointer :: perio
   integer :: i,j
@@ -241,7 +241,8 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
       case(IS_LISFLT)
         call BC_LSF_init(bc(i)%lsf,bc(i)%tag,grid,M,perio)
       case(IS_DYNFLT)
-        call BC_DYNFLT_init(bc(i)%dynflt,bc(i)%tag,grid,M,tim,perio)
+          ! Note rate and state fault does not start with zero velocity 
+        call BC_DYNFLT_init(bc(i)%dynflt,bc(i)%tag,grid,M,tim,perio, v)
 !!      case(IS_USER)
 !!        call BC_USER_init(bc(i)%user,bc(i)%tag, ... )
     end select

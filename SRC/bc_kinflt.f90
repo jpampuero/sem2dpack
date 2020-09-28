@@ -34,7 +34,7 @@ module bc_kinflt
     type(stf_type), dimension(2) :: stf ! source time functions, 2 components
 
    ! for outputs:
-    double precision :: ot1, odt,ot
+    double precision :: ot1, odt,ot,odtD, odtS
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
     integer :: otdD, otdS
     logical :: osides
@@ -191,7 +191,7 @@ contains
   call STF_read(stf2, bc%stf(2), iin)
 
   if (echo_input) then
-     if (otdD+otdS) then
+     if (otdD+otdS>0) then
         write(dt_txt, '(A)') 'adaptive'
      else
         if (otd==0d0) then
@@ -791,13 +791,13 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
 
   ! update the next output time step index
   if (.not. time%kind=='adaptive') then
-      bc%ot = bc%ot + bc%otd
+      bc%ot = bc%ot + bc%odt
   else
       ! adaptive time stepping
       if (time%isDynamic) then
-          bc%ot = bc%ot + bc%otdD
+          bc%ot = bc%ot + bc%odtD
       else
-          bc%ot = bc%ot + bc%otdS
+          bc%ot = bc%ot + bc%odtS
       end if
       ! write time information if adaptive time
       write(bc%ou_time, *)  time%it, time%dt, time%time, &

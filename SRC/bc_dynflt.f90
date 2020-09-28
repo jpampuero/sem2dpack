@@ -262,7 +262,7 @@ contains
 
 !=====================================================================
 !
-  subroutine BC_DYNFLT_init(bc,tags,grid,M,time,perio)
+  subroutine BC_DYNFLT_init(bc,tags,grid,M,time,perio,vg)
   
   use spec_grid, only : sem_grid_type,BC_inquire,BC_get_normal_and_weights
   use stdio, only: IO_abort,IO_new_unit
@@ -274,6 +274,7 @@ contains
   type(bc_dynflt_type)  , intent(inout) :: bc
   type(sem_grid_type), intent(in) :: grid
   double precision, intent(in) :: M(:,:)
+  double precision, intent(inout) :: vg(:,:)
   integer, intent(in) :: tags(2)
   type(timescheme_type), intent(in) :: time
   type(bc_periodic_type), pointer :: perio
@@ -467,13 +468,36 @@ contains
   call DIST_CD_Init(bc%input%cohesion,bc%coord,bc%cohesion)
   if (any(bc%cohesion < 0d0)) call IO_abort('bc_dynflt_init: cohesion must be positive')
 
+
+  ! update global velocity at the fault nodes
+  ! rotate bc%V to x,z frame 
+  bc%V  = rotate(bc, bc%V, -1)
+  
+  ! transform global velocity
+  call BC_DYNFLT_trans(bc, vg, 1) 
+
+  ! update fault slip velocity
+  vg(bc%node1, :) = bc%V/2d0
+  
+  ! rotate back 
+  bc%V  = rotate(bc, bc%V, -1)
+  
+  ! if rsf fault, subtract plate rate 
+  if (associated(bc%rsf)) then
+      vg(bc%node1, 1) = vg(bc%node1, 1) - rsf_vplate(bc%rsf)/2d0 
+  end if
+  
+  call BC_DYNFLT_trans(bc, vg, -1) 
+
 !-- Open output files -----
 ! Set output parameters
 
   bc%oix1 = max(bc%oix1, 1)
   bc%oixn = min(bc%oixn, npoin)
 
-  adapt_time =  time%kind=='adaptive'  
+  adapt_time =  (time%kind=='adaptive') & 
+                .and. (.not. time%fixdt) 
+
 ! NOTE: file names limited to tags(1)<100
 
   ! Binary file that stores data for outputing time steps
@@ -699,7 +723,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   double precision, intent(in) :: D(:,:)
   double precision, intent(inout) :: MxA(:,:)
 
-  double precision, dimension(bc%npoin, size(V, 2)) :: T
+  double precision, dimension(bc%npoin, 2) :: T
   double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF, dV_pre
   integer :: ndof, i
 
@@ -712,6 +736,9 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   dV     = get_jump(bc, V)   ! slip velocity  
   dV_pre = dV                ! store the old slip velocity 
 
+  write (*,*) 'BC_DYNFLT_APPLY INPUT......'
+  write (*,*) 'max((v+ + v-))/2:',& 
+      maxval(V(bc%node2, :)+V(bc%node1, :))/2d0 
 
 ! compute fault traction
   do i =1,ndof
@@ -735,25 +762,34 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
 ! apply symmetry to normal stress when needed
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
-
 ! add initial stress
-  T = T + bc%T0
+  
+  T(:,:) = T(:,:) + bc%T0(:,:)
 
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
   if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
-  
+
   ! Update normal stress variables
-  ! Note this regularization is negligible in quasi-statics
+  ! Note this regularization is negligible in quasi-static
   call normal_update(bc%normal, T(:,2), dV(:,1)) 
 
  !-- velocity and state dependent friction 
  ! compute new slip velocity
+
+ print *, 'values before rsf_qs_solver'
+ print *, 'max dV =', maxval(dV(:,1))
+ print *, 'max T =', maxval(T(:,1))
+
   if (associated(bc%rsf)) then
     call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
   else
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
+
+ print *, 'values after rsf_qs_solver'
+ print *, 'max dV =', maxval(dV(:,1))
+ print *, 'max T =', maxval(T(:,1))
 
 ! Subtract initial stress
   T = T - bc%T0
@@ -780,9 +816,13 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! update half slip velocity by compute the average 
 ! of the current and previous slip velocity
   V(bc%node1, :) = 0.5d0 * (dV + dV_pre) / 2.0d0
-
+  
 ! transform back, global velocity 
   call BC_DYNFLT_trans(bc, V, -1)
+
+  write (*,*) 'BC_DYNFLT_APPLY AFTER.......'
+  write (*,*) 'max((v+ + v-))/2:',& 
+      maxval(V(bc%node2, :)+V(bc%node1, :))/2d0 
 
   bc%V = (dV + dV_pre) / 2.0d0
   bc%D = bc%D + bc%V * time%dt
@@ -971,6 +1011,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   type(bc_dynflt_type), intent(inout) :: bc
   type(timescheme_type), intent(in) :: time
   double precision, dimension(:,:), intent(in) :: d,v
+  Logical :: adapt_time
 
   write(bc%ou_pot,'(6D24.16)') BC_DYNFLT_potency(bc,d), BC_DYNFLT_potency(bc,v)
 
@@ -994,14 +1035,16 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   endif
 
   ! update the next output time step index
-  if (.not. time%kind=='adaptive') then
-      bc%ot = bc%ot + bc%otd
+  adapt_time = (time%kind=='adaptive') &
+               .and. (.not.time%fixdt)
+  if (.not. adapt_time) then
+      bc%ot = bc%ot + bc%odt
   else
       ! adaptive time stepping
       if (time%isDynamic) then
-          bc%ot = bc%ot + bc%otdD 
+          bc%ot = bc%ot + bc%odtD 
       else
-          bc%ot = bc%ot + bc%otdS 
+          bc%ot = bc%ot + bc%odtS 
       end if
       ! write time information if adaptive time into bindary
       write(bc%ou_time, *)  time%it, time%dt, time%time, & 

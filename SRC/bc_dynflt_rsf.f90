@@ -174,11 +174,12 @@ contains
 
   subroutine rsf_init_theta(f, mu, v)
       type(rsf_type), intent(inout) :: f
-      double precision, intent(in) :: coord(:,:),dt
       double precision, intent(in) :: mu(:), v(:)
 
       f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
                * f%Dc / f%Vstar
+      
+      print *, 'min, max initial state:', minval(f%theta), maxval(f%theta)  
   end subroutine rsf_init_theta
 
 !=====================================================================
@@ -288,9 +289,16 @@ contains
   double precision, dimension(:), intent(inout) :: v
   double precision, dimension(:), intent(in) :: sigma,tau
   type(rsf_type), intent(inout) :: f
-  
+ 
+  print *, 'maxval of theta, v, tau, sigma:', &
+        maxval(f%theta), maxval(v), maxval(tau), maxval(sigma) 
+  print *, 'minval of theta, v, tau, sigma:', &
+        minval(f%theta), minval(v), minval(tau), minval(sigma) 
   f%theta = rsf_update_theta(f%theta,v,f)
+  print *, 'maxval of theta updated:', maxval(f%theta)
+  print *, 'minval of theta updated:', minval(f%theta)
   v = rsf_v(f, tau, sigma)
+  print *, 'maxval of v:', maxval(v)
 
   end subroutine rsf_qs_solver
 

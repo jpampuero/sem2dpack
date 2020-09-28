@@ -1,0 +1,67 @@
+# Test the implementation of RSF aging law with constant stress loading
+#
+# Configuration:
+# vplate = 0
+# Just one fault boundaries, other boundaries are neumann or absorbing
+#
+# Result:
+# theta = (1 - C) * t + theta_0 
+# V     = L/theta*C = L*C/((1 - C) * t + theta_0 )
+#
+# where C = exp((f-f0)/a)
+#
+# Anti-plane shear mode III 
+#
+# testing module: quasi-static solver, bc_dynflt_rsf, bc_dynflt
+#
+
+# ----------------- General Parameters ---------------------
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=1,
+         title = 'Test the RSF Aging law, constant loading velocity', 
+         verbose='1111', itInfo = 1 /
+
+# ----------------- Build/import mesh  ---------------------
+ &MESH_DEF  method = 'CARTESIAN' /
+ &MESH_CART xlim=-10.d0, 10.d0, zlim= -10.d0, 10d0, ezflt=-1, nelem= 20, 20 /
+
+# ----------------- Material Parameters (Elastic) ----------
+# Mode III crack, shear modulus = 32 GPa, cp not used.
+# In fact, the stresses should be all zero
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2670.d0, cp=6400.d0, cs=3464.d0/
+
+# ----------------- Boundary conditions --------------------
+# absorbing bc for all external boundaries
+#
+# Neumann bc if solver is not dynamic
+#
+
+&BC_DEF  Tag = 1, Kind = 'ABSORB' /
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /
+&BC_DEF  Tag = 3, Kind = 'ABSORB' /
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+
+# dynamic RSF fault boundary for tag 5 6:
+# f = 0.55, f0 = 0.6
+
+&BC_DEF  Tags = 5, 6, Kind = 'DYNFLT'/ 
+&BC_DYNFLT friction='RSF', Tn=-120d6, Tt=66.0d0, V=1.0d-3 
+         ot1 = 0d0, otd=1d-4 /
+
+# RSF properties
+# NOTE: theta is internally reinitialized by initial stress
+&BC_DYNFLT_RSF kind=2, Dc=1.0d-4, MuS=0.6d0, a=0.01d0, 
+               b=0.01d0, Vstar=1.0d-6, vplate= 0d0
+               theta=0d0, vmaxS2D=0.5d-3, vmaxD2S=0.2d-3/
+
+# ----------------- Time Step  --------------------
+# tolerance for linear solver: 1E-6
+# maximum linear iteration number: 4000
+
+&TIME kind='adaptive', Dt=1.0d-4, TotalTime=5.0d-4, fixdt=T 
+      , TolLin=1d-5, MaxIterLin=4000 /
+
+# ------------ Output block -----------------------------
+# Do not output any 2D fields
+&SNAP_DEF fields='V', it1=0, itd=1, ps=F, bin=T /
+

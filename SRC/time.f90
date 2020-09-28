@@ -7,6 +7,7 @@ module time_evol
     character(12) :: kind
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
+    Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
     ! dt_min: minimum time step in adaptive time stepping 
     double precision :: dt,courant,time,total,alpha,beta,& 
@@ -50,6 +51,7 @@ contains
 !                where dx is the distance between GLL nodes. Tipically CFL<= 0.5
 ! ARG: NbSteps   [int] [none] Total number of timesteps
 ! ARG: TotalTime [int] [none] Total duration (in seconds)
+! ARG: fixdt     [log] [T] if dt is fixed, deactivate adapative time stepping by force. 
 !
 ! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
 !                when kind='adaptive', default 'leapfog'
@@ -154,10 +156,11 @@ contains
   integer :: NbSteps,n, MaxIterLin
   character(12) :: kind
   character(12) :: kind_dyn
+  Logical :: fixdt
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf
+                    dt_incf, fixdt
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -171,6 +174,7 @@ contains
   totaltime    = 0.d0
   TolLin       = 1.0d-6
   MaxIterLin   = 4000
+  fixdt        = .false.
   
   !dteve_max only used in quasi-static adaptive time stepping
   dtev_max     = 5.0d0*24*3600.0 ! default 5 days
@@ -211,11 +215,15 @@ contains
     case ('adaptive')
         t%kind_dyn  = kind_dyn
         t%isDynamic = .false.
+        t%fixdt     = .false.
     case default
         kind_dyn    = kind 
         t%kind_dyn  = kind_dyn
         t%isDynamic = .true.
+        t%fixdt     = .true.
   end select 
+
+  if (fixdt) t%fixdt = fixdt
 
   if (echo_input) then
     write(iout,200) 
@@ -417,7 +425,7 @@ contains
    if (t%isDynamic .and. t%kind /= 'adaptive') then
         if (t%total > 0.d0) t%nt = ceiling(t%total/t%dt)
         t%total = t%nt*t%dt
-    end if
+        end if
   endif
   
   if (t%isDynamic) then

@@ -139,7 +139,7 @@ contains
   double precision, intent(in) :: Tn(:),V(:)
   double precision, intent(in), optional :: dt 
 
-  if present(dt) call normal_update_dt(n, dt)
+  if (present(dt)) call normal_update_dt(n, dt)
 
   select case (n%kind)
     case (0) ! cohesion

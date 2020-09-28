@@ -51,7 +51,8 @@ subroutine solve_adaptive(pb)
       ! dynamic
       call solve_dynamic(pb)
   end if
-  call update_adaptive_step(pb)
+
+  if (.not. pb%time%fixdt) call update_adaptive_step(pb)
 
 end subroutine solve_adaptive
 
@@ -324,13 +325,14 @@ subroutine solve_quasi_static(pb)
     ! update fault displacement for rsf 
     ! d(fault) = d_pre(fault) + dt * v(fault)
     call bc_update_dfault(pb%bc, d_pre, d, v, dt)
-
+    
     ! obtain d_fix, d'_fix rotated back to d_fix
+
     call bc_select_fix(pb%bc, d, d_fix)
 
     ! solve for forces created by d_fix, finding K_{21}d^f + K_{23}d^{dir} 
     call compute_Fint(f, d_fix, pb%fields%veloc, pb)
-    
+   
     ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
     
@@ -344,7 +346,7 @@ subroutine solve_quasi_static(pb)
     ! (preconditioned) conjugate gradient method solver
     call pcg_solver(d, f, pb)
     d = d + d_fix
-    
+
     ! detect if there's dynflt fault boundary
     ! if not, break the loop and exit after the pcg solver
 
@@ -360,6 +362,7 @@ subroutine solve_quasi_static(pb)
 
     ! recompute the force use the updated total disp
     call compute_Fint(f, d, pb%fields%veloc, pb)
+
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
 
   enddo
@@ -529,7 +532,9 @@ subroutine cg_solver(d, f, pb, tolerance)
     ! find step length
     alpha_n = sum(r*r)
     alpha_d = sum(p*K_p)
+
     alpha = alpha_n/alpha_d
+
 
     ! determine approximate solution
     d = d + alpha*p
@@ -634,6 +639,9 @@ subroutine pcg_solver(d, f, pb)
     norm_r = norml2(r)
 
     ! if |LHS-RHS|<tolerance*|RHS|
+    if (it==1) print *, 'Iteration ', it, 'alpha:', &
+             alpha, 'norm_r: ', norm_r, 'norm_f:', norm_f
+
     if (norm_r/norm_f < tolerance) then 
         print *, "PCG solver converges in ", it, " iterations." 
         ! transform after convergence.
