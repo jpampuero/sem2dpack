@@ -39,7 +39,7 @@
 
 # 1. Modify next line if you need to place the executable elsewhere:
 #EXEC = $(HOME)/bin/sem2dsolve
-EXEC = /Users/Chaovite/Documents/code/sem2dpack/SRC/sem2dsolve
+EXEC = /u/moana/user/liang/Documents/Code/sem2dpack/SRC/sem2dpack 
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
 # GNU 

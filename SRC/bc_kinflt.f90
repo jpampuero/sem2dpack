@@ -20,8 +20,8 @@ module bc_kinflt
   type bc_kinflt_type
     private
     integer :: npoin
-    double precision, dimension(:), pointer :: trup1, slipr1, tris1 
-    double precision, dimension(:), pointer :: trup2, slipr2, tris2 
+    double precision, dimension(:), pointer :: trup1=>null(), slipr1=>null(), tris1=>null() 
+    double precision, dimension(:), pointer :: trup2=>null(), slipr2=>null(), tris2=>null() 
     double precision, dimension(:, :), pointer:: n1=>null(), B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(), T=>null(), V=>null(),&
       D=>null(), coord=>null()
@@ -266,7 +266,6 @@ contains
   two_sides = tags(2)>0
 
 !================== READ/PROCESS IN BOUNDARY NODES =========================
-
 ! bc1 --> grid%bounds(i) boundary corresponding to TAG
   call BC_inquire( grid%bounds, tag = tags(1), bc_topo_ptr = bc%bc1 )
   if ( two_sides ) then
@@ -313,6 +312,7 @@ contains
       .OR.any(abs(bc%coord(2,:)-grid%coord(2,bc%node2))>TINY_XABS) )&
       call IO_abort('bc_kinflt_init: coordinates on boundaries do not match properly')
   endif
+
 
   call DIST_CD_Init(bc%input%trup1,bc%coord,bc%trup1)
   call DIST_CD_Init(bc%input%tris1,bc%coord,bc%tris1)
@@ -403,7 +403,7 @@ contains
  ! adjust output timestep to the nearest multiple of dt:
   dt = TIME_getTimeStep(time)
 
-  if (.not. adapt_time) then
+  if ((.not. adapt_time) .or. (time%fixdt)) then
       bc%oitd = max(1,nint(bc%odt/dt))
       bc%odt = dt * dble(bc%oitd)
       bc%odt = dt * bc%oitd
@@ -441,7 +441,6 @@ contains
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
   NDAT = 4
   if (bc%osides) NDAT = NDAT + 4*ndof
-  NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
   hunit = IO_new_unit()
 
   onx = (bc%oixn-bc%oix1)/bc%oixd +1
@@ -456,6 +455,7 @@ contains
       write(hunit,*) onx,NDAT,NSAMP,bc%odt
   end if
 
+write(*,*) 'DONE 6.4'
   if (bc%osides) then 
     if (ndof==1) then
       write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:D1t:D2t:V1t:V2t'

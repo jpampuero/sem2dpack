@@ -235,7 +235,9 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
       case(IS_DIRNEU)
         call BC_DIRNEU_init(bc(i)%dirneu,bc(i)%tag(1),grid,perio)
       case(IS_KINFLT)
+        write (* , *) 'Initialize KINFLT'
         call BC_KINFLT_init(bc(i)%kinflt,bc(i)%tag,grid,M,tim,perio)
+        write (* , *) 'FINISH Initialize KINFLT'
       case(IS_ABSORB)
         call BC_ABSO_init(bc(i)%abso,bc(i)%tag(1),grid,mat,M,tim,src,perio)
       case(IS_LISFLT)

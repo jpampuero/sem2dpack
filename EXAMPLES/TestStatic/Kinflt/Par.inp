@@ -12,7 +12,7 @@
 
 # ------- build a simple mesh with one kinematic fault ---
 &MESH_DEF  method = 'CARTESIAN' /
-&MESH_CART xlim=-10.d0, 10.d0, zlim= -10.d0, 10d0, ezflt=-1, nelem= 200, 200 /
+&MESH_CART xlim=-10.d0, 10.d0, zlim= -10.d0, 10d0, ezflt=-1, nelem= 100, 100 /
 
 # ----------- Elastic material parameters ----------------
 &MATERIAL tag=1, kind='ELAST' /

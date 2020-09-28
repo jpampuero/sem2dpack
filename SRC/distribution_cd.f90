@@ -71,7 +71,9 @@ contains
 
   logical :: destroy
 
-  if (.not.associated(F)) allocate( F(size(Coord,2)) )
+  if (.not.associated(F))  then
+      allocate( F(size(Coord,2)) )
+  end if
 
   if (present(keep_cd)) then
     destroy = .not. keep_cd
