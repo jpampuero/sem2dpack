@@ -286,6 +286,7 @@ contains
   character(25) :: oname,hname
   logical :: two_sides, adapt_time
   double precision :: hnode_i
+  double precision, allocatable:: theta(:) ! state variable
   
   nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
 
@@ -398,7 +399,6 @@ contains
   else
     bc%Z = 0.5d0/(bc%CoefA2V * bc%B * bc%invM1 )
   endif
-
 
   allocate(bc%T(npoin,2))
   allocate(bc%D(npoin,ndof))
@@ -521,11 +521,23 @@ contains
   ! write the initial stress and friction
   write(oname,'("Flt",I2.2,"_init_sem2d.tab")') tags(1)
   ounit = IO_new_unit()
+
+  ! output initial parameters including state variable
   open(ounit,file=oname,status='replace')
-  do i=bc%oix1,bc%oixn,bc%oixd
-    write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i)
-  enddo
+  allocate(theta(bc%npoin))
+  
+  if (associated(bc%rsf)) then
+      do i=bc%oix1,bc%oixn,bc%oixd
+        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i)
+      enddo
+  else
+      do i=bc%oix1,bc%oixn,bc%oixd
+        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i)
+      enddo
+  end if
   close(ounit)
+
+  deallocate(theta)
 
  ! output times 
  ! Only adjust times when using uniform time step
@@ -575,6 +587,9 @@ contains
   
   NDAT = 5
   if (bc%osides) NDAT = NDAT + 4*ndof
+  ! output state variable if rsf is associated
+  if (associated(bc%rsf)) NDAT = NDAT + 1
+
   onx = (bc%oixn-bc%oix1)/bc%oixd +1
 
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
@@ -591,14 +606,30 @@ contains
   end if
 
   if (bc%osides) then 
-    if (ndof==1) then
-      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D2t:V1t:V2t'
+    if (associated(bc%rsf)) then
+        if (ndof==1) then
+          write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D2t:V1t:V2t:theta'
+        else
+          write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n:theta'
+        endif
     else
-      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n'
-    endif
+        if (ndof==1) then
+          write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D2t:V1t:V2t'
+        else
+          write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n'
+        endif
+    end if ! associated bc%rsf
+
   else
-    write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
-  endif
+    ! if do not output sides
+    if (associated(bc%rsf)) then
+        write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:theta'
+    else
+        write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
+    end if
+
+  endif ! bc%osides
+
   write(hunit,*) 'XPTS ZPTS'
   do i=bc%oix1,bc%oixn,bc%oixd
     write(hunit,*) bc%coord(:,i)
@@ -736,10 +767,6 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   dV     = get_jump(bc, V)   ! slip velocity  
   dV_pre = dV                ! store the old slip velocity 
 
-  write (*,*) 'BC_DYNFLT_APPLY INPUT......'
-  write (*,*) 'max((v+ + v-))/2:',& 
-      maxval(V(bc%node2, :)+V(bc%node1, :))/2d0 
-
 ! compute fault traction
   do i =1,ndof
       ! Conforming mesh is assumed here
@@ -777,19 +804,11 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
  !-- velocity and state dependent friction 
  ! compute new slip velocity
 
- print *, 'values before rsf_qs_solver'
- print *, 'max dV =', maxval(dV(:,1))
- print *, 'max T =', maxval(T(:,1))
-
   if (associated(bc%rsf)) then
     call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
   else
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
-
- print *, 'values after rsf_qs_solver'
- print *, 'max dV =', maxval(dV(:,1))
- print *, 'max T =', maxval(T(:,1))
 
 ! Subtract initial stress
   T = T - bc%T0
@@ -820,11 +839,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! transform back, global velocity 
   call BC_DYNFLT_trans(bc, V, -1)
 
-  write (*,*) 'BC_DYNFLT_APPLY AFTER.......'
-  write (*,*) 'max((v+ + v-))/2:',& 
-      maxval(V(bc%node2, :)+V(bc%node1, :))/2d0 
-
-  bc%V = (dV + dV_pre) / 2.0d0
+  bc%V = dV
   bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
@@ -1034,6 +1049,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
     call export_side(bc,get_side(bc,v,2))
   endif
 
+  call export_theta(bc) ! export state variable
+
   ! update the next output time step index
   adapt_time = (time%kind=='adaptive') &
                .and. (.not.time%fixdt)
@@ -1052,6 +1069,17 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   end if
   end subroutine BC_DYNFLT_write
 
+  subroutine export_theta(bc)
+  ! export the state variable for rsf faults
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, dimension(bc%npoin) :: theta
+  if (associated(bc%rsf)) then
+      theta = rsf_get_theta(bc%rsf)
+      write(bc%ounit) real( theta(bc%oix1:bc%oixn:bc%oixd) )
+  end if
+
+  end subroutine export_theta
+
   !----------
   function get_side(bc,d,side) result(delta)
 
@@ -1069,7 +1097,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   endif
 
   end function get_side
-
+  
   !----------
   subroutine export_side(bc,delta)
 

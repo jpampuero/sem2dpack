@@ -16,7 +16,7 @@
 #
 
 # ----------------- General Parameters ---------------------
-&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=1,
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=2,
          title = 'Test the RSF Aging law, constant loading velocity', 
          verbose='1111', itInfo = 1 /
 
@@ -36,16 +36,20 @@
 # Neumann bc if solver is not dynamic
 #
 
-&BC_DEF  Tag = 1, Kind = 'ABSORB' /
-&BC_DEF  Tag = 2, Kind = 'ABSORB' /
-&BC_DEF  Tag = 3, Kind = 'ABSORB' /
-&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+&BC_DEF  Tag = 1, Kind = 'DIRNEU' /
+&BC_DIRNEU v='D'/ 
+&BC_DEF  Tag = 2, Kind = 'DIRNEU' /
+&BC_DIRNEU /
+&BC_DEF  Tag = 3, Kind = 'DIRNEU' /
+&BC_DIRNEU v='D' /
+&BC_DEF  Tag = 4, Kind = 'DIRNEU' /
+&BC_DIRNEU /
 
 # dynamic RSF fault boundary for tag 5 6:
 # f = 0.55, f0 = 0.6
 
 &BC_DEF  Tags = 5, 6, Kind = 'DYNFLT'/ 
-&BC_DYNFLT friction='RSF', Tn=-120d6, Tt=66.0d0, V=1.0d-3 
+&BC_DYNFLT friction='RSF', Tn=-120d6, Tt=66.0d6, V=1.0d-3 
          ot1 = 0d0, otd=1d-4 /
 
 # RSF properties
@@ -58,8 +62,8 @@
 # tolerance for linear solver: 1E-6
 # maximum linear iteration number: 4000
 
-&TIME kind='adaptive', Dt=1.0d-4, TotalTime=5.0d-4, fixdt=T 
-      , TolLin=1d-5, MaxIterLin=4000 /
+&TIME kind='adaptive', Dt=1.0d-4, TotalTime=20.0d-4, fixdt=T 
+      , TolLin=1d-5, MaxIterLin=10000 /
 
 # ------------ Output block -----------------------------
 # Do not output any 2D fields

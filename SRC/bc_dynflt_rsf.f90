@@ -17,15 +17,19 @@ module bc_dynflt_rsf
   type rsf_type
     private
     integer :: kind
-    double precision, dimension(:), pointer :: dc=>null(), mus=>null(), a=>null(), b=>null(), &
-                   Vstar=>null(), theta=>null(), Tc=>null(), coeft=>null(), vplate=>null()
+    double precision, dimension(:), pointer :: dc=>null(),& 
+                     mus=>null(), a=>null(), b=>null(), &
+                     Vstar=>null(), theta=>null(), Tc=>null(),&
+                     coeft=>null(), vplate=>null()
     double precision :: dt
+    integer :: iter
     double precision :: vmaxD2S, vmaxS2D
     type(rsf_input_type) :: input
   end type rsf_type
 
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
-            rsf_solver, rsf_qs_solver, rsf_timestep, rsf_vplate
+            rsf_solver, rsf_qs_solver, rsf_timestep, & 
+            rsf_vplate, rsf_get_theta
 
 contains
 
@@ -170,6 +174,7 @@ contains
   ! in the kind = 1 case.
   rsf%coeft = exp(-dt/rsf%Tc)
   rsf%dt = dt
+  rsf%iter = 0
   end subroutine rsf_init
 
   subroutine rsf_init_theta(f, mu, v)
@@ -178,9 +183,13 @@ contains
 
       f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
                * f%Dc / f%Vstar
-      
-      print *, 'min, max initial state:', minval(f%theta), maxval(f%theta)  
   end subroutine rsf_init_theta
+
+  function rsf_get_theta(f) result(theta)
+      type(rsf_type), intent(in) :: f
+      double precision, dimension(size(f%theta)):: theta
+      theta = f%theta
+  end function !rsf_get_theta 
 
 !=====================================================================
 ! Friction coefficient
@@ -188,19 +197,19 @@ contains
 
   function rsf_mu(v,f) result(mu)
 
-  double precision, dimension(:), intent(in) :: v
-  type(rsf_type), intent(in) :: f
-  double precision :: mu(size(v))
+      double precision, dimension(:), intent(in) :: v
+      type(rsf_type), intent(in) :: f
+      double precision :: mu(size(v))
 
-  select case(f%kind)
-    case(1) 
-      mu = f%mus +f%a*abs(v)/(abs(v)+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
-    case(2,3) 
-      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
-      ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
-      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
-  end select
+      select case(f%kind)
+        case(1) 
+          mu = f%mus +f%a*abs(v)/(abs(v)+f%Vstar) - f%b*f%theta/(f%theta+f%Dc) 
+        case(2,3) 
+          !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
+          ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
+          !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+          mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+      end select
 
   end function rsf_mu
 
@@ -224,14 +233,14 @@ contains
 
 !---------------------------------------------------------------------
 !  Slip velocity at theta, tau
-  function rsf_v(f,tau,sigma) result(v)
+  function rsf_v(f,tau,sigma,theta) result(v)
 
   type(rsf_type), intent(in) :: f
-  double precision, dimension(:), intent(in) :: tau, sigma
+  double precision, dimension(:), intent(in) :: tau, sigma, theta
   double precision, dimension(size(f%theta)) :: tmp, v
 
   !  Kaneko et al (2011) Eq. 14
-  tmp = f%mus +f%b*log(f%Vstar*f%theta/f%Dc)
+  tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
   tmp = 2d0*f%Vstar*exp(-tmp/f%a)
   v = sinh(tau/(-sigma*f%a))*tmp
 
@@ -288,17 +297,21 @@ contains
 
   double precision, dimension(:), intent(inout) :: v
   double precision, dimension(:), intent(in) :: sigma,tau
+  double precision, dimension(size(v)) :: theta
   type(rsf_type), intent(inout) :: f
  
-  print *, 'maxval of theta, v, tau, sigma:', &
-        maxval(f%theta), maxval(v), maxval(tau), maxval(sigma) 
-  print *, 'minval of theta, v, tau, sigma:', &
-        minval(f%theta), minval(v), minval(tau), minval(sigma) 
-  f%theta = rsf_update_theta(f%theta,v,f)
-  print *, 'maxval of theta updated:', maxval(f%theta)
-  print *, 'minval of theta updated:', minval(f%theta)
-  v = rsf_v(f, tau, sigma)
-  print *, 'maxval of v:', maxval(v)
+  theta = rsf_update_theta(f%theta,v,f)
+  v = rsf_v(f, tau, sigma, theta)
+
+  ! increment the counter until 2 (passes)
+  f%iter = f%iter + 1
+
+  if (f%iter==2) then
+      ! save theta after 2 passes
+      f%theta = theta
+      ! reset the counter to 0
+      f%iter  = 0
+  endif
 
   end subroutine rsf_qs_solver
 

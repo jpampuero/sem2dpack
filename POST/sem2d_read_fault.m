@@ -65,6 +65,9 @@ if exist([name '_init_sem2d.tab'],'file')
   data.st0 = raw(:,1);
   data.sn0 = raw(:,2);
   data.mu0 = raw(:,3);
+  if size(raw, 2)>3
+     data.theta0=raw(:,4); 
+  end
 end
 
 % Read fault data in a big matrix
@@ -81,18 +84,37 @@ data.v  = squeeze(raw(:,2,:));
 data.st = squeeze(raw(:,3,:)); 
 data.sn = squeeze(raw(:,4,:)); 
 data.mu  = squeeze(raw(:,5,:)); 
-if ndat==5+4
-  data.d1t  = squeeze(raw(:,6,:)); 
-  data.d2t  = squeeze(raw(:,7,:)); 
-  data.v1t  = squeeze(raw(:,8,:)); 
-  data.v2t  = squeeze(raw(:,9,:)); 
-elseif ndat==5+4*2
-  data.d1t  = squeeze(raw(:,6,:)); 
-  data.d1n  = squeeze(raw(:,7,:)); 
-  data.d2t  = squeeze(raw(:,8,:)); 
-  data.d2n  = squeeze(raw(:,9,:)); 
-  data.v1t  = squeeze(raw(:,10,:)); 
-  data.v1n  = squeeze(raw(:,11,:)); 
-  data.v2t  = squeeze(raw(:,12,:)); 
-  data.v2n  = squeeze(raw(:,13,:)); 
+switch ndat
+    case 5+1
+      data.theta=squeeze(raw(:,6,:));
+    case 5+4
+      data.d1t  = squeeze(raw(:,6,:)); 
+      data.d2t  = squeeze(raw(:,7,:)); 
+      data.v1t  = squeeze(raw(:,8,:)); 
+      data.v2t  = squeeze(raw(:,9,:)); 
+    case 5+4*2
+      data.d1t  = squeeze(raw(:,6,:)); 
+      data.d1n  = squeeze(raw(:,7,:)); 
+      data.d2t  = squeeze(raw(:,8,:)); 
+      data.d2n  = squeeze(raw(:,9,:)); 
+      data.v1t  = squeeze(raw(:,10,:)); 
+      data.v1n  = squeeze(raw(:,11,:)); 
+      data.v2t  = squeeze(raw(:,12,:)); 
+      data.v2n  = squeeze(raw(:,13,:)); 
+    case 5+4+1
+      data.d1t  = squeeze(raw(:,6,:)); 
+      data.d2t  = squeeze(raw(:,7,:)); 
+      data.v1t  = squeeze(raw(:,8,:)); 
+      data.v2t  = squeeze(raw(:,9,:)); 
+      data.theta  = squeeze(raw(:,10,:)); 
+    case 5+4*2+1
+      data.d1t  = squeeze(raw(:,6,:)); 
+      data.d1n  = squeeze(raw(:,7,:)); 
+      data.d2t  = squeeze(raw(:,8,:)); 
+      data.d2n  = squeeze(raw(:,9,:)); 
+      data.v1t  = squeeze(raw(:,10,:)); 
+      data.v1n  = squeeze(raw(:,11,:)); 
+      data.v2t  = squeeze(raw(:,12,:)); 
+      data.v2n  = squeeze(raw(:,13,:)); 
+      data.theta  = squeeze(raw(:,14,:)); 
 end

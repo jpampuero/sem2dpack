@@ -1,0 +1,47 @@
+# elliptical dislocation from kinematic fault 
+#
+# reproduces constant fault stress change
+# 
+# testing module: solver, bc_kinflt
+#
+
+# ----------- General Parameters -------------------------
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=2,
+         title = 'Test kinematic slide with constant velocity', verbose='1111',
+         itInfo = 1 /
+
+# ------- build a simple mesh with one kinematic fault ---
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-10.d0, 10.d0, zlim= -10.d0, 10d0, ezflt=-1, nelem= 20, 20 /
+
+# ----------- Elastic material parameters ----------------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=1.d0, cp=1.7321d0, cs=1.0d0 /
+
+# ----------- Boundary condition -------------------------
+# all the bounding bcs are neumann bc
+&BC_DEF tag=1, kind='DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+&BC_DEF tag=2, kind='DIRNEU' /
+&BC_DIRNEU h='N', v='N' /
+
+&BC_DEF tag=3, kind='DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+&BC_DEF tag=4, kind='DIRNEU' /
+&BC_DIRNEU h='N', v='N'/
+
+# kinematic fault boundary
+# slip rate is constant in time and elliptical in space
+# fault normal opening is zero
+&BC_DEF tags= 5, 6, kind='KINFLT' /
+&BC_KINFLT stf1='LINEAR', slipr1=1 /
+#source time function linear
+&STF_LINEAR  intercept= 1.0d-3, slope = 0.d0 /
+
+# ------------- Time stepping ---------------------------
+&TIME kind='adaptive', Dt = 0.1d0, TotalTime=0.5d0, fixdT=T/
+
+# ------------ Output block -----------------------------
+&SNAP_DEF it1=0, itd=1, fields='DVS', ps=F, bin=T / 

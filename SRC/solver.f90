@@ -639,8 +639,6 @@ subroutine pcg_solver(d, f, pb)
     norm_r = norml2(r)
 
     ! if |LHS-RHS|<tolerance*|RHS|
-    if (it==1) print *, 'Iteration ', it, 'alpha:', &
-             alpha, 'norm_r: ', norm_r, 'norm_f:', norm_f
 
     if (norm_r/norm_f < tolerance) then 
         print *, "PCG solver converges in ", it, " iterations." 
