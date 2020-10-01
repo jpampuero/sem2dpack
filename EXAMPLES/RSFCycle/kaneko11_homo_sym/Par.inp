@@ -27,9 +27,12 @@
 
 &BC_DEF  Tag = 1, Kind = 'DIRNEU' /
 &BC_DIRNEU v='D',h='D'/ 
-&BC_DEF  Tag = 2, Kind = 'ABSORB' /
-&BC_DEF  Tag = 3, Kind = 'ABSORB' /
-&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+&BC_DEF  Tag = 2, Kind = 'DIRNEU' /
+&BC_DIRNEU v='D',h='D'/ 
+&BC_DEF  Tag = 3, Kind = 'DIRNEU' /
+&BC_DIRNEU v='D',h='D'/ 
+&BC_DEF  Tag = 4, Kind = 'DIRNEU' /
+&BC_DIRNEU v='D',h='D'/ 
 
 # dynamic RSF fault boundary for tag 5 6:
 # output interval dynamic: 1 ms

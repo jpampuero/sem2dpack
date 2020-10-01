@@ -117,17 +117,24 @@ module distribution_order0cos
 
   if (nzones==1) return
 
-  do k = 1, nzones
+  do k = 1, nzones-1
     if ( coord < bound(k) ) exit
   end do
 
-  if (coord < (bound(k)-L(k)/2d0)) then
-      zone(1) = max(k-1, 1)
-      zone(2) = k
+  if (coord>bound(k)) k=k+1
+
+  if (k<nzones) then 
+      if (coord < (bound(k)-L(k)/2d0)) then
+          zone(1) = max(k-1, 1)
+          zone(2) = k
+      else
+          zone(1) = k 
+          zone(2) = min(k+1, nzones)
+      end if
   else
-      zone(1) = k 
-      zone(2) = min(k+1, nzones)
-  end if
+      zone(1) = max(nzones-1,1) 
+      zone(2) = nzones 
+  end if 
 
   end function zone
 
@@ -135,6 +142,7 @@ module distribution_order0cos
       double precision:: x, xi, vm, vp, L
       double precision:: v
       double precision, parameter :: PI = 3.141592653589793d0
+      write(*,*) x, xi, vm, vp, L 
 
       if (x<(xi-L/2.0d0)) then
           v = vm

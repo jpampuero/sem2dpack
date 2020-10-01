@@ -72,7 +72,13 @@ if FZW >= h
     domain(3).etag(e)=tag_fz;
    
 end
-    
+       23  iterations.
+ quasi-static solve, pass            2
+ PCG solver converges in          449  iterations.
+Timestep #      30  t =   29.457E-03  vmax =  945.540E-06  dmax =   20.680E-06
+ dt =    5.9163567141755297E-003
+ quasi-static solve, pass            1
+
 % tag the elements close to the fault
 % to create a Kelvin-Voigt viscous layer
 
@@ -87,7 +93,13 @@ if KVW>=h
     e = sub2ind([NELX_M, NELZ_T],  indx(:), indz(:));
     domain(2).etag(e)=tag_kv;
     
-    [indx, indz] = meshgrid(NELX_L - [0 : ikvw - 1], [1: ikvw]);
+    [indx, indz] = meshgrid(NELX_L   23  iterations.
+ quasi-static solve, pass            2
+ PCG solver converges in          449  iterations.
+Timestep #      30  t =   29.457E-03  vmax =  945.540E-06  dmax =   20.680E-06
+ dt =    5.9163567141755297E-003
+ quasi-static solve, pass            1
+ - [0 : ikvw - 1], [1: ikvw]);
     e = sub2ind([NELX_L, NELZ_T],  indx(:), indz(:));
     domain(3).etag(e)=tag_kv;
 

@@ -410,6 +410,7 @@ subroutine BC_write(bc,time,d,v)
       if (echo_init .and. time%it==0) write(iout,fmtok)
     endif
   enddo
+  call flush()
 
 end subroutine BC_write
 

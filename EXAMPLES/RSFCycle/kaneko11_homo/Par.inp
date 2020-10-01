@@ -32,7 +32,7 @@
 &BC_DEF  Tag = 3, Kind = 'DIRNEU' /
 &BC_DIRNEU v='D',h='D'/ 
 &BC_DEF  Tag = 4, Kind = 'DIRNEU' /
-&BC_DIRNEU v='D',h='D' /
+&BC_DIRNEU v='D',h='D'/ 
 
 # dynamic RSF fault boundary for tag 5 6:
 # output interval dynamic: 1 ms
@@ -41,7 +41,7 @@
 
 &BC_DEF  Tags = 5, 6, Kind = 'DYNFLT'/ 
 &BC_DYNFLT friction='RSF', Tn=-120d6, TtH='ORDER0COS', V=1.00d-3 
-         ot1 = 0d0, otdD=1d-3, otdS = 1e-4 /
+         ot1 = 0d0, otdD=1d-8, otdS = 1e-8 /
 &DIST_ORDER0COS xn = 3, dim=1 /
          -1.5d0      1.5d0
           3.0d0      3.0d0
@@ -66,8 +66,8 @@
 # maximum linear iteration number: 4000
 # default dynamic solver: leapfog
 
-&TIME kind='adaptive', Courant=0.5d0, TotalTime=6.42816d10 
-      dt_incf=1.2, dtev_max=432000d0, TolLin=1d-5, MaxIterLin=40000 /
+&TIME kind='adaptive', Courant=0.5d0, TotalTime=0.055 
+      dt_incf=1.2, dtev_max=432000d0, TolLin=1d-8, MaxIterLin=40000 /
 
 # ------------ Output block -----------------------------
 # Do not output any 2D fields

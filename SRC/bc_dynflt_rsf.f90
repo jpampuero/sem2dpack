@@ -692,8 +692,9 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
           time%switch = .true.
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.
+      else
+          time%switch    = .false.
       end if
-      time%switch    = .false.
       time%dt        = time%dt_min
       f%dt        = time%dt_min
   end if

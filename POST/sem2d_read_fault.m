@@ -15,9 +15,11 @@
 %		data.st		shear stress
 %		data.sn		normal stress
 %		data.mu		friction coefficient
+%		data.theta  state variable	
 %		data.st0	initial value of shear stress
 %		data.sn0	initial value of normal stress
 %		data.mu0	initial value of friction coefficient
+%		data.theta0	initial value of state variable 
 % 
 %		If output on each side of the fault (osides=T):
 %  		data.d1t	displacement on side 1, fault parallel component
@@ -49,6 +51,7 @@ if ~exist('name','var')
   end
 end
 
+
 % Read parameters from header file
 hdr = strcat(name,'_sem2d.hdr');
 if ~exist(hdr,'file')
@@ -56,7 +59,21 @@ if ~exist(hdr,'file')
   warning(['File ' hdr ' not found'])
   return
 end
-[data.nx,ndat,data.nt,data.dt] = textread(hdr,'%n%n%n%n',1,'headerlines',1);
+
+% check if the time info file exist or not
+tinfo = strcat(name,'_time_sem2d.tab');
+if exist(tinfo, 'file')
+    %adaptive time stepping from rate state cycle simulation
+    fprintf('Variable time step...\n');
+    [data.it, data.dt, data.t, data.eqnum, data.isdynamic, ...
+    data.isswitch]=sem2d_read_rsf_timeinfo(tinfo);
+    data.nt = length(data.t);
+    [data.nx,ndat] = textread(hdr,'%n%n',1,'headerlines',1);
+else
+    fprintf('Fixed time step...\n');
+    [data.nx,ndat,data.nt,data.dt] = textread(hdr,'%n%n%n%n',1,'headerlines',1);
+end
+
 [data.x,data.z] = textread(hdr,'%f%f','headerlines',4);
 
 % Read initial fault data
@@ -118,3 +135,5 @@ switch ndat
       data.v2n  = squeeze(raw(:,13,:)); 
       data.theta  = squeeze(raw(:,14,:)); 
 end
+end
+

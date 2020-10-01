@@ -527,6 +527,8 @@ contains
   allocate(theta(bc%npoin))
   
   if (associated(bc%rsf)) then
+      ! get state
+      theta = rsf_get_theta(bc%rsf)
       do i=bc%oix1,bc%oixn,bc%oixd
         write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i)
       enddo
@@ -770,7 +772,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! compute fault traction
   do i =1,ndof
       ! Conforming mesh is assumed here
-      T(:, i) = -dF(:, i)/(2.0d0*bc%B(:,1))
+      T(:, i) = -dF(:, i)/(bc%B(:,1) + bc%B(:,2) )
   enddo
 
 ! rotate to fault frame (tangent,normal) if P-SV

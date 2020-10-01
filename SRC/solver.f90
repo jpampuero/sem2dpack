@@ -273,7 +273,7 @@ end subroutine solve_symplectic
 subroutine solve_quasi_static(pb)
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
-  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, d_fix
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, d_fix, v_pre
   
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
@@ -299,10 +299,11 @@ subroutine solve_quasi_static(pb)
   ! use additional memory to keep the previous displacement
   ! use to update predictor for rsf faults
   d_pre = pb%fields%displ
+  v_pre = pb%fields%veloc
   
   ! update displacement to obtain a better initial guess for pcg solver
   ! update both d and pb%fields%disp
-  d   = d + dt * v
+  d   = d + dt * v 
 
   ! apply dirichlet boundary condition and kinematic boundary condition
   ! set displacement to desired value and zero-out forcing f at DIR nodes
@@ -322,6 +323,7 @@ subroutine solve_quasi_static(pb)
 
   do i = 1, 2
 
+    write(*, *) "quasi-static solve, pass ", i
     ! update fault displacement for rsf 
     ! d(fault) = d_pre(fault) + dt * v(fault)
     call bc_update_dfault(pb%bc, d_pre, d, v, dt)
@@ -369,7 +371,7 @@ subroutine solve_quasi_static(pb)
   
   ! update final velocity and zero out acceleration
   v  = (d - d_pre)/dt
-  a  = 0.0d0
+  a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static
 
