@@ -177,7 +177,7 @@ mesh2d_plot(mesh, 2);
 axis equal
 
 % -- export the mesh file
-mesh2d_write(mesh,'rsf_twosides');
+%mesh2d_write(mesh,'rsf_twosides');
 
 
 

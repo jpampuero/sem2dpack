@@ -41,7 +41,7 @@ module bc_dynflt
   public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init,  & 
             BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
-            BC_DYNFLT_set_array, BC_DYNFLT_update_disp
+            BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV
 
 contains
 
@@ -287,6 +287,8 @@ contains
   logical :: two_sides, adapt_time
   double precision :: hnode_i
   double precision, allocatable:: theta(:) ! state variable
+  double precision, allocatable:: rsf_a(:) ! rsf a parameter
+  double precision, allocatable:: rsf_b(:) ! rsf b parameter
   
   nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
 
@@ -477,10 +479,11 @@ contains
   call BC_DYNFLT_trans(bc, vg, 1) 
 
   ! update fault slip velocity
+  write(*,*) "max, min of bc_V:", maxval(bc%V(:,1)), minval(bc%V(:,1))
   vg(bc%node1, :) = bc%V/2d0
   
   ! rotate back 
-  bc%V  = rotate(bc, bc%V, -1)
+  bc%V  = rotate(bc, bc%V, 1)
   
   ! if rsf fault, subtract plate rate 
   if (associated(bc%rsf)) then
@@ -525,12 +528,17 @@ contains
   ! output initial parameters including state variable
   open(ounit,file=oname,status='replace')
   allocate(theta(bc%npoin))
+  allocate(rsf_a(bc%npoin))
+  allocate(rsf_b(bc%npoin))
   
   if (associated(bc%rsf)) then
       ! get state
       theta = rsf_get_theta(bc%rsf)
+      rsf_a = rsf_get_a(bc%rsf)
+      rsf_b = rsf_get_b(bc%rsf)
       do i=bc%oix1,bc%oixn,bc%oixd
-        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i)
+        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i), bc%V(i, 1), &
+                       rsf_a(i), rsf_b(i)                     
       enddo
   else
       do i=bc%oix1,bc%oixn,bc%oixd
@@ -539,7 +547,7 @@ contains
   end if
   close(ounit)
 
-  deallocate(theta)
+  deallocate(theta, rsf_a, rsf_b)
 
  ! output times 
  ! Only adjust times when using uniform time step
@@ -841,10 +849,23 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! transform back, global velocity 
   call BC_DYNFLT_trans(bc, V, -1)
 
-  bc%V = dV
-  bc%D = bc%D + bc%V * time%dt
+! 
+  !bc%V = (dV + dV_pre)/2.0d0
+  !bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
+
+subroutine BC_DYNFLT_update_BCDV(bc, D, V)
+  type(bc_dynflt_type), intent(inout) :: bc
+  double precision, intent(in) :: V(:,:)
+  double precision, intent(in) :: D(:,:)
+
+  bc%V = get_jump(bc,V);
+  bc%D = get_jump(bc,D);
+  bc%V = rotate(bc,bc%V,1)      
+  bc%D = rotate(bc,bc%D,1)      
+
+end subroutine BC_DYNFLT_update_BCDV
 
 subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
       ! MxA: force

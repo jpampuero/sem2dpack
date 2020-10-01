@@ -8,7 +8,7 @@ module solver
   use sources, only : SO_add
   use bc_gen , only : BC_apply, BC_set, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
-                      bc_has_dynflt
+                      bc_has_dynflt, bc_update_bcdv
 
   implicit none
   private
@@ -371,6 +371,7 @@ subroutine solve_quasi_static(pb)
   
   ! update final velocity and zero out acceleration
   v  = (d - d_pre)/dt
+  call bc_update_bcdv(pb%bc, d, v)
   a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static

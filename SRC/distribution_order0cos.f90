@@ -142,7 +142,6 @@ module distribution_order0cos
       double precision:: x, xi, vm, vp, L
       double precision:: v
       double precision, parameter :: PI = 3.141592653589793d0
-      write(*,*) x, xi, vm, vp, L 
 
       if (x<(xi-L/2.0d0)) then
           v = vm

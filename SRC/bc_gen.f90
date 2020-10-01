@@ -51,7 +51,7 @@ module bc_gen
 
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_set,bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
-            bc_select_fix, bc_has_dynflt
+            bc_select_fix, bc_has_dynflt, bc_update_bcdv
 
 
 contains
@@ -707,6 +707,21 @@ subroutine bc_update_dfault(bc, dpre, d, v, dt)
   enddo
 
 end subroutine bc_update_dfault
+
+subroutine bc_update_bcdv(bc,  d, v)
+  type(bc_type), pointer :: bc(:)
+  double precision, dimension(:,:), intent(in) :: d,v
+  integer :: i
+  
+  if (.not. associated(bc)) return
+  
+  do i = 1,size(bc)
+    if (bc(i)%kind==IS_DYNFLT) then
+      call bc_dynflt_update_bcdv(bc(i)%dynflt, d, v)
+    end if
+  enddo
+
+end subroutine bc_update_bcdv
 
 subroutine bc_set_fault(bc, field, field_set, side_in)
   type(bc_type), pointer :: bc(:)

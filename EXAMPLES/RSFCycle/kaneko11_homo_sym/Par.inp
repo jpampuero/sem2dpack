@@ -8,7 +8,7 @@
 # ----------------- General Parameters ---------------------
 &GENERAL iexec=1, ngll=5, fmax=1d0, ndof=1,
          title = 'kaneko 2011 rsf elastic mode 3', 
-         verbose='1111', itInfo = 10 /
+         verbose='1111', itInfo = 1/
 
 # ----------------- Build/import mesh  ---------------------
 &MESH_DEF  Method = 'MESH2D' /
@@ -28,11 +28,11 @@
 &BC_DEF  Tag = 1, Kind = 'DIRNEU' /
 &BC_DIRNEU v='D',h='D'/ 
 &BC_DEF  Tag = 2, Kind = 'DIRNEU' /
-&BC_DIRNEU v='D',h='D'/ 
+&BC_DIRNEU v='N',h='N'/ 
 &BC_DEF  Tag = 3, Kind = 'DIRNEU' /
-&BC_DIRNEU v='D',h='D'/ 
+&BC_DIRNEU v='N',h='N'/ 
 &BC_DEF  Tag = 4, Kind = 'DIRNEU' /
-&BC_DIRNEU v='D',h='D'/ 
+&BC_DIRNEU v='N',h='N'/ 
 
 # dynamic RSF fault boundary for tag 5 6:
 # output interval dynamic: 1 ms
@@ -41,7 +41,7 @@
 
 &BC_DEF  Tag = 5, Kind = 'DYNFLT'/ 
 &BC_DYNFLT friction='RSF', Tn=-120d6, TtH='ORDER0COS', V=1.00d-3 
-         ot1 = 0d0, otdD=1d-10, otdS = 1e-10 /
+         ot1 = 0d0, otdD=1d-10, otdS = 1e-10, osides=T /
 # output every time step
 &DIST_ORDER0COS xn = 3, dim=1 /
          -1.5d0      1.5d0
@@ -50,7 +50,7 @@
 
 # RSF properties
 # NOTE: theta is internally reinitialized by initial stress
-&BC_DYNFLT_RSF kind=2, Dc=84d-6, MuS=0.6d0, a=0.0114d0, 
+&BC_DYNFLT_RSF kind=2, Dc=84.0d-6, MuS=0.6d0, a=0.0144d0, 
                bH='ORDER0COS', Vstar=1.0d-6, vplate=6.34d-11 
                theta=0d0, vmaxS2D=5d-3, vmaxD2S=2d-3/
 &DIST_ORDER0COS xn=3, dim=1 / # Initial b parameter
@@ -67,10 +67,10 @@
 # maximum linear iteration number: 4000
 # default dynamic solver: leapfog
 
-&TIME kind='adaptive', Courant=0.5d0, TotalTime=0.055d0
-      dt_incf=1.2, dtev_max=432000d0, TolLin=1d-5, MaxIterLin=10000 /
+&TIME kind='adaptive', Courant=0.5d0, TotalTime=0.04
+      dt_incf=1.2, dtev_max=432000d0, TolLin=1d-8, MaxIterLin=10000 /
 
 # ------------ Output block -----------------------------
 # Do not output any 2D fields
-&SNAP_DEF fields='', ps=F, bin=T /
+&SNAP_DEF fields='',itd=1, ps=F, bin=T /
 

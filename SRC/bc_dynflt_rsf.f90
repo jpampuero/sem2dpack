@@ -29,7 +29,8 @@ module bc_dynflt_rsf
 
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
-            rsf_vplate, rsf_get_theta
+            rsf_vplate, rsf_get_theta, rsf_get_a, &
+            rsf_get_b
 
 contains
 
@@ -180,9 +181,24 @@ contains
   subroutine rsf_init_theta(f, mu, v)
       type(rsf_type), intent(inout) :: f
       double precision, intent(in) :: mu(:), v(:)
+      double precision, dimension(size(f%theta)) :: psi
+
+      write(*,*) "max mu:", maxval(mu)
+      write(*,*) "initial v:", maxval(v)
+      write(*,*) "Dc:", maxval(f%Dc)
+      write(*,*) "mus:", maxval(f%mus)
+      write(*,*) "vstar:", maxval(f%vstar)
+      write(*,*) "max b:", maxval(f%b)
+      write(*,*) "max a:", maxval(f%a)
+
+      ! compute psi as the matlab code
+      psi     = (mu - f%mus - f%a*log(v/f%Vstar))/f%b 
+      write(*,*) "max psi:", maxval(psi)
 
       f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
                * f%Dc / f%Vstar
+
+     write(*,*) "max theta", maxval(f%theta)
   end subroutine rsf_init_theta
 
   function rsf_get_theta(f) result(theta)
@@ -190,6 +206,18 @@ contains
       double precision, dimension(size(f%theta)):: theta
       theta = f%theta
   end function !rsf_get_theta 
+  
+  function rsf_get_a(f) result(a)
+      type(rsf_type), intent(in) :: f
+      double precision, dimension(size(f%a)):: a
+      a = f%a
+  end function !rsf_get_a 
+  
+  function rsf_get_b(f) result(b)
+      type(rsf_type), intent(in) :: f
+      double precision, dimension(size(f%b)):: b
+      b = f%b
+  end function !rsf_get_b 
 
 !=====================================================================
 ! Friction coefficient

@@ -33,12 +33,16 @@
 %
 % NOTE		Fault normal components on each side of the fault are exported only in P-SV
 %
-function data = sem2d_read_fault(name)
+function data = sem2d_read_fault(name, wdir)
 
 % length of the tag at the begining and end of a binary record
 % in number of single precision words (4*bytes)
 LENTAG = 2; % gfortran older versions
 LENTAG = 1;
+
+if nargin<2
+    wdir=pwd;
+end
 
 % assumes header file name is FltXX_sem2d.hdr
 if ~exist('name','var')
@@ -53,7 +57,7 @@ end
 
 
 % Read parameters from header file
-hdr = strcat(name,'_sem2d.hdr');
+hdr = strcat(wdir,'/',name,'_sem2d.hdr');
 if ~exist(hdr,'file')
   data=[]; 
   warning(['File ' hdr ' not found'])
@@ -61,7 +65,7 @@ if ~exist(hdr,'file')
 end
 
 % check if the time info file exist or not
-tinfo = strcat(name,'_time_sem2d.tab');
+tinfo = strcat(wdir,'/',name,'_time_sem2d.tab');
 if exist(tinfo, 'file')
     %adaptive time stepping from rate state cycle simulation
     fprintf('Variable time step...\n');
@@ -77,18 +81,21 @@ end
 [data.x,data.z] = textread(hdr,'%f%f','headerlines',4);
 
 % Read initial fault data
-if exist([name '_init_sem2d.tab'],'file')
-  raw = load([name '_init_sem2d.tab']);
+if exist([wdir,'/',name '_init_sem2d.tab'],'file')
+  raw = load([wdir,'/',name '_init_sem2d.tab']);
   data.st0 = raw(:,1);
   data.sn0 = raw(:,2);
   data.mu0 = raw(:,3);
   if size(raw, 2)>3
      data.theta0=raw(:,4); 
+     data.v0=raw(:,5); 
+     data.rsf_a = raw(:, 6);
+     data.rsf_b = raw(:, 7);
   end
 end
 
 % Read fault data in a big matrix
-dat  = strcat(name,'_sem2d.dat');
+dat  = strcat(wdir, '/', name,'_sem2d.dat');
 fid=fopen(dat); 
 raw = fread(fid,[data.nx+2*LENTAG,inf],'single') ; 
 fclose(fid);
