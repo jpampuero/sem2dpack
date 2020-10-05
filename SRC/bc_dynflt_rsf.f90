@@ -734,7 +734,7 @@ end subroutine
   function rsf_vplate(f) result(vplate)
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(f%vplate)) :: vplate
-  vplate = f%vplate
+      vplate = f%vplate
   end function 
 
 end module bc_dynflt_rsf

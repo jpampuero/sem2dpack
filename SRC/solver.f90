@@ -326,7 +326,8 @@ subroutine solve_quasi_static(pb)
     write(*, *) "quasi-static solve, pass ", i
     ! update fault displacement for rsf 
     ! d(fault) = d_pre(fault) + dt * v(fault)
-    call bc_update_dfault(pb%bc, d_pre, d, v, dt)
+    ! v  = 0.5 * (vpre + v)
+    call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
     
     ! obtain d_fix, d'_fix rotated back to d_fix
 
@@ -349,29 +350,26 @@ subroutine solve_quasi_static(pb)
     call pcg_solver(d, f, pb)
     d = d + d_fix
 
+    ! update velocity
+    v = (d - d_pre)/dt
+
     ! detect if there's dynflt fault boundary
     ! if not, break the loop and exit after the pcg solver
 
     if (.not. has_dynflt) exit
-    
     ! apply boundary conditions including following: 
     !    1.  compute fault traction, compute state variable 
     !    2.  update slip rate, update fault velocity in fields%veloc 
     !
-    ! v  = 0.5 * (vpre + v)
-    !
-    ! velocity is updated inside this subroutine
+    ! velocity is modified inside this subroutine
 
     ! recompute the force use the updated total disp
     call compute_Fint(f, d, pb%fields%veloc, pb)
-
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
-
   enddo
   
-  ! update final velocity and zero out acceleration
-  v  = (d - d_pre)/dt
-  call bc_update_bcdv(pb%bc, d, v)
+  ! declare final slip values on the fault
+  call bc_update_bcdv(pb%bc, d, pb%time%time)
   a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static

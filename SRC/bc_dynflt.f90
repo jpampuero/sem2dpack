@@ -1,5 +1,4 @@
 module bc_dynflt
-! slip weakening friction fault
   use bnd_grid, only: bnd_grid_type
   use distribution_cd
   use bc_dynflt_normal
@@ -765,7 +764,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   double precision, intent(inout) :: MxA(:,:)
 
   double precision, dimension(bc%npoin, 2) :: T
-  double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF, dV_pre
+  double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF 
   integer :: ndof, i
 
   ndof = size(MxA,2)
@@ -775,12 +774,11 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   dF = -dF                   ! correct sign, dF = [Kd]
 
   dV     = get_jump(bc, V)   ! slip velocity  
-  dV_pre = dV                ! store the old slip velocity 
 
 ! compute fault traction
   do i =1,ndof
       ! Conforming mesh is assumed here
-      T(:, i) = -dF(:, i)/(bc%B(:,1) + bc%B(:,2) )
+      T(:, i) = -dF(:, i)/(2d0*bc%B(:,1))
   enddo
 
 ! rotate to fault frame (tangent,normal) if P-SV
@@ -842,28 +840,25 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! forward transform global velocity
   call BC_DYNFLT_trans(bc, V, 1)
 
-! update half slip velocity by compute the average 
-! of the current and previous slip velocity
-  V(bc%node1, :) = 0.5d0 * (dV + dV_pre) / 2.0d0
+! update half slip velocity by to the current prediction 
+  V(bc%node1, :) = 0.5d0 * dV
   
 ! transform back, global velocity 
   call BC_DYNFLT_trans(bc, V, -1)
 
-! 
-  !bc%V = (dV + dV_pre)/2.0d0
+  bc%V = dV
   !bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
 
-subroutine BC_DYNFLT_update_BCDV(bc, D, V)
+subroutine BC_DYNFLT_update_BCDV(bc, D, time)
   type(bc_dynflt_type), intent(inout) :: bc
-  double precision, intent(in) :: V(:,:)
   double precision, intent(in) :: D(:,:)
+  double precision :: time 
 
-  bc%V = get_jump(bc,V);
   bc%D = get_jump(bc,D);
-  bc%V = rotate(bc,bc%V,1)      
-  bc%D = rotate(bc,bc%D,1)      
+  bc%D = rotate(bc,bc%D, 1)
+  if (associated(bc%rsf)) bc%D(:,1)=bc%D(:,1) + rsf_vplate(bc%rsf)*time 
 
 end subroutine BC_DYNFLT_update_BCDV
 

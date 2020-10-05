@@ -708,16 +708,17 @@ subroutine bc_update_dfault(bc, dpre, d, v, dt)
 
 end subroutine bc_update_dfault
 
-subroutine bc_update_bcdv(bc,  d, v)
+subroutine bc_update_bcdv(bc, d, time)
   type(bc_type), pointer :: bc(:)
-  double precision, dimension(:,:), intent(in) :: d,v
+  double precision, dimension(:,:), intent(in) :: d
+  double precision :: time
   integer :: i
   
   if (.not. associated(bc)) return
   
   do i = 1,size(bc)
     if (bc(i)%kind==IS_DYNFLT) then
-      call bc_dynflt_update_bcdv(bc(i)%dynflt, d, v)
+      call bc_dynflt_update_bcdv(bc(i)%dynflt, d, time)
     end if
   enddo
 
