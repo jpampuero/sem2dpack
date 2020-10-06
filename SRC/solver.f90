@@ -299,7 +299,6 @@ subroutine solve_quasi_static(pb)
   ! use additional memory to keep the previous displacement
   ! use to update predictor for rsf faults
   d_pre = pb%fields%displ
-  v_pre = pb%fields%veloc
   
   ! update displacement to obtain a better initial guess for pcg solver
   ! update both d and pb%fields%disp
@@ -308,6 +307,7 @@ subroutine solve_quasi_static(pb)
   ! apply dirichlet boundary condition and kinematic boundary condition
   ! set displacement to desired value and zero-out forcing f at DIR nodes
   call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+  v_pre = pb%fields%veloc
 
   ! transform fields, apply half slip rate on side -1 and then transform back
   ! different from dynamic, update displacement as well.
@@ -350,7 +350,7 @@ subroutine solve_quasi_static(pb)
     call pcg_solver(d, f, pb)
     d = d + d_fix
 
-    ! update velocity
+    ! update velocity for the off fault dofs
     v = (d - d_pre)/dt
 
     ! detect if there's dynflt fault boundary
@@ -366,6 +366,10 @@ subroutine solve_quasi_static(pb)
     ! recompute the force use the updated total disp
     call compute_Fint(f, d, pb%fields%veloc, pb)
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+
+    ! reapply dichlet boundary condition to overwrite the fault tip node
+    ! if there's a conflict between tip and Dirichlet bc.
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
   enddo
   
   ! declare final slip values on the fault

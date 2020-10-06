@@ -170,14 +170,41 @@ mtab(4, 4) =  5;
 mtab(4, 5) =  6;
 mtab(4, 6) = -4;
 
-mesh = mesh2d_merge(domain,mtab);
+
+% force merging two fault tip nodes
+
+%               nod_mtab(:,4)   node merging table (optional):
+%                               merge node #nod_mtab(i,2) of domain #nod_mtab(i,1)
+%                               with  node #nod_mtab(i,4) of domain #nod_mtab(i,3)
+node_mtab = zeros(2, 4);
+
+% merge the left fault tip
+d2 = domain(2);
+d5 = domain(5);
+d2_e_left  = sub2ind([NELX_M, NELZ_B],  1, NELZ_B);
+tip_left_2 = d2.enod(4,d2_e_left);
+
+d2_e_right  = sub2ind([NELX_M, NELZ_B], NELX_M, NELZ_B);
+tip_right_2 = d2.enod(3,d2_e_right);
+
+d5_e_left  = sub2ind([NELX_M, NELZ_T],  1, 1);
+tip_left_5 = d5.enod(1,d5_e_left);
+
+d5_e_right  = sub2ind([NELX_M, NELZ_T], NELX_M, 1);
+tip_right_5 = d5.enod(2,d5_e_right);
+
+node_mtab(1, :) = [2, tip_left_2, 5, tip_left_5];
+node_mtab(2, :) = [2, tip_right_2, 5, tip_right_5];
+
+mesh = mesh2d_merge(domain,mtab,node_mtab);
+
 figure(2);
 clf
 mesh2d_plot(mesh, 2);
 axis equal
 
 % -- export the mesh file
-%mesh2d_write(mesh,'rsf_twosides');
+mesh2d_write(mesh,'rsf_twosides');
 
 
 

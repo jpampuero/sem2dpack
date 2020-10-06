@@ -183,22 +183,12 @@ contains
       double precision, intent(in) :: mu(:), v(:)
       double precision, dimension(size(f%theta)) :: psi
 
-      write(*,*) "max mu:", maxval(mu)
-      write(*,*) "initial v:", maxval(v)
-      write(*,*) "Dc:", maxval(f%Dc)
-      write(*,*) "mus:", maxval(f%mus)
-      write(*,*) "vstar:", maxval(f%vstar)
-      write(*,*) "max b:", maxval(f%b)
-      write(*,*) "max a:", maxval(f%a)
-
       ! compute psi as the matlab code
       psi     = (mu - f%mus - f%a*log(v/f%Vstar))/f%b 
-      write(*,*) "max psi:", maxval(psi)
 
       f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
                * f%Dc / f%Vstar
 
-     write(*,*) "max theta", maxval(f%theta)
   end subroutine rsf_init_theta
 
   function rsf_get_theta(f) result(theta)

@@ -311,6 +311,7 @@ contains
 
 ! nodes that are common to both sides (non-split nodes) are sticky nodes
 ! they must be deleted from the fault boundary
+! remove the first and last nodes
   npoin = bc%bc1%npoin
   if ( two_sides ) then
     do k=1,bc%bc1%npoin

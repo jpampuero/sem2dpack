@@ -7,12 +7,18 @@ addpath(genpath('../../../PRE/'));
 % read grid and plot grid
 wdir = pwd;
 grid = sem2d_read_specgrid(wdir);
-h=sem2d_plot_grid(grid);
-df = sem2d_read_fault('Flt05');
+df = sem2d_read_fault('Flt05',wdir);
+
+wdir = '../kaneko11_homo_sym';
+grid1 = sem2d_read_specgrid(wdir);
+df1 = sem2d_read_fault('Flt05',wdir);
 %% plot the slip distribution
 
 figure(1);
-plot(df.x, df.v(:, 1:30),'k-');
+plot(df1.x, df1.v(:, 1:15),'k-');
+hold on;
+plot(df.x, df.v(:, 1:15),'r-');
+hold off;
 
 %% plot the slip velocity in the domain
 it=30;
