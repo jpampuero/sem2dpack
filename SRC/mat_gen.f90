@@ -27,6 +27,7 @@ module mat_gen
 !!  5. Modify Makefile.depend: add new dependencies
 !!  6. Re-compile (make)
 
+  use bc_gen
   use prop_mat
   use memory_info
 
@@ -861,22 +862,28 @@ end subroutine MAT_stress_dv
 ! In fact, invKDiag is the negative diagonal of the stiffness matrix.
 ! because MAT_ELAST_f computes f = - K * disp
 
-  subroutine MAT_diag_stiffness_init(invKDiag,g,f,matwrk)
+  subroutine MAT_diag_stiffness_init(invKDiag, invKDiagTrans, g, f,matwrk, bc)
 
   use spec_grid, only : sem_grid_type
   use fields_class, only : fields_type
+  use bc_gen, only : bc_type, bc_trans
 
-  double precision, dimension(:,:), pointer :: invKDiag
+  double precision, dimension(:,:), pointer :: invKDiag, invKDiagTrans
   type(sem_grid_type), intent(in) :: g
+  type(bc_type), pointer, intent(in) :: bc(:)
   type(fields_type), intent(in) :: f
   type(matwrk_elem_type), intent(in) :: matwrk(:)
+  double precision, parameter :: eps_stable = 1.0d-15
 
   double precision, dimension(g%ngll,g%ngll,f%ndof) :: dloc,floc
   integer :: e, i, j, k, dof
     
   allocate(invKDiag(f%npoin,f%ndof))
+  allocate(invKDiagTrans(f%npoin,f%ndof))
   call storearray('invKDiag',size(invKDiag),idouble)
+  call storearray('invKDiagTrans',size(invKDiagTrans),idouble)
   invKDiag = 0.d0
+  invKDiagTrans = 0.d0
   dloc = 0.0d0
 
   ! Loop over all the elements and gll points and apply unit displacement
@@ -896,6 +903,14 @@ end subroutine MAT_stress_dv
   enddo
   enddo
 
+  ! save the transformed invKDiag
+  invKDiagTrans = invKDiag
+  call bc_trans(bc, invKDiagTrans, -1)
+  
+  ! might be zero at fault node 2, stablize before division
+  where (abs(invKDiagTrans)<eps_stable) invKDiagTrans = eps_stable
+
+  invKDiagTrans = 1d0/invKDiagTrans
   invKDiag = 1d0/invKDiag
 
   end subroutine MAT_diag_stiffness_init

@@ -78,6 +78,8 @@
     if (mod(it,ItInfo) == 0) then
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
       if (pb%time%kind == 'adaptive') write(iout,*) 'dt = ', pb%time%dt
+      if (.not. pb%time%isdynamic) write(iout,*) & 
+          'PCG iteration numbers (first/second passes) = ', pb%time%pcg_iters
     endif
 
     if (iexec>0) then

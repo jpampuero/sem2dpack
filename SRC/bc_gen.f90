@@ -477,6 +477,7 @@ subroutine bc_select_fix(bc, field_in, field_out)
   integer :: IS_DIR    = 2 
 
   side = -1
+!  side = 2
 
   ! transform field_in 
   call bc_trans(bc, field_in, 1)
@@ -521,7 +522,7 @@ subroutine bc_set_fix_zero(bc, field)
   integer :: IS_DIR  = 2 
 
   side = -1
-
+  !side = 2 ! TEST
   ! transform
   !call bc_trans(bc, field, 1)
 

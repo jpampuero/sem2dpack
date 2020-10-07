@@ -37,6 +37,7 @@ module problem_class
     double precision, pointer :: rmass(:,:) => null()
    ! inverse stiffness matrix (diagonal)
     double precision, pointer :: invKdiag(:,:) => null()
+    double precision, pointer :: invKdiagTrans(:,:) => null()
    ! time integration coefficients
     type(timescheme_type) :: time
    ! data for sources

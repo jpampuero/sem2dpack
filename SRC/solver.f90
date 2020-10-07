@@ -284,7 +284,7 @@ subroutine solve_quasi_static(pb)
              IS_KINFLT = 2, & 
              IS_DYNFLT = 6
          
-  integer :: IS_DIR    = 2, IS_NEU = 1 
+  integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
 
   ! points to displacement
   ! save some memory by modifying in place
@@ -320,13 +320,14 @@ subroutine solve_quasi_static(pb)
   has_dynflt = bc_has_dynflt (pb%bc)
   
   ! start 2 passes
+  pb%time%pcg_iters = 0
 
   do i = 1, 2
 
-    write(*, *) "quasi-static solve, pass ", i
     ! update fault displacement for rsf 
     ! d(fault) = d_pre(fault) + dt * v(fault)
     ! v  = 0.5 * (vpre + v)
+    !d = d_pre + (v + v_pre)/2d0 *dt
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
     
     ! obtain d_fix, d'_fix rotated back to d_fix
@@ -347,8 +348,10 @@ subroutine solve_quasi_static(pb)
     call BC_trans(pb%bc, d, -1)
     
     ! (preconditioned) conjugate gradient method solver
-    call pcg_solver(d, f, pb)
+    call pcg_solver(d, f, pb, flag)
     d = d + d_fix
+
+    pb%time%pcg_iters(i) = flag 
 
     ! update velocity for the off fault dofs
     v = (d - d_pre)/dt
@@ -580,19 +583,22 @@ end function norml2
 ! d, f are untransformed as inputs
 !
 
-subroutine pcg_solver(d, f, pb)
+subroutine pcg_solver(d, f, pb, flag)
 
   double precision, dimension(:,:), intent(inout) :: d
   double precision, dimension(:,:), intent(inout) :: f
   type(problem_type), intent(inout) :: pb
 
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
+  double precision, dimension(size(pb%invKDiag, 1), size(pb%invKDiag, 2)) :: invKDiag
   double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
   double precision :: norm_f, norm_r, tolerance
   integer :: maxIterations
   ! one hardwired parameter to ensure stable division
   double precision, parameter :: eps_stable = 1.0d-15
-  integer :: it  
+  integer :: it, flag
+
+  flag = -1
 
   tolerance     = pb%time%TolLin
   maxIterations = pb%time%MaxIterLin
@@ -612,14 +618,15 @@ subroutine pcg_solver(d, f, pb)
   norm_f = norml2(f) ! initial right hand side 
 
   ! obtain transformed preconditioner
-  pb%invKDiag = 1d0/pb%invKDiag
-  call bc_trans(pb%bc, pb%invKDiag, -1)
-  
-  ! might be zero at fault node 2, stablize before division
-  where (abs(pb%invKDiag)<eps_stable) pb%invKDiag = eps_stable
-  pb%invKDiag = 1d0/pb%invKDiag
+!  invKDiag = pb%invKDiag
+!  invKDiag = 1d0/invKDiag
+!  call bc_trans(pb%bc, invKDiag, -1)
+!  
+!  ! might be zero at fault node 2, stablize before division
+!  where (abs(invKDiag)<eps_stable) invKDiag = eps_stable
+!  invKDiag = 1d0/invKDiag
 
-  z = pb%invKDiag * r ! z'
+  z = pb%invKDiagTrans * r ! z'
   p = z ! p'
   
   do it=1,maxIterations
@@ -646,7 +653,7 @@ subroutine pcg_solver(d, f, pb)
     ! if |LHS-RHS|<tolerance*|RHS|
 
     if (norm_r/norm_f < tolerance) then 
-        print *, "PCG solver converges in ", it, " iterations." 
+        flag = it
         ! transform after convergence.
         ! convert d' to d, back transform
          call bc_trans(pb%bc, d, -1) 

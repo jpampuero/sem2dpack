@@ -479,7 +479,6 @@ contains
   call BC_DYNFLT_trans(bc, vg, 1) 
 
   ! update fault slip velocity
-  write(*,*) "max, min of bc_V:", maxval(bc%V(:,1)), minval(bc%V(:,1))
   vg(bc%node1, :) = bc%V/2d0
   
   ! rotate back 
