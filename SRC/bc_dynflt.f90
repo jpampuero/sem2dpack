@@ -847,6 +847,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   call BC_DYNFLT_trans(bc, V, -1)
 
   bc%V = dV
+  if (associated(bc%rsf)) bc%V(:,1) = bc%V(:,1) + rsf_vplate(bc%rsf)
   !bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
@@ -882,6 +883,9 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   integer :: ndof
 
   ndof = size(MxA,2)
+  
+  bc%CoefA2V = TIME_getCoefA2V(time)
+  bc%CoefA2D = TIME_getCoefA2D(time)
 
 ! get predicted values
   dD = get_jump(bc,D) ! dD_predictor
@@ -1356,7 +1360,7 @@ end subroutine BC_DYNFLT_update_disp
     hnode = bc%hnode ! use average node spacing
   
     if (associated(bc%rsf)) then 
-      call rsf_timestep(time,bc%rsf,bc%V(:,1),normal_getSigma(bc%normal),hnode)
+      call rsf_timestep(time,bc%rsf,bc%V(:,1),-normal_getSigma(bc%normal),hnode)
     endif 
 
   end subroutine

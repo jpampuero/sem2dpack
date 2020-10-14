@@ -653,6 +653,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
+  double precision :: XiLf,hnode_tmp
   integer :: it
 
   ! determine if the timestepping scheme needs to be changed
@@ -660,6 +661,11 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
 
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
+  XiLf = huge(0d0) 
+  
+  write(*,*) "********determine adaptive time step********"
+  write(*,*) "max slip velocity: ", vmax 
+  write(*,*) "hnode", hnode 
 
   if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
       ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
@@ -677,7 +683,10 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
       max_timestep = time%dtev_max
       
       xi = 0.5d0 ! xi critical
-      k = (PI/4d0)*maxval(f%mus(:))/hnode ! single-cell stiffness
+
+      ! fix hnode for testing purposes.
+      hnode_tmp = 0.25 
+      k = (PI/4d0)* 3.203812032d10/hnode_tmp ! single-cell stiffness
 
       do it=1,size(v)
         ! Determine xi, as in Lapusta et al, 2000
@@ -690,14 +699,21 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
         endif
         xi = min(xi, 0.5d0) ! Eq. 15a,b
 
-        ! Determine maximum timestep allowed for each fault node
+        if (xi*f%Dc(it)<XiLf) XiLf = xi*f%Dc(it)
+
         dti = xi*f%Dc(it)/abs(v(it))
         if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
         
       enddo
+      write(*,*) "min XiLf:", XiLf
+      write(*,*) "max timestep before limit by factor", max_timestep
+      write(*,*) "previous step", time%dt
+      write(*,*) "time step limited by factor", time%dt*time%dt_incf, time%dt_incf 
       
       ! ---------- Limit the time step increase by a factor ---------
       if (max_timestep>time%dt*time%dt_incf) max_timestep = time%dt*time%dt_incf
+
+      write(*,*) "final time step determined", max_timestep 
 
       time%dt = max_timestep 
       f%dt    = max_timestep
