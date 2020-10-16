@@ -377,7 +377,8 @@ subroutine solve_quasi_static(pb)
   
   ! declare final slip values on the fault
   call bc_update_bcdv(pb%bc, d, pb%time%time)
-  a  = (v - v_pre)/dt ! a crude estimate of acceleration
+  a   = 0d0
+  !a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static
 

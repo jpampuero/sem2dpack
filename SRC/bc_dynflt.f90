@@ -870,7 +870,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
   use stdio, only: IO_abort
   use constants, only : PI
-  use time_evol, only : timescheme_type
+  use time_evol, only : timescheme_type, TIME_getCoefA2V, TIME_getCoefA2D
 
   type(timescheme_type), intent(in) :: time
   type(bc_dynflt_type), intent(inout) :: bc
@@ -879,8 +879,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
   double precision, dimension(bc%npoin) :: strength
   double precision, dimension(bc%npoin,2) :: T
-  double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA
-  integer :: ndof
+  double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA,dF
+  integer :: ndof, i
 
   ndof = size(MxA,2)
   
@@ -890,6 +890,10 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 ! get predicted values
   dD = get_jump(bc,D) ! dD_predictor
   dV = get_jump(bc,V) ! dV_predictor
+  dF = get_jump(bc,MxA) ! dF_predictor
+
+  write(*,*) "max/min fault slip, jump in d:", maxval(dD), minval(dD)
+  write(*,*) "max/min -Kd:", maxval(dF), minval(dF)
   dA = get_weighted_jump(bc,MxA) ! dA_free
 
 ! T_stick
@@ -909,6 +913,9 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 ! add initial stress
   T = T + bc%T0
 
+! apply backslip
+!  if (associated(bc%rsf)) dV(:,1) = dV(:,1) + rsf_vplate(bc%rsf)
+
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
   if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
@@ -921,8 +928,14 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
+    write (*,*) "minimum bc_V before rsf_solver:", minval(abs(bc%V(:,1)))
+    write (*,*) "minimum dV before rsf_solver:", minval(abs(dV(:,1)))
     call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
+    write (*,*) "minimum bc_V after rsf_solver:", minval(abs(bc%V(:,1)))
+    write (*,*) "minimum dV after rsf_solver:", minval(abs(dV(:,1)))
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
+    write (*,*) "minimum bc_V after rsf_mu:", minval(abs(bc%V(:,1)))
+    write (*,*) "minimum dV after rsf_mu:", minval(abs(dV(:,1)))
                                         
    !DEVEL combined with time-weakening
    !DEVEL WARNING: slip rate is updated later, but theta is not
@@ -958,7 +971,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
    ! Update strength
     strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
-                                         
+
    ! Solve for shear stress
     T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
                                   
@@ -977,10 +990,33 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   MxA(bc%node1,:) = MxA(bc%node1,:) + bc%B*T(:,1:ndof)
   if (associated(bc%bc2)) MxA(bc%node2,:) = MxA(bc%node2,:) - bc%B*T(:,1:ndof)
 
+!===================================================================
+  write (*,*) "minimum bc_V before update:", minval(abs(bc%V(:,1)))
+  write (*,*) "minimum dV before update:", minval(abs(dV(:,1)))
 ! Update slip and slip rate, in fault frame
+  write (*,*) "minimum dA*bc%CoefA2V before update:", minval(abs(bc%CoefA2V*dA))
+  write (*,*) "max/min of bc_Z", maxval(bc%Z), minval(bc%Z);
+  write (*,*) "max/min of dA before update", maxval(dA(:, 1)), minval(dA(:,1));
+!================================================================== 
+
+  write(*,*) "dA before update:"  
+  do i=1, size(dA, 1)
+      write(*,*) dA(i,1)
+  end do
   dA = dA - bc%T(:,1:ndof)/(bc%Z*bc%CoefA2V)
+  write(*,*) "dA after update:"  
+  do i=1, size(dA, 1)
+      write(*,*) dA(i,1)
+  end do
+  
+  write (*,*) "max/min of dA", maxval(dA(:, 1)), minval(dA(:,1));
+  write (*,*) "bc%CoefA2V:", bc%CoefA2V 
+  write (*,*) "minimum dA*bc%CoefA2V before update:", minval((bc%CoefA2V*dA))
+
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
+  
+  write (*,*) "minimum bc_V finally:", minval(abs(bc%V(:,1)))
 
   end subroutine BC_DYNFLT_apply_dynamic
 
