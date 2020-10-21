@@ -22,15 +22,15 @@ module bc_dynflt_rsf
                      Vstar=>null(), theta=>null(), Tc=>null(),&
                      coeft=>null(), vplate=>null()
     double precision :: dt
-    integer :: iter
-    double precision :: vmaxD2S, vmaxS2D
+    integer :: iter, NRMaxIter
+    double precision :: vmaxD2S, vmaxS2D, NRTol
     type(rsf_input_type) :: input
   end type rsf_type
 
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
             rsf_vplate, rsf_get_theta, rsf_get_a, &
-            rsf_get_b
+            rsf_get_b, rsf_get_NRTol 
 
 contains
 
@@ -60,6 +60,8 @@ contains
 ! ARG: vplate   [dble] [1d0] plate rate used for 'back-slip' loading
 ! ARG: vmaxS2D  [dble] [0.5d-3] max slip velocity for switch from static to dynamic 
 ! ARG: vmaxD2S  [dble] [0.2d-3] max slip velocity for switch from dynamic to static
+! ARG: NRTol    [dble] [1.0d-4] relative tolerance for NR solver 
+! ARG: NRMaxIter [Int] [200] maximum interation number for NR solver 
 !
 ! END INPUT BLOCK
 
@@ -72,13 +74,15 @@ contains
   integer, intent(in) :: iin
 
   double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S
+  double precision :: NRTol 
+  integer :: NRMaxIter 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
   character(25) :: kind_txt
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
-           vmaxS2D, vmaxD2S
+           vmaxS2D, vmaxD2S, NRMaxIter, NRTol
 
   kind = 1
   Dc = 0.5d0
@@ -97,6 +101,8 @@ contains
   vplateH = ''
   vmaxS2D = 0.5d-3 ! 0.5 mm/s
   vmaxD2S = 0.2d-3 ! 0.2 mm/s
+  NRMaxIter = 200 
+  NRTol     = 1.0d-4
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
@@ -119,9 +125,12 @@ contains
 
   rsf%vmaxS2D = vmaxS2D
   rsf%vmaxD2S = vmaxD2S
+  rsf%NRTol   = NRTol
+  rsf%NRMaxIter   = NRMaxIter
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
-               MuSH,aH,bH,VstarH,thetaH,vplateH,vmaxS2D,vmaxD2S
+               MuSH,aH,bH,VstarH,thetaH,vplateH,& 
+               vmaxS2D,vmaxD2S, NRMaxIter, NRTol
 
   return
 
@@ -135,7 +144,9 @@ contains
             /5x,'  State variable  . . . . . . . . .(theta) = ',A,&
             /5x,'  Plate rate  . . . . . . . . . . (vplate) = ',A,&
             /5x,'  V threshold (Static to Dyanmic) (vmaxS2D) = ',EN12.3,&
-            /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3)
+            /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3,&
+            /5x,'  NR Max iteration . . . . . . .(NRMaxIter) = ',I4,&
+            /5x,'  NR tolerance . . . . . . . . . . . (NRTol)= ',EN12.3)
 
   end subroutine rsf_read
 
@@ -208,6 +219,12 @@ contains
       double precision, dimension(size(f%b)):: b
       b = f%b
   end function !rsf_get_b 
+  
+  function rsf_get_NRTol(f) result(NRTol)
+      type(rsf_type), intent(in) :: f
+      double precision:: NRTol
+      NRTol = f%NRTol
+  end function !rsf_get_NRTol 
 
 !=====================================================================
 ! Friction coefficient
@@ -400,7 +417,7 @@ contains
      ! Find each element's velocity:
      do it=1,size(tau_stick)
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
-       tolerance=0.001*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
+       tolerance=f%NRTol*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
        !estimateLow = -10.0 
        !estimateHigh = 10.0
        estimateLow  = min(0d0, 2d0*tau_stick(it))
@@ -428,8 +445,6 @@ contains
   function nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z) result(v)
   !WARNING: This is not a well tested portion !!!
  
-  ! maxIteration is hard coded!
-  integer, parameter :: maxIteration=200
   integer :: is
   
   double precision, intent(in) :: xL, xR, x_acc
@@ -483,10 +498,10 @@ contains
   call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
 
   ! Loop over allowed iterations:
-  do is=1,maxIteration
+  do is=1,f%NRMaxIter
    
     ! Bisect if N-R out of range, or not decreasing fast enough:
-    if( ((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x)>0  .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
+    if( ((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x)>0 .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
       dx_old=dx
       dx=0.5*(x_high-x_low)
       x_est=x_low+dx
@@ -504,7 +519,11 @@ contains
     endif
   
     ! Check convergence criterion:
-    if (abs(dx)<abs(x_acc)) return
+    if (abs(dx)<abs(x_acc))  then
+        ! evaluate the function and update v, one last time
+        call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+        return
+    end if
   
     ! Evaluate function with new estimate of x
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
@@ -519,7 +538,7 @@ contains
   print*,'tau = ',x_est
   print*,'delta = ',dx,' > ',x_acc
   print*,'vel = ',v
-  call IO_abort('NR_Solver has exceeded the maximum iterations (200)')
+  call IO_abort('NR_Solver has exceeded the maximum iterations')
   
   end function nr_solver
 
@@ -653,7 +672,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
-  double precision :: XiLf,hnode_tmp
+  double precision :: hnode_tmp
   integer :: it
 
   ! determine if the timestepping scheme needs to be changed
@@ -661,12 +680,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
 
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
-  XiLf = huge(0d0) 
   
-  write(*,*) "********determine adaptive time step********"
-  write(*,*) "max slip velocity: ", vmax 
-  write(*,*) "hnode", hnode 
-
   if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
       ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
 
@@ -699,21 +713,13 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
         endif
         xi = min(xi, 0.5d0) ! Eq. 15a,b
 
-        if (xi*f%Dc(it)<XiLf) XiLf = xi*f%Dc(it)
-
         dti = xi*f%Dc(it)/abs(v(it))
         if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
         
       enddo
-      write(*,*) "min XiLf:", XiLf
-      write(*,*) "max timestep before limit by factor", max_timestep
-      write(*,*) "previous step", time%dt
-      write(*,*) "time step limited by factor", time%dt*time%dt_incf, time%dt_incf 
       
       ! ---------- Limit the time step increase by a factor ---------
       if (max_timestep>time%dt*time%dt_incf) max_timestep = time%dt*time%dt_incf
-
-      write(*,*) "final time step determined", max_timestep 
 
       time%dt = max_timestep 
       f%dt    = max_timestep
