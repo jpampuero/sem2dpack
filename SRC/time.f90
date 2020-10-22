@@ -19,7 +19,7 @@ module time_evol
     ! it: time step index
     integer :: EQNum, it 
     double precision, dimension(:), pointer :: a,b 
-    integer :: nt, nstages, MaxIterLin, pcg_iters(2)
+    integer :: nt, nstages, MaxIterLin, pcg_iters(2),nr_iters(2)
   end type timescheme_type
 
 contains
@@ -211,6 +211,7 @@ contains
   sec2day     = 1.0d0/(24*3600) 
   t%switch    = .false. 
   t%pcg_iters = 0
+  t%nr_iters  = 0
 
   select case (kind)
     case ('adaptive')

@@ -291,14 +291,15 @@ contains
 !
 ! Note: most often sigma is negative (compressive) 
 !
-  subroutine rsf_solver(v,tau_stick,sigma,f,Z)
-
+  subroutine rsf_solver(v,tau_stick,sigma, f, Z, time)
+  use time_evol, only: timescheme_type
+  type(timescheme_type):: time
   double precision, dimension(:), intent(inout) :: v
   double precision, dimension(:), intent(in) :: sigma,Z,tau_stick
   type(rsf_type), intent(inout) :: f
 
   double precision, dimension(size(v)) :: v_new,theta_new
-  integer :: it
+  integer :: it, iter
 
   ! Cutoff small amplitude of slip rate
   do it=1,size(v)
@@ -309,10 +310,10 @@ contains
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
-  v_new = rsf_update_V(tau_stick, sigma, f, theta_new, Z)
+  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1))
   ! Second pass:
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
-  v_new = rsf_update_V(tau_stick, sigma, f, theta_new, Z)
+  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2))
   
   ! store new velocity and state variable estimate in friction law 
   f%theta = theta_new 
@@ -394,13 +395,13 @@ contains
 !          We should allow here for any sign of v
 !          Exploit the fact that sign(tau)=sign(tau_stick) (because mu>0)
 
-  function rsf_update_V(tau_stick,sigma,f,theta,Z) result(v)
+  subroutine rsf_update_V(tau_stick,sigma,f,theta, Z, v, iter) 
    
   double precision, dimension(:), intent(in) :: tau_stick,sigma,theta,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
-  integer :: it
+  integer :: it, iter, iter_i
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
@@ -425,13 +426,14 @@ contains
        !estimateLow = 1e-9 
        !estimateHigh = tau_stick(it)*2.0
        !the initial guess assume zero increment of slip velocity
-       v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
-           tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
+       call nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
+           tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i)
+       iter = max(iter, iter_i)
      enddo     
         
   end select
 
-  end function rsf_update_V
+  end subroutine rsf_update_V
 
 !==================================================================
 !         Newton-Raphson algorithm with bisection step         
@@ -442,13 +444,12 @@ contains
 ! function at a point and it finds a root to 0=nr_fric_func bounded 
 ! by [x1, x2] w/ error < x_acc
 
-  function nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z) result(v)
+  subroutine nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z, v, is)
   !WARNING: This is not a well tested portion !!!
- 
-  integer :: is
-  
+  integer, intent(out) :: is
   double precision, intent(in) :: xL, xR, x_acc
-  double precision :: xLeft, xRight, x_est, v
+  double precision :: xLeft, xRight, x_est
+  double precision, intent(out) :: v
   double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
   double precision :: temp
   
@@ -540,7 +541,7 @@ contains
   print*,'vel = ',v
   call IO_abort('NR_Solver has exceeded the maximum iterations')
   
-  end function nr_solver
+  end subroutine nr_solver
 
 !==================================================================
 !         Newton-Raphson algorithm from Kaneko's MATLAB code
@@ -661,18 +662,18 @@ end subroutine nr_fric_func_v
 ! I follow the matlab code to pass in the average node distance
 ! dt in rsf type must also be updated
 !
-subroutine rsf_timestep(time,f,v,sigma,hnode)
+subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   use time_evol, only : timescheme_type
   
   use constants, only: PI
 
   type(rsf_type), intent(inout) :: f
-  double precision, intent(in) :: hnode  
+  double precision, intent(inout) :: hnode(:) 
+  double precision, intent(inout) :: mu_star(:) 
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
 
   double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
-  double precision :: hnode_tmp
   integer :: it
 
   ! determine if the timestepping scheme needs to be changed
@@ -698,11 +699,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
       
       xi = 0.5d0 ! xi critical
 
-      ! fix hnode for testing purposes.
-      hnode_tmp = 0.25 
-      k = (PI/4d0)* 3.203812032d10/hnode_tmp ! single-cell stiffness
-
       do it=1,size(v)
+        k = (PI/4d0)* mu_star(it)/hnode(it) ! cell (two nodes) stiffness 
         ! Determine xi, as in Lapusta et al, 2000
         tmp = k*f%Dc(it)/(f%a(it)*sigma(it))
         chi = (0.25d0)*(tmp - (f%b(it) - f%a(it))/f%a(it))**2 - tmp ! Eq. 15c
@@ -712,7 +710,6 @@ subroutine rsf_timestep(time,f,v,sigma,hnode)
           xi = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
         endif
         xi = min(xi, 0.5d0) ! Eq. 15a,b
-
         dti = xi*f%Dc(it)/abs(v(it))
         if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
         

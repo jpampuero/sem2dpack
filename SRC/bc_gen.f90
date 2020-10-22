@@ -244,7 +244,7 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
         call BC_LSF_init(bc(i)%lsf,bc(i)%tag,grid,M,perio)
       case(IS_DYNFLT)
           ! Note rate and state fault does not start with zero velocity 
-        call BC_DYNFLT_init(bc(i)%dynflt,bc(i)%tag,grid,M,tim,perio, v)
+        call BC_DYNFLT_init(bc(i)%dynflt,bc(i)%tag,grid,M,tim,perio, v, mat)
 !!      case(IS_USER)
 !!        call BC_USER_init(bc(i)%user,bc(i)%tag, ... )
     end select

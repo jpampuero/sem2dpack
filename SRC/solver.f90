@@ -591,7 +591,6 @@ subroutine pcg_solver(d, f, pb, flag)
   type(problem_type), intent(inout) :: pb
 
   double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
-  double precision, dimension(size(pb%invKDiag, 1), size(pb%invKDiag, 2)) :: invKDiag
   double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
   double precision :: norm_f, norm_r, tolerance
   integer :: maxIterations

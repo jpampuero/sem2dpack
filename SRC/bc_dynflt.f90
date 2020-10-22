@@ -16,14 +16,14 @@ module bc_dynflt
   type bc_dynflt_type
     private
     integer :: npoin
-    double precision :: hnode ! average node spacing
-    double precision :: hnode_min ! minimum node spacing
+    double precision:: hnodeFix
     integer, dimension(:), pointer :: node1=>null(), node2=>null()
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
       D=>null(),coord=>null()
     double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
+    double precision, dimension(:), pointer:: hnode=>null(), MuStar=>null() 
     type(swf_type), pointer :: swf => null()
     type(rsf_type), pointer :: rsf => null()
     type(twf_type), pointer :: twf => null()
@@ -69,6 +69,7 @@ contains
 !                  friction='SWF','TWF'
 ! ARG: cohesion [dble] [0d0] part of the strength that is not proportional to 
 !                normal stress. It must be positive or zero.
+! ARG: hnodeFix [dble] [0d0] user defined fixed hnode (adaptive time stepping)
 ! ARG: opening  [log] [T] Allow fault opening instead of tensile normal stress
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
 ! ARG: Tt       [dble] [0d0] Initial tangent traction 
@@ -127,12 +128,13 @@ contains
   character(3) :: friction(2)
   integer :: i,oxi(3) 
   logical :: opening, osides
+  double precision:: hnodeFix
 
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH &
                          ,ot1,otd,oxi,osides, friction, opening &
                          ,cohesion, cohesionH, V, VH, &
-                         otdD, otdS
+                         otdD, otdS,hnodeFix
 
   Tt = 0d0
   Tn = 0d0
@@ -168,6 +170,7 @@ contains
 
   cohesion = 0d0
   cohesionH = ''
+  hnodeFix = 0d0
   
   opening = .true.
 
@@ -183,6 +186,7 @@ contains
   bc%oixn = oxi(2) 
   bc%oixd = oxi(3) 
   bc%osides = osides
+  bc%hnodeFix = hnodeFix
 
   call DIST_CD_Read(bc%input%cohesion,cohesion,cohesionH,iin,cohesionH)
   call DIST_CD_Read(bc%input%N,Tn,TnH,iin,TnH)
@@ -261,8 +265,9 @@ contains
 
 !=====================================================================
 !
-  subroutine BC_DYNFLT_init(bc,tags,grid,M,time,perio,vg)
-  
+  subroutine BC_DYNFLT_init(bc,tags,grid,M,time,perio,vg,mat)
+
+  use prop_mat, only : matpro_elem_type
   use spec_grid, only : sem_grid_type,BC_inquire,BC_get_normal_and_weights
   use stdio, only: IO_abort,IO_new_unit
   use time_evol, only: timescheme_type, TIME_getTimeStep, TIME_getNbTimeSteps, &
@@ -272,6 +277,7 @@ contains
 
   type(bc_dynflt_type)  , intent(inout) :: bc
   type(sem_grid_type), intent(in) :: grid
+  type(matpro_elem_type), intent(in) :: mat(:)
   double precision, intent(in) :: M(:,:)
   double precision, intent(inout) :: vg(:,:)
   integer, intent(in) :: tags(2)
@@ -279,12 +285,12 @@ contains
   type(bc_periodic_type), pointer :: perio
 
   double precision, dimension(:), pointer :: Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V
-  double precision, pointer :: tmp_n1(:,:), tmp_B(:)
+  double precision, pointer :: tmp_n1(:,:), tmp_B(:), tmp_mustar(:)
   double precision :: dt
   integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
   character(25) :: oname,hname
   logical :: two_sides, adapt_time
-  double precision :: hnode_i
+  double precision :: hnode_left, hnode_right
   double precision, allocatable:: theta(:) ! state variable
   double precision, allocatable:: rsf_a(:) ! rsf a parameter
   double precision, allocatable:: rsf_b(:) ! rsf b parameter
@@ -309,6 +315,10 @@ contains
      call IO_abort('bc_dynflt_init: number of nodes on boundaries do not match')
   endif
 
+! compute temperary mustar
+  allocate(tmp_mustar(bc%bc1%npoin))
+  call BC_DYNFLT_Compute_MuStar(bc, grid, mat, tmp_mustar, ndof)
+
 ! nodes that are common to both sides (non-split nodes) are sticky nodes
 ! they must be deleted from the fault boundary
 ! remove the first and last nodes
@@ -320,17 +330,21 @@ contains
     if (npoin<bc%bc1%npoin) then
       allocate( bc%node1(npoin) )
       allocate( bc%node2(npoin) )
+      allocate( bc%MuStar(npoin))
       j = 0
       do k=1,bc%bc1%npoin
         if (bc%bc1%node(k)/=bc%bc2%node(k)) then
           j=j+1
           bc%node1(j) = bc%bc1%node(k)
           bc%node2(j) = bc%bc2%node(k)
+          bc%MuStar(j) = tmp_mustar(k)
         endif
       enddo
+    deallocate(tmp_mustar)
     else
       bc%node1 => bc%bc1%node
       bc%node2 => bc%bc2%node
+      bc%MuStar => tmp_mustar
     endif
   else
     bc%node1 => bc%bc1%node
@@ -345,15 +359,29 @@ contains
       call IO_abort('bc_dynflt_init: coordinates on boundaries do not match properly')
   endif
 
-  ! compute average and minimal node spacing on the fault boundary
+  ! compute node spacing for each node 
+  ! allocate space for hnode
+
+  allocate(bc%hnode(npoin))
   bc%hnode     = 0.0d0 
-  bc%hnode_min = huge(0.0d0) 
-  do i = 1, bc%npoin-1
-     hnode_i = sqrt(sum((bc%coord(:, i) - bc%coord(:,i+1))**2.0d0))
-     bc%hnode   = bc%hnode + hnode_i
-     bc%hnode_min   = min(bc%hnode_min, hnode_i)
-  end do
-  bc%hnode     = bc%hnode/(bc%npoin-1)
+
+  if (bc%hnodeFix>TINY_XABS) then
+      bc%hnode=bc%hnodeFix
+  else 
+      do i = 1, bc%npoin
+         if (i==1) then
+             hnode_left  = huge(0d0)
+             hnode_right = sqrt(sum((bc%coord(:, i) - bc%coord(:,i+1))**2.0d0))
+         elseif (i==bc%npoin) then
+             hnode_left  = sqrt(sum((bc%coord(:, i-1) - bc%coord(:,i))**2.0d0))
+             hnode_right = huge(0d0) 
+         else
+             hnode_left  = sqrt(sum((bc%coord(:, i-1) - bc%coord(:,i))**2.0d0))
+             hnode_right = sqrt(sum((bc%coord(:, i) - bc%coord(:,i+1))**2.0d0))
+         end if
+         bc%hnode(i)   = min(hnode_left, hnode_right) 
+      end do
+  end if
 
 ! NOTE: the mesh being conformal, the weights B=GLL_weights*jac1D are equal on both
 !       sides of the fault. 
@@ -877,15 +905,13 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   double precision, intent(in) :: V(:,:),D(:,:)
   double precision, intent(inout) :: MxA(:,:)
 
-  double precision, dimension(bc%npoin) :: strength, tmp, rsf_a, rsf_b, tmp_sigma
+  double precision, dimension(bc%npoin) :: strength
   double precision, dimension(bc%npoin,2) :: T
   double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA,dF
   integer :: ndof, i
 
   ndof = size(MxA,2)
   
-  rsf_a = rsf_get_a(bc%rsf)
-  rsf_b = rsf_get_b(bc%rsf)
   bc%CoefA2V = TIME_getCoefA2V(time)
   bc%CoefA2D = TIME_getCoefA2D(time)
 
@@ -928,7 +954,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
-    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1))
+    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1), time)
     bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
 
    !DEVEL combined with time-weakening
@@ -1361,14 +1387,98 @@ end subroutine BC_DYNFLT_update_disp
     use time_evol, only : timescheme_type
     type(timescheme_type), intent(inout) :: time
     type(bc_dynflt_type), intent(in) :: bc
-    double precision :: hnode
-    hnode = bc%hnode ! use average node spacing
   
     if (associated(bc%rsf)) then 
-      call rsf_timestep(time,bc%rsf,bc%V(:,1),-normal_getSigma(bc%normal),hnode)
+      call rsf_timestep(time, bc%rsf, bc%V(:,1), &
+  				     -normal_getSigma(bc%normal), bc%hnode, bc%MuStar)
     endif 
 
   end subroutine
+  
+! compute the mu_star in Lapusta 2000 for adaptive time stepping 
+! mu_star = mu for mode 3, ndof=1
+! mu_star = mu/(1-nu) for mode 2, ndof=2
+! mu is shear modulus, not confused with the frictional coefficient mu.
+!
+! For each fault node, compute its mu_star, maximum between two split nodes
+!
+! if a node is at the boundary of two elements, take either one 
+! A more rigorious way is to take the larger one among the two elements.
+!
+  subroutine BC_DYNFLT_Compute_MuStar(bc, grid, mat, MuStar, ndof)
+	use prop_mat, only  : matpro_elem_type, MAT_getProp
+	use time_evol, only : timescheme_type 
+	use constants, only : TINY_XABS
+	use stdio, only: IO_abort
+    use spec_grid, only : sem_grid_type, SE_inquire
+
+	type(bc_dynflt_type) , intent(inout) :: bc
+	type(sem_grid_type), intent(in) :: grid
+	type(matpro_elem_type), intent(in) :: mat(:)
+	double precision, intent(inout) :: MuStar(:)
+    integer, intent(in) :: ndof
+
+    double precision :: MuStar2
+    double precision :: rho, cp, cs, nu
+    integer :: i,j,k,e,bck,ngll,bc_nelem,&
+               bc_npoin,ebulk,itab(grid%ngll),jtab(grid%ngll)
+    
+    MuStar    = 0.0d0
+	ngll      = grid%ngll
+	bc_nelem  = bc%bc1%nelem
+	bc_npoin  = bc%bc1%npoin
+
+    ! bc1 boundary grid 1
+    do e=1, bc_nelem
+	  ebulk = bc%bc1%elem(e)
+	  call SE_inquire(grid, edge=bc%bc1%edge(e) &
+                     ,itab=itab, jtab=jtab)
+	  
+	  do k = 1,ngll
+
+	    i = itab(k)
+	    j = jtab(k)
+
+	    call MAT_getProp(rho,mat(ebulk),'rho',i,j)
+	    call MAT_getProp(cp,mat(ebulk),'cp',i,j)
+	    call MAT_getProp(cs,mat(ebulk),'cs',i,j)
+	    
+	    ! Poisson ratio 
+	    nu = 0.5d0*((cp/cs)**2d0-2d0)/((cp/cs)**2d0-1d0)		  
+	    !mu star1
+	    bck = bc%bc1%ibool(k,e)
+	    MuStar(bck) = cs**2*rho
+        if (ndof==2) MuStar(bck)=MuStar(bck)/(1d0-nu)
+	  enddo
+    end do
+     
+     !bc 2
+	if (associated(bc%bc2)) then
+      do e=1, bc_nelem
+		ebulk = bc%bc2%elem(e)
+		call SE_inquire(grid, edge=bc%bc2%edge(e) &
+                       ,itab=itab, jtab=jtab)
+		
+		do k = 1,ngll
+
+		  i = itab(k)
+		  j = jtab(k)
+
+		  call MAT_getProp(rho,mat(ebulk),'rho',i,j)
+		  call MAT_getProp(cp,mat(ebulk),'cp',i,j)
+		  call MAT_getProp(cs,mat(ebulk),'cs',i,j)
+		  
+		  ! Poisson ratio 
+		  nu = 0.5d0*((cp/cs)**2d0-2d0)/((cp/cs)**2d0-1d0)		  
+	      !mu star1
+		  bck = bc%bc1%ibool(k,e)
+		  MuStar2 = cs**2*rho
+          if (ndof==2) MuStar2=MuStar2/(1d0-nu)
+		  MuStar(bck) = max(MuStar(bck), MuStar2)
+		enddo
+      end do
+	 end if
+  end subroutine BC_DYNFLT_Compute_MuStar
 
 end module bc_dynflt
   
