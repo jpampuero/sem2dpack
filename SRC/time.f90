@@ -7,6 +7,7 @@ module time_evol
     character(12) :: kind
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
+    Logical :: isEQ            ! a flag to indicate if an earthquake is occuring at this step 
     Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
     ! dt_min: minimum time step in adaptive time stepping 
@@ -212,6 +213,7 @@ contains
   t%switch    = .false. 
   t%pcg_iters = 0
   t%nr_iters  = 0
+  t%isEQ      = 0
 
   select case (kind)
     case ('adaptive')
