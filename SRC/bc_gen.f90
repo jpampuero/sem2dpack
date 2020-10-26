@@ -19,6 +19,8 @@ module bc_gen
   use bc_KINFLT 
   use bc_lsf
   use bc_dynflt
+  use bc_dirabs
+
 !!  use bc_user
 !! add your new module
 
@@ -37,6 +39,7 @@ module bc_gen
     type(bc_periodic_type), pointer :: perio => null()
     type(bc_lsf_type)     , pointer :: lsf  => null()
     type(bc_dynflt_type)  , pointer :: dynflt => null()
+    type(bc_dirabs_type)  , pointer :: dirabs => null()
     !! type(bc_user_type) , pointer :: user
   end type bc_type
 
@@ -46,13 +49,13 @@ module bc_gen
                         IS_ABSORB = 3, &
                         IS_PERIOD = 4, &
                         IS_LISFLT = 5, &
-                        IS_DYNFLT = 6
-                        !! IS_USER = 7
+                        IS_DYNFLT = 6, &
+                        IS_DIRABS = 7
+                        !! IS_USER = 8
 
-  public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_set,bc_timestep, & 
+  public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
             bc_select_fix, bc_has_dynflt, bc_update_bcdv
-
 
 contains
 
@@ -77,6 +80,7 @@ contains
 ! ARG:  kind    [char*6] [none] Type of boundary condition. The following are
 !               implemented:
 !               'DIRNEU', 'ABSORB', 'PERIOD', 'LISFLT', 'DYNFLT', 'KINFLT'
+!               'DIRABS'
 !
 ! NOTE   : Most of the boundary conditions need additional data, given
 !          in a BC_kind input block of the BOUNDARY_CONDITIONS group
@@ -171,6 +175,10 @@ subroutine bc_read(bc,iunit)
         bc(i)%kind = IS_DYNFLT
         allocate(bc(i)%dynflt)
         call BC_DYNFLT_read(bc(i)%dynflt,iunit)
+      case('DIRABS')
+        bc(i)%kind = IS_DIRABS
+        allocate(bc(i)%dirabs)
+        call BC_DIRABS_read(bc(i)%dirabs,iunit)
 !!      case('USERBC')
 !!        bc(i)%kind = IS_USER
 !!        allocate(bc(i)%user)
@@ -240,6 +248,8 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
         write (* , *) 'FINISH Initialize KINFLT'
       case(IS_ABSORB)
         call BC_ABSO_init(bc(i)%abso,bc(i)%tag(1),grid,mat,M,tim,src,perio)
+      case(IS_DIRABS)
+        call BC_DIRABS_init(bc(i)%dirabs,bc(i)%tag(1),grid,mat,M,tim,src,perio)
       case(IS_LISFLT)
         call BC_LSF_init(bc(i)%lsf,bc(i)%tag,grid,M,perio)
       case(IS_DYNFLT)
@@ -279,7 +289,7 @@ subroutine bc_apply(bc,time,fields,force)
     if ( bc(i)%kind == IS_PERIOD) call bc_apply_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind == IS_ABSORB) call bc_apply_single(bc(i))
+    if ( bc(i)%kind == IS_ABSORB .or. bc(i)%kind == IS_DIRABS) call bc_apply_single(bc(i))
   enddo
   do i = 1,size(bc)
     if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_apply_single(bc(i))
@@ -299,6 +309,8 @@ contains
         call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,fields%displ,time)
       case(IS_ABSORB)
         call BC_ABSO_apply(bc%abso,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
+      case(IS_DIRABS)
+        call BC_DIRABS_apply(bc%dirabs,fields%displ_alpha,fields%veloc_alpha,fields%accel,time)
       case(IS_PERIOD)
         call bc_perio_apply(bc%perio,force)
       case(IS_LISFLT)
@@ -366,6 +378,8 @@ contains
     select case(bc%kind)
       case(IS_DIRNEU)
         call bc_DIRNEU_apply_kind(bc%dirneu, fields%displ, force, time, dirneu_kind)
+      case(IS_DIRABS)
+        call bc_DIRABS_apply_kind(bc%dirabs, fields%displ, force, time, dirneu_kind)
       case(IS_KINFLT)
           ! fields%accel means Mxa
         call bc_KINFLT_apply(bc%kinflt,fields%accel,fields%veloc,fields%displ,time)
@@ -448,6 +462,8 @@ subroutine bc_select_kind(bc, field_in, field_out, bc_kind, dirneu_kind_in)
         call BC_DYNFLT_select(bc(i)%dynflt, field_in, field_out)
       case (IS_DIRNEU) 
         call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, dirneu_kind)
+      case (IS_DIRABS) 
+        call BC_DIRABS_select_kind(bc(i)%dirabs, field_in, field_out, dirneu_kind)
       end select
   enddo
 end subroutine bc_select_kind
@@ -492,6 +508,9 @@ subroutine bc_select_fix(bc, field_in, field_out)
       case (IS_DIRNEU) 
           ! select dirichlet 
         call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, IS_DIR)
+      case (IS_DIRABS) 
+          ! select dirichlet 
+        call BC_DIRABS_select_kind(bc(i)%dirabs, field_in, field_out, IS_DIR)
       case (IS_KINFLT) 
         call BC_KINFLT_select(bc(i)%kinflt, field_in, field_out, side)
       end select
@@ -536,6 +555,9 @@ subroutine bc_set_fix_zero(bc, field)
       case (IS_DIRNEU) 
           ! select dirichlet 
         call BC_DIRNEU_set_kind(bc(i)%dirneu, field, 0d0, IS_DIR)
+      case (IS_DIRABS) 
+          ! select dirichlet 
+        call BC_DIRABS_set_kind(bc(i)%dirabs, field, 0d0, IS_DIR)
       case (IS_KINFLT) 
         call BC_KINFLT_set(bc(i)%kinflt, field, 0d0, side)
       end select
@@ -550,57 +572,57 @@ end subroutine bc_set_fix_zero
 ! Only used in quasi-static solver
 ! use to fix values along certain boundary
 !
-
-subroutine bc_set(bc,field,input)
-
-  use fields_class, only: fields_type
-
-  type(bc_type), pointer :: bc(:)
-  double precision, intent(in) :: input
-  double precision, dimension(:,:), intent(inout) :: field
-
-  integer :: i
-
-  if (.not. associated(bc)) return
- ! apply first periodic, then absorbing, then the rest
- ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
-  do i = 1,size(bc)
-    if ( bc(i)%kind == IS_PERIOD) call bc_set_single(bc(i))
-  enddo
-  do i = 1,size(bc)
-    if ( bc(i)%kind == is_absorb) call bc_set_single(bc(i))
-  enddo
-  do i = 1,size(bc)
-    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_set_single(bc(i))
-  enddo
-    
-contains
-
-  subroutine bc_set_single(bc)
-
-    type(bc_type), intent(inout) :: bc
-    ! DEVEL these other set functions will have to be created 
-    ! in their respective files.
-    select case(bc%kind)
-      case(IS_DIRNEU)
-        !call bc_DIRNEU_set(bc%dirneu,field_in,input,field_out)
-      case(IS_KINFLT)
-        !call bc_KINFLT_set(bc%kinflt,field_in,input,field_out)
-      case(IS_ABSORB)
-        !call BC_ABSO_set(bc%abso,field_in,input,field_out)
-      case(IS_PERIOD)
-        !call bc_perio_set(bc%perio,field_in,input,field_out)
-      case(IS_LISFLT)
-        !call BC_LSF_set(bc%lsf,field_in,input,field_out)
-      case(IS_DYNFLT)
-        call BC_DYNFLT_set(bc%dynflt,field,input)
-!!      case(IS_USER)
-!!        call BC_USER_set(bc%user,field_in,input,field_out)
-    end select
-
-  end subroutine bc_set_single
-  
-end subroutine bc_set
+! NOT USED
+!subroutine bc_set(bc,field,input)
+!
+!  use fields_class, only: fields_type
+!
+!  type(bc_type), pointer :: bc(:)
+!  double precision, intent(in) :: input
+!  double precision, dimension(:,:), intent(inout) :: field
+!
+!  integer :: i
+!
+!  if (.not. associated(bc)) return
+! ! apply first periodic, then absorbing, then the rest
+! ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
+!  do i = 1,size(bc)
+!    if ( bc(i)%kind == IS_PERIOD) call bc_set_single(bc(i))
+!  enddo
+!  do i = 1,size(bc)
+!    if ( bc(i)%kind == is_absorb) call bc_set_single(bc(i))
+!  enddo
+!  do i = 1,size(bc)
+!    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_set_single(bc(i))
+!  enddo
+!    
+!contains
+!
+!  subroutine bc_set_single(bc)
+!
+!    type(bc_type), intent(inout) :: bc
+!    ! DEVEL these other set functions will have to be created 
+!    ! in their respective files.
+!    select case(bc%kind)
+!      case(IS_DIRNEU)
+!        !call bc_DIRNEU_set(bc%dirneu,field_in,input,field_out)
+!      case(IS_KINFLT)
+!        !call bc_KINFLT_set(bc%kinflt,field_in,input,field_out)
+!      case(IS_ABSORB)
+!        !call BC_ABSO_set(bc%abso,field_in,input,field_out)
+!      case(IS_PERIOD)
+!        !call bc_perio_set(bc%perio,field_in,input,field_out)
+!      case(IS_LISFLT)
+!        !call BC_LSF_set(bc%lsf,field_in,input,field_out)
+!      case(IS_DYNFLT)
+!        call BC_DYNFLT_set(bc%dynflt,field,input)
+!!!      case(IS_USER)
+!!!        call BC_USER_set(bc%user,field_in,input,field_out)
+!    end select
+!
+!  end subroutine bc_set_single
+!  
+!end subroutine bc_set
 
 ! set fields on the boundary for a specific kind
 ! Note only dirichlet and dynflt is supported

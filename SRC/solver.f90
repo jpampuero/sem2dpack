@@ -6,7 +6,7 @@ module solver
   use problem_class
   use stdio, only : IO_Abort
   use sources, only : SO_add
-  use bc_gen , only : BC_apply, BC_set, bc_apply_kind, bc_select_kind, bc_set_kind, &
+  use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
                       bc_has_dynflt, bc_update_bcdv
 
@@ -282,7 +282,8 @@ subroutine solve_quasi_static(pb)
 
   integer :: IS_DIRNEU = 1, & 
              IS_KINFLT = 2, & 
-             IS_DYNFLT = 6
+             IS_DYNFLT = 6, &
+             IS_DIRABS = 7
          
   integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
 
@@ -307,6 +308,7 @@ subroutine solve_quasi_static(pb)
   ! apply dirichlet boundary condition and kinematic boundary condition
   ! set displacement to desired value and zero-out forcing f at DIR nodes
   call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
   v_pre = pb%fields%veloc
 
   ! transform fields, apply half slip rate on side -1 and then transform back
@@ -373,6 +375,7 @@ subroutine solve_quasi_static(pb)
     ! reapply dichlet boundary condition to overwrite the fault tip node
     ! if there's a conflict between tip and Dirichlet bc.
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
   enddo
   
   ! declare final slip values on the fault
