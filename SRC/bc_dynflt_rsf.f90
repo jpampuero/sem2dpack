@@ -23,7 +23,7 @@ module bc_dynflt_rsf
                      coeft=>null(), vplate=>null()
     double precision :: dt
     integer :: iter, NRMaxIter
-    double precision :: vmaxD2S, vmaxS2D, NRTol
+    double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ
     type(rsf_input_type) :: input
   end type rsf_type
 
@@ -58,8 +58,9 @@ contains
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
 ! ARG: theta    [dble] [1d0] State variable
 ! ARG: vplate   [dble] [1d0] plate rate used for 'back-slip' loading
-! ARG: vmaxS2D  [dble] [0.5d-3] max slip velocity for switch from static to dynamic 
-! ARG: vmaxD2S  [dble] [0.2d-3] max slip velocity for switch from dynamic to static
+! ARG: vmaxS2D  [dble] [5d-3] max slip velocity for switch from static to dynamic 
+! ARG: vmaxD2S  [dble] [2d-3] max slip velocity for switch from dynamic to static
+! ARG: vEQ      [dble] [10d-3] threshold slip velocity for earthquake event 
 ! ARG: NRTol    [dble] [1.0d-4] relative tolerance for NR solver 
 ! ARG: NRMaxIter [Int] [200] maximum interation number for NR solver 
 !
@@ -73,7 +74,7 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S
+  double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
   double precision :: NRTol 
   integer :: NRMaxIter 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
@@ -82,7 +83,7 @@ contains
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
-           vmaxS2D, vmaxD2S, NRMaxIter, NRTol
+           vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ
 
   kind = 1
   Dc = 0.5d0
@@ -99,8 +100,9 @@ contains
   VstarH = ''
   thetaH = ''
   vplateH = ''
-  vmaxS2D = 0.5d-3 ! 0.5 mm/s
-  vmaxD2S = 0.2d-3 ! 0.2 mm/s
+  vmaxS2D = 5d-3 ! 5 mm/s
+  vmaxD2S = 2d-3 ! 2 mm/s
+  vEQ     = 10d-3 ! 10 mm/s
   NRMaxIter = 200 
   NRTol     = 1.0d-4
 
@@ -125,12 +127,13 @@ contains
 
   rsf%vmaxS2D = vmaxS2D
   rsf%vmaxD2S = vmaxD2S
+  rsf%vEQ     = vEQ
   rsf%NRTol   = NRTol
   rsf%NRMaxIter   = NRMaxIter
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
                MuSH,aH,bH,VstarH,thetaH,vplateH,& 
-               vmaxS2D,vmaxD2S, NRMaxIter, NRTol
+               vmaxS2D,vmaxD2S, vEQ, NRMaxIter, NRTol
 
   return
 
@@ -145,6 +148,7 @@ contains
             /5x,'  Plate rate  . . . . . . . . . . (vplate) = ',A,&
             /5x,'  V threshold (Static to Dyanmic) (vmaxS2D) = ',EN12.3,&
             /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3,&
+            /5x,'  V threshold (earthquake event) . . .(vEQ) = ',EN12.3,&
             /5x,'  NR Max iteration . . . . . . .(NRMaxIter) = ',I4,&
             /5x,'  NR tolerance . . . . . . . . . . . (NRTol)= ',EN12.3)
 
@@ -662,6 +666,8 @@ end subroutine nr_fric_func_v
 ! I follow the matlab code to pass in the average node distance
 ! dt in rsf type must also be updated
 !
+! this subroutine also determines if an earthquake is occurring
+
 subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   use time_evol, only : timescheme_type
   
@@ -681,6 +687,13 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
 
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
+
+  if (vmax>f%vEQ) then
+      if (.not. time%isEQ) time%EQNum  = time%EQNum + 1
+      time%isEQ = .true.
+  else
+      time%isEQ = .false.
+  end if
   
   if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
       ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
@@ -725,7 +738,6 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
       ! if previous state was static switch to dynamic
       ! update number of earthquakes occurred so far 
       if (.not. time%isDynamic) then
-          time%EQNum  = time%EQNum + 1
           time%switch = .true.
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.

@@ -600,7 +600,7 @@ contains
  !      Name            FltXX_time_sem2d.tab where XX=tags(1) of the BC_DYNFLT
  !                      input block, the tag of the first side of the fault.
  !                      fields: 'it', 'dt', 'time', 'EqNum', 'isDynamic' 
- !      Line 1:end      6 columns: it, dt, time, EQNum, isDynamic, switch
+ !      Line 1:end      7 columns: it, dt, time, EQNum, isDynamic, switch, isEQ
  !
  ! OUTPUT FILE FORMAT:
  !      At each time (lag DELT, total NSAMP), NDAT data lines with
@@ -1110,15 +1110,15 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   if (.not. adapt_time) then
       bc%ot = bc%ot + bc%odt
   else
-      ! adaptive time stepping
-      if (time%isDynamic) then
+      ! adaptive time stepping 
+      if (time%isEQ) then
           bc%ot = bc%ot + bc%odtD 
       else
           bc%ot = bc%ot + bc%odtS 
       end if
       ! write time information if adaptive time into bindary
       write(bc%ou_time, *)  time%it, time%dt, time%time, & 
-                        time%EQNum, time%isDynamic, time%switch  
+                        time%EQNum, time%isDynamic, time%switch, time%isEQ  
   end if
   end subroutine BC_DYNFLT_write
 
