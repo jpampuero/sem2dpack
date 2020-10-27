@@ -55,19 +55,19 @@ subroutine bc_DIRABS_read(bc,iin)
   type(bc_DIRABS_type), pointer :: bc
   integer, intent(in) :: iin
 
-  allocate(bc)
-
+  allocate(bc%bc_dir)
+  allocate(bc%bc_abso)
+  
   ! read dirneu boundary condition
   call bc_DIRNEU_read(bc%bc_dir,iin) 
 
   ! read absorbing boundary condition
   call bc_ABSO_read(bc%bc_abso,iin) 
-
+  
   if (echo_input) write(iout, 200)
-  return
 
-  200 format(5x,'DIRNEU and ABSORB mixed boundary . . . . . .', &
-            /5x,'Reading DIRNEU and ABSORB blocks . . . . . :')
+  200 format(5x,'Done reading DIRNEU and ABSORB mixed boundary.', &
+            /5x)
 
 end subroutine bc_DIRABS_read
 
@@ -91,7 +91,6 @@ subroutine BC_DIRABS_init(bc,tag,grid,mat,M,tim,src,perio)
 
   call bc_DIRNEU_init(bc%bc_dir,tag,grid,perio)
   call bc_ABSO_init(bc%bc_abso,tag,grid,mat,M,tim,src,perio)
-
 end subroutine bc_DIRABS_init
 
 !=======================================================================
@@ -106,8 +105,10 @@ subroutine bc_DIRABS_apply(bc, D,V,MxA,time)
 
   type(bc_DIRABS_type), intent(in) :: bc
   if (time%isDynamic) then
+      write(*,*) "BC_DIRABS: Apply absorbing bc"
       call bc_ABSO_apply(bc%bc_abso, D, V, MxA, time)
   else
+      write(*,*) "BC_DIRABS: Apply dirichlet bc"
       call bc_DIRNEU_apply(bc%bc_dir, D, MxA, time)
   end if
  
@@ -125,7 +126,8 @@ subroutine bc_DIRABS_apply_kind(bc, disp, force, time, bc_kind)
   integer, intent(in) :: bc_kind
   double precision, intent(inout) :: disp(:,:)
   double precision, intent(inout) :: force(:,:)
-  
+      
+  write(*,*) "BC_DIRABS: Apply dirichlet bc, kind ", bc_kind
   call  bc_DIRNEU_apply_kind(bc%bc_dir, disp, force, time, bc_kind)
  
 end subroutine bc_DIRABS_apply_kind

@@ -374,8 +374,10 @@ subroutine solve_quasi_static(pb)
 
     ! reapply dichlet boundary condition to overwrite the fault tip node
     ! if there's a conflict between tip and Dirichlet bc.
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
+    !
+    ! Note this issue only occurs when simulating half domain 
+    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
   enddo
   
   ! declare final slip values on the fault

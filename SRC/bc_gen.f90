@@ -292,7 +292,8 @@ subroutine bc_apply(bc,time,fields,force)
     if ( bc(i)%kind == IS_ABSORB .or. bc(i)%kind == IS_DIRABS) call bc_apply_single(bc(i))
   enddo
   do i = 1,size(bc)
-    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_apply_single(bc(i))
+    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB .and. &
+        bc(i)%kind /= IS_DIRABS) call bc_apply_single(bc(i))
   enddo
     
 contains

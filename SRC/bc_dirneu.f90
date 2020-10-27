@@ -53,7 +53,7 @@ subroutine bc_DIRNEU_read(bc,iin)
   use echo , only: echo_input,iout
   use stdio, only: IO_abort
 
-  type(bc_DIRNEU_type), pointer :: bc
+  type(bc_DIRNEU_type), intent(out) :: bc
   integer, intent(in) :: iin
 
   character(1) :: h,v
@@ -69,7 +69,7 @@ subroutine bc_DIRNEU_read(bc,iin)
 
   read(iin,BC_DIRNEU,END=100)
 
-  allocate(bc)
+ ! allocate(bc)
 
   if (h=='N') then
     bc%kind(1) = IS_NEUMANN
