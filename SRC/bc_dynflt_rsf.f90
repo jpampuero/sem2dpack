@@ -689,7 +689,10 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   dti   = 0.0d0
 
   if (vmax>f%vEQ) then
-      if (.not. time%isEQ) time%EQNum  = time%EQNum + 1
+      if (.not. time%isEQ) then
+          time%EQNum  = time%EQNum + 1
+          write(*,*) "EQNum: ", time%EQNum
+      end if
       time%isEQ = .true.
   else
       time%isEQ = .false.
@@ -700,6 +703,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
 
       if (time%isDynamic) then
           time%switch = .true.
+          write(*, *) "Switching from dynamic to static, EQNum = ", time%EQNum
       else
           time%switch = .false.
       end if
@@ -741,6 +745,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
           time%switch = .true.
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.
+          write(*, *) "Switching from static to dynamic, EQNum = ", time%EQNum
       else
           time%switch    = .false.
       end if

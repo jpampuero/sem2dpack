@@ -18,7 +18,7 @@ module time_evol
     ! some additional parameters for adaptive time stepping
     ! EQNum: number of earthquakes
     ! it: time step index
-    integer :: EQNum, it 
+    integer :: EQNum, it, EQNumMax 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin, pcg_iters(2),nr_iters(2)
   end type timescheme_type
@@ -51,7 +51,8 @@ contains
 !                  CFL = Dt*wave_velocity/dx 
 !                where dx is the distance between GLL nodes. Tipically CFL<= 0.5
 ! ARG: NbSteps   [int] [none] Total number of timesteps
-! ARG: TotalTime [int] [none] Total duration (in seconds)
+! ARG: TotalTime [dbl] [none] Total duration (in seconds)
+! ARG: EQNumMax  [int] [5] maximum earthquake number 
 ! ARG: fixdt     [log] [T] if dt is fixed, deactivate adapative time stepping by force. 
 !
 ! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
@@ -154,14 +155,14 @@ contains
   double precision :: alpha,beta,gamma,dt,courant,TotalTime,rho &
                      ,xi,lambda,chi, theta, TolLin,dtev_max,dt_incf
   double precision :: sec2day
-  integer :: NbSteps,n, MaxIterLin 
+  integer :: NbSteps,n, MaxIterLin, EQNumMax
   character(12) :: kind
   character(12) :: kind_dyn
   Logical :: fixdt
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf, fixdt
+                    dt_incf, fixdt, EQNumMax
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -176,6 +177,7 @@ contains
   TolLin       = 1.0d-6
   MaxIterLin   = 4000
   fixdt        = .false.
+  EQNumMax     = 5
   
   !dteve_max only used in quasi-static adaptive time stepping
   dtev_max     = 5.0d0*24*3600.0 ! default 5 days
@@ -214,6 +216,7 @@ contains
   t%pcg_iters = 0
   t%nr_iters  = 0
   t%isEQ      = 0
+  t%EQNumMax  = EQNumMax
 
   select case (kind)
     case ('adaptive')

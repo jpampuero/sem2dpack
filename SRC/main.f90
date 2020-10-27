@@ -51,7 +51,7 @@
   it = 1
   pb%time%time = pb%time%time + pb%time%dt
 
-  do while (pb%time%time < pb%time%total) 
+  do while (pb%time%time < pb%time%total .and. pb%time%EQNum <= pb%time%EQNumMax) 
 
     ! save the time step number
     pb%time%it = it
@@ -114,8 +114,6 @@
     pb%time%time = pb%time%time + pb%time%dt
 
   end do
-
-
 
 !*****************  g l o b a l   o u t p u t   p h a s e  **************
 
