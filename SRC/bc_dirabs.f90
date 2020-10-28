@@ -105,10 +105,8 @@ subroutine bc_DIRABS_apply(bc, D,V,MxA,time)
 
   type(bc_DIRABS_type), intent(in) :: bc
   if (time%isDynamic) then
-      write(*,*) "BC_DIRABS: Apply absorbing bc"
       call bc_ABSO_apply(bc%bc_abso, D, V, MxA, time)
   else
-      write(*,*) "BC_DIRABS: Apply dirichlet bc"
       call bc_DIRNEU_apply(bc%bc_dir, D, MxA, time)
   end if
  
@@ -127,7 +125,6 @@ subroutine bc_DIRABS_apply_kind(bc, disp, force, time, bc_kind)
   double precision, intent(inout) :: disp(:,:)
   double precision, intent(inout) :: force(:,:)
       
-  write(*,*) "BC_DIRABS: Apply dirichlet bc, kind ", bc_kind
   call  bc_DIRNEU_apply_kind(bc%bc_dir, disp, force, time, bc_kind)
  
 end subroutine bc_DIRABS_apply_kind

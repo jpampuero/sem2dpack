@@ -31,8 +31,9 @@ module bc_dynflt
     type(normal_type) :: normal
     type(bnd_grid_type), pointer :: bc1 => null(), bc2 => null()
     type(bc_dynflt_input_type) :: input
+
    ! for outputs:
-   double precision :: ot1, odt, odtD, odtS, ot
+    double precision :: ot1, odt, odtD, odtS, ot
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
     logical :: osides
   end type bc_dynflt_type
@@ -1013,6 +1014,12 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
+
+  if (associated(bc%rsf)) then
+      bc%V(:,1)=bc%V(:,1) + rsf_vplate(bc%rsf)
+      bc%D(:,1)=bc%D(:,1) + rsf_vplate(bc%rsf)*time%time
+  end if
+
   end subroutine BC_DYNFLT_apply_dynamic
 
 !---------------------------------------------------------------------
@@ -1084,7 +1091,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   write(bc%ou_pot,'(6D24.16)') BC_DYNFLT_potency(bc,d), BC_DYNFLT_potency(bc,v)
 
   ! reset ot for each step that a switch in time scheme takes place
-  if (time%switch) bc%ot = time%time
+  if (time%EQStart) bc%ot = time%time
 
   if ( time%time < bc%ot ) return
 

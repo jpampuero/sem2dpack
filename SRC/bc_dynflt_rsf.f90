@@ -688,13 +688,21 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
 
+  time%EQStart = .false.
+  time%EQEnd   = .false.
+
   if (vmax>f%vEQ) then
       if (.not. time%isEQ) then
-          time%EQNum  = time%EQNum + 1
-          write(*,*) "EQNum: ", time%EQNum
+          time%EQStart = .true.
+          write(*,*) "Start another earthquake ... "
       end if
       time%isEQ = .true.
   else
+      if (time%isEQ) then
+          time%EQEnd  = .false.
+          time%EQNum  = time%EQNum + 1
+          write(*,*) "Finish EQNum: ", time%EQNum
+      end if
       time%isEQ = .false.
   end if
   
@@ -749,7 +757,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
       else
           time%switch    = .false.
       end if
-      time%dt        = time%dt_min
+      time%dt     = time%dt_min
       f%dt        = time%dt_min
   end if
 

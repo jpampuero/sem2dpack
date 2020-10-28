@@ -425,7 +425,9 @@ subroutine BC_write(bc,time,d,v)
       if (echo_init .and. time%it==0) write(iout,fmtok)
     endif
   enddo
-  call flush()
+
+  ! flush the output every ntflush time steps, default 100
+  if (mod(time%nt, time%ntflush)==0) call flush()
 
 end subroutine BC_write
 

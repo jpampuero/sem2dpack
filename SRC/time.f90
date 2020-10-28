@@ -8,6 +8,8 @@ module time_evol
     character(12) :: kind_dyn  ! kind of dynamic solver if solver kind is set to adaptive
     Logical :: isDynamic       ! a flag to indicate if a dynamic time scheme should be used  
     Logical :: isEQ            ! a flag to indicate if an earthquake is occuring at this step 
+    Logical :: EQStart            ! a flag to indicate if an earthquake is occuring at this step 
+    Logical :: EQEnd            ! a flag to indicate if an earthquake is occuring at this step 
     Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
     ! dt_min: minimum time step in adaptive time stepping 
@@ -18,7 +20,7 @@ module time_evol
     ! some additional parameters for adaptive time stepping
     ! EQNum: number of earthquakes
     ! it: time step index
-    integer :: EQNum, it, EQNumMax 
+    integer :: EQNum, it, EQNumMax, ntflush 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin, pcg_iters(2),nr_iters(2)
   end type timescheme_type
@@ -155,14 +157,14 @@ contains
   double precision :: alpha,beta,gamma,dt,courant,TotalTime,rho &
                      ,xi,lambda,chi, theta, TolLin,dtev_max,dt_incf
   double precision :: sec2day
-  integer :: NbSteps,n, MaxIterLin, EQNumMax
+  integer :: NbSteps,n, MaxIterLin, EQNumMax, ntflush
   character(12) :: kind
   character(12) :: kind_dyn
   Logical :: fixdt
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf, fixdt, EQNumMax
+                    dt_incf, fixdt, EQNumMax, ntflush
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -178,6 +180,7 @@ contains
   MaxIterLin   = 4000
   fixdt        = .false.
   EQNumMax     = 5
+  ntflush      = 100
   
   !dteve_max only used in quasi-static adaptive time stepping
   dtev_max     = 5.0d0*24*3600.0 ! default 5 days
@@ -215,8 +218,11 @@ contains
   t%switch    = .false. 
   t%pcg_iters = 0
   t%nr_iters  = 0
-  t%isEQ      = 0
+  t%isEQ      = .false.
+  t%EQStart   = .false.
+  t%EQEnd     = .false.
   t%EQNumMax  = EQNumMax
+  t%ntflush   = ntflush
 
   select case (kind)
     case ('adaptive')
