@@ -70,7 +70,7 @@ if exist(tinfo, 'file')
     %adaptive time stepping from rate state cycle simulation
     fprintf('Variable time step...\n');
     [data.it, data.dt, data.t, data.eqnum, data.isdynamic, ...
-    data.isswitch]=sem2d_read_rsf_timeinfo(tinfo);
+    data.isswitch, data.isEQ]=sem2d_read_rsf_timeinfo(tinfo);
     data.nt = length(data.t);
     [data.nx,ndat] = textread(hdr,'%n%n',1,'headerlines',1);
 else
