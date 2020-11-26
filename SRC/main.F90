@@ -1,5 +1,7 @@
-  program main
-
+program main
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  
   use problem_class
   use echo, only : iout,ECHO_banner,ItInfo,title
   use input, only : read_main
@@ -13,16 +15,21 @@
 
   implicit none
 
+
   type(problem_type) :: pb
   real :: cputime0, cputime1, cputime2,cputime3
-  integer :: it,iexec
+  integer :: it, iexec
   integer, parameter :: NT_CHECK=10
 
   call CPU_TIME(cputime0)
 
   call ECHO_banner('Program  S E M 2 D P A C K : start',iout)
 
-!*************  i n p u t   p h a s e  ***************
+! Test creating petsc vec, matrix vectors in sequential mode
+
+
+
+!*************  i n p u t   p h a s e  **************
 
   call read_main(pb,iexec,input_file='Par.inp')
 
@@ -44,6 +51,7 @@
   write(iout,'(a)') '***********************************************'
   write(iout,*)
   write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
+
 
   call CPU_TIME( cputime1 )
   cputime0 = cputime1-cputime0

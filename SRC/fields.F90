@@ -5,9 +5,9 @@ module fields_class
   private
 
   type fields_type
-    integer :: ndof,npoin
-    double precision, dimension(:,:), pointer ::  displ,veloc,accel, &
-                                                  displ_alpha,veloc_alpha
+    integer :: ndof, npoin
+    double precision, dimension(:, :), pointer ::  displ, veloc, accel, &
+                                                  displ_alpha, veloc_alpha
   end type fields_type
 
   interface FIELD_get_elem

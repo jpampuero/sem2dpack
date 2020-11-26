@@ -40,13 +40,13 @@
 # 1. Modify next line if you need to place the executable elsewhere:
 #EXEC = $(HOME)/bin/sem2dsolve
 EXEC = sem2dpack 
-# 2. Uncomment/add/modify the lines corresponding to your compiler:
 
+# 2. Uncomment/add/modify the lines corresponding to your compiler:
 # GNU 
 #F90 = g95
 #OPT = 
-F90 = gfortran
-OPT = -O3 -Wall 
+#F90 = gfortran
+#OPT = -O3 -Wall 
 #OPT = -O0 -Wall -g -fbacktrace -fbounds-check
 
 #-- Intel Fortran --
@@ -70,23 +70,43 @@ OPT = -O3 -Wall
 #F90 = f95
 #OPT = -fast
 
-#== END USER SETTINGS =============================================
+#----------------------------------------------------
+# USE PTESC
+#----------------------------------------------------
+F90 = mpif90
+#FLINKER  = mpif90
+# some paths for PETSC
+#FFLAGS   = -I${PETSC_DIR}/include/petsc/finclude 
+OPT      = -O3 -Wall 
+#SOURCESF = *.F90
 
-OBJS := $(patsubst %.f90,%.o,$(wildcard *.f90)) 
+include ${PETSC_DIR}/lib/petsc/conf/variables
+include ${PETSC_DIR}/lib/petsc/conf/rules
+include ${PETSC_DIR}/lib/petsc/conf/test
+
+#== END USER SETTINGS =============================================
+OBJS := $(patsubst %.F90,%.o,$(wildcard *.F90)) 
 #OBJS := $($(wildcard *.f90):.f90=.o) 
 
 all: $(EXEC)
 
+# linking
 $(EXEC): $(OBJS)
-	$(F90) $(OPT) -o $@ $(OBJS) $(LIBS)
+	$(F90) $(OPT) -o $@ $(OBJS) $(PETSC_LIB) 
+	rm *.o *.mod
 
 clean:
 	rm -f $(EXEC) $(OBJS) *.M *.mod 
 
 .SUFFIXES: 
-.SUFFIXES: .f90 .o
+.SUFFIXES: .F90 .o
 
-%.o: %.f90
-	$(F90) $(OPT) -c $<
+# generating .o files
+#%.o: %.F90
+#	$(F90) $(OPT) -c $< $(PETSC_LIB)  
 
+#=========================================================
+# Dependencies
+#=========================================================
 include Makefile.depend
+

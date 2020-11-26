@@ -1,4 +1,6 @@
 module problem_class
+#include <petsc/finclude/petscksp.h>
+    use petscksp
 
 ! PROBLEM_CLASS:  
 !
@@ -38,6 +40,17 @@ module problem_class
    ! inverse stiffness matrix (diagonal)
     double precision, pointer :: invKdiag(:,:) => null()
     double precision, pointer :: invKdiagTrans(:,:) => null()
+
+   ! Petsc objects
+   ! global stiffness matrix, [npoin*ndof, npoin*ndof]
+    Mat :: K
+
+   ! global transformation matrix, [npoin*ndof, npoin*ndof]
+    Mat :: X, Xinv
+
+   ! global displacement, velocity, acceleration, [npoin*ndof, 1]
+    Vec :: d, v, a 
+
    ! time integration coefficients
     type(timescheme_type) :: time
    ! data for sources

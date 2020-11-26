@@ -348,6 +348,9 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
   do e=1,grid%nelem
 
+    allocate(matwrk(e)%derint)
+    call MAT_set_derint(matwrk(e)%derint,grid,e)
+
    ! KV is the only non-exclusive material (it can be combined with other materials)
    ! so we put it on a separate 'if'
     if (MAT_isKelvinVoigt(matpro(e))) then
@@ -367,23 +370,17 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
     elseif (MAT_isPlastic(matpro(e))) then
       if (ndof/=2) call IO_abort('MAT_init_work: plasticity requires ndof=2 (P-SV) ')
-      allocate(matwrk(e)%derint)
       allocate(matwrk(e)%plast)
-      call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt)
       !call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt, SE_elem_coord(grid,e))
 
     elseif (MAT_isDamage(matpro(e))) then
-      allocate(matwrk(e)%derint)
       allocate(matwrk(e)%dmg)
-      call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_DMG_init_elem_work(matwrk(e)%dmg,matpro(e),grid%ngll)
    
     elseif (MAT_isVisco(matpro(e))) then
       if (ndof/=2) call IO_abort('MAT_init_work: visco-elasticity requires ndof=2 (P-SV) ')
-      allocate(matwrk(e)%derint)
       allocate(matwrk(e)%visco)
-      call MAT_set_derint(matwrk(e)%derint,grid,e)
       call MAT_VISCO_init_elem_work(matwrk(e)%visco,matpro(e),grid%ngll)
 
 
