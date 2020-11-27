@@ -10,6 +10,7 @@ module mat_elastic
  !-- purely elastic
   type matwrk_elast_type
     private
+    double precision :: mu, lambda ! for linear isotropic elastic
     double precision, pointer :: a(:,:,:) => null(), beta(:,:) => null()
   end type matwrk_elast_type
 
@@ -29,8 +30,7 @@ module mat_elastic
           , MAT_ELAST_init_elem_prop, MAT_ELAST_init_elem_work &
           , MAT_ELAST_f, MAT_ELAST_stress &
           , MAT_ELAST_memwrk, MAT_ELAST_mempro &
-          , MAT_ELAST_add_25D_f
-
+          , MAT_ELAST_add_25D_f, MAT_ELAST_Cijkl
 
 contains
 
@@ -249,8 +249,12 @@ contains
   type(matpro_elem_type), intent(in) :: matpro
   integer, intent(in) :: e,ndof
   logical, intent(in) :: flat_grid
-
   integer :: nelast
+  double precision::lambda,mu
+
+  ! get the lambda and mu works
+  call Mat_getProp(matwrk%lambda, matpro,'lambda')
+  call Mat_getProp(matwrk%mu, matpro,'mu')
 
  ! if box mesh ignore the crossed terms
   if (flat_grid) then
@@ -282,7 +286,6 @@ contains
      call MAT_ELAST_init_25D(matwrk%beta,grid%ngll &
                    , SE_VolumeWeights(grid,e),grid%W,matpro,ndof)
   endif
-
 
   end subroutine MAT_ELAST_init_elem_work
 
@@ -381,6 +384,54 @@ contains
   endif
 
 end subroutine MAT_ELAST_init_25D
+
+function delta(i,j) result (b)
+  integer :: i, j
+  double precision::b
+  if (i==j) then
+      b=1d0
+  else
+      b=0d0
+  end if
+end function
+
+!=======================================================================
+!
+! Compute the tangent matrix Cijkl for linear elastic isotropic material
+! Warning: Only works for isotropic, elastic, planestrain
+!
+subroutine MAT_ELAST_Cijkl(Cijkl, isCijklZero, m, ndof, ngll)
+   implicit none
+   integer :: i, j, k , l, ndim, ndof, ngll
+   double precision :: Cijkl(ndof, 2, ndof, 2, ngll, ngll), v 
+   logical :: isCijklZero(ndof, 2, ndof, 2) 
+   type (matwrk_elast_type), intent(in) :: m
+   ndim = 2
+   Cijkl = 0d0
+   isCijklZero = .true.
+
+   if (ndof==1) then
+       ! SH
+       Cijkl(1,1,1,1, :, :) = m%mu
+       Cijkl(1,2,1,2, :, :) = m%mu
+       isCijklZero(1,1,1,1) = .false.
+       isCijklZero(1,2,1,2) = .false.
+   else
+       ! P-SV
+       do i = 1, ndof
+         do j = 1, ndim
+           do k = 1, ndof
+             do l = 1, ndim
+                  v =  m%lambda*delta(i,j)*delta(k,l) + &
+                       m%mu * (delta(i,k)*delta(j,l) + delta(i,l)*delta(j,k))
+                  Cijkl(i,j,k,l,:,:) = v
+                  isCijklZero(i,j,k,l) = abs(v)<1d-16
+             end do !l
+           end do !k
+         end do ! j
+       end do ! i
+   end if
+end subroutine MAT_ELAST_Cijkl
 
 !=======================================================================
 !

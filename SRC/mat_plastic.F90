@@ -157,6 +157,7 @@ contains
  ! elastic coefficients
 !  allocate(m%lambda(n,n)) ! NOTE: uniform elastic moduli 
 !  allocate(m%mu(n,n))     ! NOTE: uniform elastic moduli
+
   call MAT_getProp(m%lambda,p,'lambda')
   call MAT_getProp(m%mu,p,'mu')
 

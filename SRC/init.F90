@@ -13,7 +13,9 @@ contains
 ! INIT_MAIN:
 !
 
-subroutine init_main(pb,InitFile)
+subroutine init_main(pb, ierr, InitFile)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
@@ -26,7 +28,7 @@ subroutine init_main(pb,InitFile)
   use plot_gen, only : PLOT_init
   use receivers, only : REC_init,REC_inquire
   use sources, only : SO_init,SO_check
-  use fields_class, only : FIELDS_init,FIELDS_read
+  use fields_class, only : FIELDS_init, FIELDS_read 
   use memory_info
   use echo, only : iout,info=>echo_init, fmt1,fmtok
   use energy, only : energy_init, stress_glut_init
@@ -34,6 +36,7 @@ subroutine init_main(pb,InitFile)
 
   type(problem_type), intent(inout) :: pb
   character(50), intent(in), optional :: InitFile
+  PetscErrorCode :: ierr
   
   double precision :: grid_cfl
   integer :: recsamp,i,j
@@ -72,6 +75,24 @@ subroutine init_main(pb,InitFile)
     write(iout,'(7X,A,EN12.3)') 'Max veloc = ',maxval(abs(pb%fields%veloc))
     write(iout,*)
   endif
+ ! --------------------------------------------------------------------------
+ ! initialize Petsc Vec objects
+  call VecCreate(PETSC_COMM_WORLD, pb%d, ierr)
+  call VecSetSizes(pb%d, PETSC_DECIDE, pb%fields%ndof*pb%grid%npoin,ierr)
+  call VecSetFromOptions(pb%d, ierr)
+  call VecDuplicate(pb%d, pb%v, ierr)
+  call VecDuplicate(pb%d, pb%a, ierr)
+
+  ! set initial values to 0
+  call VecSet(pb%d, 0d0, ierr)
+  call VecSet(pb%v, 0d0, ierr)
+  call VecSet(pb%a, 0d0, ierr)
+  CHKERRQ(ierr)
+
+ ! --------------------------------------------------------------------------
+ ! initialize assemble stiffness matrix
+ ! this has to be done once for linear problem
+ ! implemented in mat_gen
 
  ! build the mass matrix
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
@@ -80,6 +101,15 @@ subroutine init_main(pb,InitFile)
   if (info) write(iout,fmt1,advance='no') 'Defining boundary conditions'
   call BC_init(pb%bc,pb%grid,pb%matpro,pb%rmass,pb%time,pb%src,pb%fields%displ,pb%fields%veloc)
   if (info) write(iout,fmtok)
+
+ ! --------------------------------------------------------------------------
+ ! initialize the transformation matrix X and Xinv
+ ! implemented in bc_gen
+
+
+ ! --------------------------------------------------------------------------
+ ! initialize the Petsc KSP solver
+
 
  ! define position of receivers and allocate database
   if (associated(pb%rec)) then

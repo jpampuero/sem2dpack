@@ -15,18 +15,15 @@ program main
 
   implicit none
 
-
   type(problem_type) :: pb
   real :: cputime0, cputime1, cputime2,cputime3
   integer :: it, iexec
   integer, parameter :: NT_CHECK=10
+  PetscErrorCode :: ierr
 
   call CPU_TIME(cputime0)
 
   call ECHO_banner('Program  S E M 2 D P A C K : start',iout)
-
-! Test creating petsc vec, matrix vectors in sequential mode
-
 
 
 !*************  i n p u t   p h a s e  **************
@@ -35,7 +32,13 @@ program main
 
 !*************  i n i t i a l i z a t i o n   p h a s e  ***************
 
-  call init_main(pb)
+!------------- Start Petsc session ---------------
+  call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
+  CHKERRQ(ierr)
+  call init_main(pb, ierr)
+  CHKERRQ(ierr)
+!----------------------------------------------------
+
   pb%time%time = 0.d0
 
   !-- store seismograms at time = 0
@@ -153,6 +156,12 @@ program main
 !********************* e x i t   p h a s e *********************
 
   call ECHO_banner('Program  S E M 2 D P A C K :  end',iout)
+
+  !---------- End Petsc session and delete Petsc objects --------
+  call destroyPetscStruct(pb, ierr)
+  CHKERRQ(ierr)
+  call PetscFinalize(ierr)
+  !------------------- Petsc session End-------------------------
 
   !stop
 200 format("Timestep #",I8,"  t = ",EN12.3,"  vmax = ",EN12.3,"  dmax = ",EN12.3)

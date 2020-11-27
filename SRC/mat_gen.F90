@@ -58,7 +58,7 @@ module mat_gen
     type(matwrk_plast_type), pointer :: plast=>null()
     type(matwrk_dmg_type)  , pointer :: dmg=>null()
     type(matwrk_visco_type), pointer :: visco=>null()
-!!    type(matwrk_user_type)  , pointer :: user=>null()
+!!    type(matwrk_user_type), pointer :: user=>null()
   end type matwrk_elem_type
 
   interface MAT_strain
@@ -74,7 +74,8 @@ module mat_gen
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
             MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
-            MAT_diag_stiffness_init
+            MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke!, MAT_AssembleKMat, &
+            !Mat_WeightsMat
 
 contains
 
@@ -348,6 +349,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
   do e=1,grid%nelem
 
+    ! all material types will have derint
     allocate(matwrk(e)%derint)
     call MAT_set_derint(matwrk(e)%derint,grid,e)
 
@@ -410,7 +412,7 @@ end subroutine MAT_init_work
 
 
 !=======================================================================
-! Compute the internal forces on a single element 
+! Compute the internal forces -K*d on a single element 
 ! and update internal variables
 ! Called by the solver
 !
@@ -613,6 +615,137 @@ end subroutine MAT_write
   close(iout)
 
   end subroutine MAT_DMG_write
+
+!=======================================================================
+!
+! Compute the weight matrix that contains the information of the tangent matrix
+!
+! W_{uv}^{alpha, beta,i, k} = 
+!     W(u,v)*(sum_{i}sum_{j} C_ijkl * dalpha_dxl * dbeta_dxj)
+! 
+! Tangent matrix must be provided depending on material type
+!
+subroutine MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
+  use stdio, only : IO_abort
+  implicit none
+  type(matwrk_elem_type) :: matwrk
+  type(matpro_elem_type), intent(in) :: matpro
+  integer:: ndof, ngll, ndim, i, j, k, l, a, b
+  double precision :: WsMat(ndim, ndim, ndof, ndof, ngll, ngll)
+  double precision :: a_b_xl_xj(ndim, ndim, ngll, ngll)
+  double precision :: Cijkl(ndof, ndim, ndof, ndim, ngll, ngll) 
+  logical :: isCijklZero(ndof, ndim, ndof, ndim) 
+
+  WsMat = 0d0
+  a_b_xl_xj = 0d0
+  a_b_xl_xj(1,1,:,:) = matwrk%derint%dxi_dx
+  a_b_xl_xj(1,2,:,:) = matwrk%derint%dxi_dy
+  a_b_xl_xj(2,1,:,:) = matwrk%derint%deta_dx
+  a_b_xl_xj(2,2,:,:) = matwrk%derint%deta_dy
+
+  ! obtain the tangent matrix
+  if (MAT_isElastic(matpro)) then
+     call MAT_ELAST_Cijkl(Cijkl, isCijklZero, matwrk%elast, ndof, ngll)
+  else
+     call IO_abort('Only linear isotropic elasticity is implement so far')
+  end if
+ 
+  ! compute the weight matrix
+  ! a: xi, eta
+  ! b: xi, eta
+  do a = 1, ndim
+  do b = 1, ndim
+      do i = 1, ndof
+      do k = 1, ndof
+      do j = 1, ndim
+      do l = 1, ndim
+          if (.not. isCijklZero(i,j,k,l)) then 
+              WsMat(a, b, i, k, :, :) = WsMat(a, b, i, k, :, :) + &
+              Cijkl(i,j,k,l, :, :) * a_b_xl_xj(a,b,l,j) 
+          end if
+      end do !l
+      end do !k
+      WsMat(a, b, i, k, :, :) = WsMat(a, b, i, k, :, :) * matwrk%derint%weights
+      end do !j
+      end do !i
+  end do !b
+  end do !a
+
+end subroutine !MAT_WeightsMat
+
+!=======================================================================
+!
+! Compute elemental stiffness matrix using weight matrices and H matrices 
+!
+! W_{uv}^{alpha, beta,i, k} = 
+!     W(u,v)*(sum_{i}sum_{j} C_ijkl * dalpha_dxl * dbeta_dxj)
+!
+! Note this subroutine is general and same for different material types
+!
+
+subroutine MAT_Ke(Ke, matwrk, matpro, ndof, ngll, ndim)
+  use stdio, only : IO_abort
+  implicit none
+  type(matwrk_elem_type) :: matwrk
+  type(matpro_elem_type), intent(in) :: matpro
+  integer:: ndof, ngll, ndim, p, q, r, s, u, i, k 
+  double precision :: WsMat(ndim, ndim, ndof, ndof, ngll, ngll)
+  double precision, dimension (ngll, ngll) :: H
+  double precision :: Ke_xi_xi
+  double precision :: Ke_xi_eta
+  double precision :: Ke_eta_xi
+  double precision :: Ke_eta_eta, Ke_iter, w
+  double precision, dimension(ndof, ndof, ngll, ngll, ngll, ngll) :: Ke
+  
+  call MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
+  ! compute elemental stiffness matrix
+
+  H  = matwrk%derint%H
+  Ke = 0d0
+  Ke_xi_xi   = 0d0
+  Ke_xi_eta  = 0d0
+  Ke_eta_xi  = 0d0
+  Ke_eta_eta = 0d0
+
+  do p = 1, ngll
+  do q = 1, ngll
+  do r = 1, ngll
+  do s = 1, ngll
+  ! start loop p, q, r, s
+     do i = 1, ndof
+     do k = 1, ndof
+     ! start loop i,k
+         ke_xi_xi = 0d0
+         if (s==q) then
+             do u = 1, ngll
+                 w = WsMat(1, 1, i, k, u, q)
+                 ke_xi_xi = ke_xi_xi + H(p,u)*H(r,u)*w
+             end do
+         end if
+         ke_xi_eta = H(p,r)*H(s,q)*WsMat(1, 2, i, k, r, q)
+         ke_eta_xi = H(q,s)*H(r,p)*WsMat(2, 1, i, k, p, s)
+         
+         ke_eta_eta = 0d0
+         if (p==r) then
+             do u = 1, ngll
+                 w = WsMat(2, 2, i, k, r, u)
+                 ke_eta_eta = ke_eta_eta + H(q,u)*H(s,u)*w
+             end do
+         end if
+         ! term between node p,q,i and node r,s,k 
+         Ke(i,k,p,q,r,s) = Ke_xi_xi + Ke_xi_eta + Ke_eta_xi + Ke_eta_eta
+     end do 
+     end do 
+     ! end loop i,k
+  end do
+  end do
+  end do
+  end do
+  ! end loop p,q,r,s
+end subroutine !Mat_Ke
+
+
+
 
 
 !=======================================================================

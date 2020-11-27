@@ -37,18 +37,25 @@ module problem_class
     type(fields_type) :: fields
    ! inverse mass matrix (diagonal)
     double precision, pointer :: rmass(:,:) => null()
+
+   ! do not need after using petsc 
    ! inverse stiffness matrix (diagonal)
     double precision, pointer :: invKdiag(:,:) => null()
     double precision, pointer :: invKdiagTrans(:,:) => null()
 
-   ! Petsc objects
+   ! petsc ksp linear solver
+    KSP  :: ksp
+
    ! global stiffness matrix, [npoin*ndof, npoin*ndof]
+   ! initialize subroutine in mat_gen 
     Mat :: K
 
    ! global transformation matrix, [npoin*ndof, npoin*ndof]
+   ! initialize subroutine in bc_gen
     Mat :: X, Xinv
 
    ! global displacement, velocity, acceleration, [npoin*ndof, 1]
+   ! initialize subroutine in fields
     Vec :: d, v, a 
 
    ! time integration coefficients
@@ -59,6 +66,21 @@ module problem_class
     type(rec_type), pointer :: rec => null()
   end type problem_type
 
-  public :: problem_type
+  public :: problem_type, destroyPetscStruct
+
+  contains
+
+  subroutine destroyPetscStruct(pb, ierr)
+#include <petsc/finclude/petscksp.h>
+     use petscksp
+     implicit none
+     type(problem_type)::pb
+     PetscErrorCode :: ierr
+     call MatDestroy(pb%K, ierr)
+     call VecDestroy(pb%d, ierr)
+     call VecDestroy(pb%v, ierr)
+     call VecDestroy(pb%a, ierr)
+     call KSPDestroy(pb%ksp, ierr)
+   end subroutine destroyPetscStruct
 
 end module problem_class
