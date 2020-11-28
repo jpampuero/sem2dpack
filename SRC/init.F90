@@ -15,14 +15,17 @@ contains
 
 subroutine init_main(pb, ierr, InitFile)
 #include <petsc/finclude/petscksp.h>
+#include <petsc/finclude/petscsys.h>
   use petscksp
+  use petscsys
 
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
   use bc_gen, only : BC_init
   use mat_mass, only : MAT_MASS_init
-  use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init
+  use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init, &
+                      MAT_init_KG, MAT_AssembleK
   use mat_elastic, only : MAT_IsElastic
   use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
   use plot_gen, only : PLOT_init
@@ -37,10 +40,12 @@ subroutine init_main(pb, ierr, InitFile)
   type(problem_type), intent(inout) :: pb
   character(50), intent(in), optional :: InitFile
   PetscErrorCode :: ierr
-  
+  PetscInt, dimension(:), allocatable :: index1
   double precision :: grid_cfl
-  integer :: recsamp,i,j
+  integer :: recsamp,i,j, ndof, ndim, ngll, npoin 
   logical :: init_cond
+  PetscViewer :: viewer
+
 
   init_cond = present(InitFile)
 
@@ -61,13 +66,19 @@ subroutine init_main(pb, ierr, InitFile)
   call PLOT_init(pb%grid)
   call CHECK_grid(pb%grid,pb%matpro,pb%fields%ndof,grid_cfl)
   call TIME_init(pb%time,grid_cfl) ! define time evolution coefficients
+
+  ndof  = pb%fields%ndof
+  ndim  = 2
+  ngll  = pb%grid%ngll
+  npoin = pb%grid%npoin
  
+
  ! define work arrays and data
-  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,pb%fields%ndof,TIME_getTimeStep(pb%time))
+  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,ndof,TIME_getTimeStep(pb%time))
 
  ! initialise fields
   if (info) write(iout,fmt1,advance='no') 'Initializing kinematic fields'
-  call FIELDS_init(pb%fields,pb%grid%npoin, TIME_needsAlphaField(pb%time))
+  call FIELDS_init(pb%fields,npoin, TIME_needsAlphaField(pb%time))
   if(init_cond) call FIELDS_read(pb%fields,InitFile) ! read from a file
   if (info) then
     write(iout,fmtok)
@@ -75,10 +86,11 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(7X,A,EN12.3)') 'Max veloc = ',maxval(abs(pb%fields%veloc))
     write(iout,*)
   endif
+
  ! --------------------------------------------------------------------------
  ! initialize Petsc Vec objects
   call VecCreate(PETSC_COMM_WORLD, pb%d, ierr)
-  call VecSetSizes(pb%d, PETSC_DECIDE, pb%fields%ndof*pb%grid%npoin,ierr)
+  call VecSetSizes(pb%d, PETSC_DECIDE, ndof * npoin,ierr)
   call VecSetFromOptions(pb%d, ierr)
   call VecDuplicate(pb%d, pb%v, ierr)
   call VecDuplicate(pb%d, pb%a, ierr)
@@ -86,13 +98,35 @@ subroutine init_main(pb, ierr, InitFile)
   ! set initial values to 0
   call VecSet(pb%d, 0d0, ierr)
   call VecSet(pb%v, 0d0, ierr)
-  call VecSet(pb%a, 0d0, ierr)
-  CHKERRQ(ierr)
+  if (info) then
+    write(iout,*)
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*   Start Assemble global stiffness matrix    *' 
+    write(iout,'(a)') '***********************************************'
+    write(iout,*)
+  endif
 
  ! --------------------------------------------------------------------------
  ! initialize assemble stiffness matrix
  ! this has to be done once for linear problem
  ! implemented in mat_gen
+  call MAT_init_KG(pb%K, ndof, npoin, ngll, ierr)  
+  CHKERRA(ierr)
+  call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
+  CHKERRA(ierr)
+
+ ! save stiffness matrix into matlab .mat format
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%K, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+
+  if (info) then
+    write(iout,*)
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*    Finish Assemble global stiffness matrix  *' 
+    write(iout,'(a)') '***********************************************'
+    write(iout,*)
+  endif
 
  ! build the mass matrix
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
@@ -103,13 +137,31 @@ subroutine init_main(pb, ierr, InitFile)
   if (info) write(iout,fmtok)
 
  ! --------------------------------------------------------------------------
+  ! reset initial displacement and velocity vector
+  allocate(index1(npoin))
+  do i = 1, npoin 
+      index1(i) = i - 1
+  end do
+
+  do i = 1, ndof
+     if (i==2) index1 = index1 + 1
+      call VecSetValues(pb%d, npoin, index1, pb%fields%displ(:, i), INSERT_VALUES, ierr) 
+      call VecSetValues(pb%v, npoin, index1, pb%fields%veloc(:, i), INSERT_VALUES, ierr) 
+  end do
+
+  call VecAssemblyBegin(pb%d, ierr)
+  call VecAssemblyEnd(pb%d,ierr)
+  call VecAssemblyBegin(pb%v, ierr)
+  call VecAssemblyEnd(pb%v,ierr)
+  CHKERRQ(ierr)
+  deallocate(index1)
+  
+ ! --------------------------------------------------------------------------
  ! initialize the transformation matrix X and Xinv
  ! implemented in bc_gen
 
-
  ! --------------------------------------------------------------------------
  ! initialize the Petsc KSP solver
-
 
  ! define position of receivers and allocate database
   if (associated(pb%rec)) then
@@ -149,7 +201,7 @@ subroutine init_main(pb, ierr, InitFile)
   if (COMPUTE_ENERGIES) call energy_init(pb%energy)
   if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
 
- ! required for quasi-static solution
+ ! required for quasi-static solution, not necessary with petsc 
  ! DEVEL only implemented in elastic material              
   if (pb%time%kind =='adaptive') then
     write(iout,'(a)') '***********************************************'

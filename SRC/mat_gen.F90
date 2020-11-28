@@ -48,10 +48,15 @@ module mat_gen
     double precision, pointer, dimension(:,:) :: H=>null(), Ht=>null(), weights => null(), &
       dxi_dx => null(), dxi_dy => null(), deta_dx => null(), deta_dy => null()
   end type derint_type
-
+  integer, parameter :: IS_ELAST = 0, &
+                        IS_PLAST = 1, &
+                        IS_DAMAG = 2, &
+                        IS_VISCO = 3 
 
  ! working arrays for each element
   type matwrk_elem_type
+    integer :: kind
+    logical :: IS_KV
     type(derint_type)      , pointer :: derint =>null()
     type(matwrk_elast_type), pointer :: elast=>null() 
     type(matwrk_kv_type)   , pointer :: kv=>null() 
@@ -74,8 +79,7 @@ module mat_gen
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
             MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
-            MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke!, MAT_AssembleKMat, &
-            !Mat_WeightsMat
+            MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke, MAT_AssembleK, MAT_init_KG
 
 contains
 
@@ -321,6 +325,19 @@ subroutine MAT_init_elem_prop(elem,ecoord)
 
 end subroutine MAT_init_elem_prop
 
+subroutine MAT_Set_matwrk_kind(matwrk, matpro)
+  implicit none
+  type(matwrk_elem_type) :: matwrk
+  type(matpro_elem_type) :: matpro
+
+  if (MAT_isElastic(matpro)) matwrk%kind = IS_ELAST  
+  if (MAT_isPlastic(matpro)) matwrk%kind = IS_PLAST 
+  if (MAT_isKelvinVoigt(matpro)) matwrk%IS_KV = .true. 
+  if (MAT_isDamage(matpro)) matwrk%kind  = IS_DAMAG 
+  if (MAT_isVisco(matpro)) matwrk%kind   = IS_VISCO
+
+end subroutine
+
 !=======================================================================
 subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
@@ -348,7 +365,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   elist => SE_firstElementTagged(grid)
 
   do e=1,grid%nelem
-
+    call MAT_Set_matwrk_kind(matwrk(e), matpro(e))
     ! all material types will have derint
     allocate(matwrk(e)%derint)
     call MAT_set_derint(matwrk(e)%derint,grid,e)
@@ -625,11 +642,10 @@ end subroutine MAT_write
 ! 
 ! Tangent matrix must be provided depending on material type
 !
-subroutine MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
+subroutine MAT_WeightsMat(WsMat, matwrk, ndof, ngll, ndim)
   use stdio, only : IO_abort
   implicit none
   type(matwrk_elem_type) :: matwrk
-  type(matpro_elem_type), intent(in) :: matpro
   integer:: ndof, ngll, ndim, i, j, k, l, a, b
   double precision :: WsMat(ndim, ndim, ndof, ndof, ngll, ngll)
   double precision :: a_b_xl_xj(ndim, ndim, ngll, ngll)
@@ -644,7 +660,7 @@ subroutine MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
   a_b_xl_xj(2,2,:,:) = matwrk%derint%deta_dy
 
   ! obtain the tangent matrix
-  if (MAT_isElastic(matpro)) then
+  if (matwrk%kind==IS_ELAST) then
      call MAT_ELAST_Cijkl(Cijkl, isCijklZero, matwrk%elast, ndof, ngll)
   else
      call IO_abort('Only linear isotropic elasticity is implement so far')
@@ -661,7 +677,7 @@ subroutine MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
       do l = 1, ndim
           if (.not. isCijklZero(i,j,k,l)) then 
               WsMat(a, b, i, k, :, :) = WsMat(a, b, i, k, :, :) + &
-              Cijkl(i,j,k,l, :, :) * a_b_xl_xj(a,b,l,j) 
+              Cijkl(i,j,k,l, :, :) * a_b_xl_xj(a,l,:,:) * a_b_xl_xj(b,j,:,:) 
           end if
       end do !l
       end do !k
@@ -682,22 +698,21 @@ end subroutine !MAT_WeightsMat
 !
 ! Note this subroutine is general and same for different material types
 !
-
-subroutine MAT_Ke(Ke, matwrk, matpro, ndof, ngll, ndim)
+subroutine MAT_Ke(Ke, matwrk, ndof, ngll, ndim)
   use stdio, only : IO_abort
   implicit none
   type(matwrk_elem_type) :: matwrk
-  type(matpro_elem_type), intent(in) :: matpro
-  integer:: ndof, ngll, ndim, p, q, r, s, u, i, k 
+  integer:: ndof, ngll, ndim, p, q, r, s, u, i, k, iKe, jKe 
   double precision :: WsMat(ndim, ndim, ndof, ndof, ngll, ngll)
   double precision, dimension (ngll, ngll) :: H
   double precision :: Ke_xi_xi
   double precision :: Ke_xi_eta
   double precision :: Ke_eta_xi
   double precision :: Ke_eta_eta, Ke_iter, w
-  double precision, dimension(ndof, ndof, ngll, ngll, ngll, ngll) :: Ke
+!  double precision, dimension(ngll, ngll, ndof, ngll, ngll, ndof) :: Ke
+  double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof) :: Ke
   
-  call MAT_WeightsMat(WsMat, matwrk, matpro, ndof, ngll, ndim)
+  call MAT_WeightsMat(WsMat, matwrk, ndof, ngll, ndim)
   ! compute elemental stiffness matrix
 
   H  = matwrk%derint%H
@@ -733,7 +748,9 @@ subroutine MAT_Ke(Ke, matwrk, matpro, ndof, ngll, ndim)
              end do
          end if
          ! term between node p,q,i and node r,s,k 
-         Ke(i,k,p,q,r,s) = Ke_xi_xi + Ke_xi_eta + Ke_eta_xi + Ke_eta_eta
+         iKe = ((p - 1) * ngll + q - 1) * ndof + i
+         jKe = ((r - 1) * ngll + s - 1) * ndof + k
+         Ke(iKe,jKe) = Ke_xi_xi + Ke_xi_eta + Ke_eta_xi + Ke_eta_eta
      end do 
      end do 
      ! end loop i,k
@@ -744,9 +761,83 @@ subroutine MAT_Ke(Ke, matwrk, matpro, ndof, ngll, ndim)
   ! end loop p,q,r,s
 end subroutine !Mat_Ke
 
+!=======================================================================
+!
+! create/initialize and set up global stiffness matrix 
+!
+subroutine MAT_init_KG(KG, ndof, npoin, ngll, ierr)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  Mat:: KG
+  integer:: ndof, npoin, ngll
+  PetscErrorCode  :: ierr
 
+! set up the matrix
+  call MatCreate(PETSC_COMM_WORLD, KG, ierr) 
+  CHKERRQ(ierr)
+! set matrix option at runtime
 
+  ! -mat_type mpiaij
+  call MatSetFromOptions(KG, ierr);CHKERRQ(ierr)
+  call MatSetSizes(KG, PETSC_DECIDE, PETSC_DECIDE, ndof*npoin, ndof*npoin, ierr)
+  CHKERRQ(ierr)
 
+! Multiple ways of allocating memory
+  call MatMPIAIJSetPreallocation(KG, 4*ndof*ngll*ngll, &
+       PETSC_NULL_INTEGER, 4*ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
+  call MatSeqAIJSetPreallocation(KG, 4*ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
+!  call MatSeqSBAIJSetPreallocation(KG, 2, ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
+!  call MatMPISBAIJSetPreallocation(KG, 1, ndof*ngll*ngll, &
+!       PETSC_NULL_INTEGER, ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
+
+! may not need to setup again
+  call MatSetUp(KG, ierr); CHKERRQ(ierr)
+
+end subroutine
+
+!=======================================================================
+!
+! Assemble global stiffness matrix from elemental stiffness matrix
+!
+! Note this subroutine is general and same for different material types
+!
+subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+
+  use stdio, only : IO_abort
+  implicit none
+  type(matwrk_elem_type), intent(in) :: matwrk(:)
+  integer, intent(in) :: ibool(:,:,:)
+  Mat :: KG ! petsc object, global stiffness matrix
+  integer:: ndof, ngll, ndim, p, q, i, k, e 
+  double precision, dimension(ndof*ngll*ngll, ndof*ngll*ngll) :: Ke
+  PetscInt:: rows(ndof*ngll*ngll)
+  PetscErrorCode  :: ierr
+
+  do e = 1, size(matwrk)
+      call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
+      do p = 1, ngll
+      do q = 1, ngll
+      do i = 1, ndof
+          k = ((p-1)*ngll + q - 1)*ndof + i
+          ! note that row indices are 0 based
+          rows(k) = (ibool(p, q, e) - 1) * ndof + i - 1
+      end do
+      end do
+      end do ! end do p,q,i 
+
+      ! set matrix values
+      ! add the values of Ke to KG
+      ! obtain the global rows and columns
+      call MatSetValues(KG, ndof*ngll*ngll, rows, ndof*ngll*ngll, rows, Ke, ADD_VALUES, ierr)
+      CHKERRA(ierr)
+  end do !e
+
+  ! assemble the global stiffness matrix
+  call MatAssemblyBegin(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+  call MatAssemblyend(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+end subroutine
 
 !=======================================================================
 subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
