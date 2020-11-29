@@ -41,7 +41,8 @@ module bc_dynflt
   public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init,  & 
             BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
-            BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV
+            BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
+            BC_DYNFLT_nnode, BC_DYNFLT_node
 
 contains
 
@@ -1345,6 +1346,23 @@ subroutine BC_DYNFLT_trans(bc, field, direction)
   end select
 
 end subroutine BC_DYNFLT_trans
+
+function BC_DYNFLT_nnode(bc) result(n)
+  type(bc_dynflt_type), intent(in) :: bc
+  integer :: n
+  n = size(bc%node1, 1)
+end function BC_DYNFLT_nnode
+
+subroutine BC_DYNFLT_node(bc, node1, node2)
+  type(bc_dynflt_type), intent(in) :: bc
+  integer, dimension(size(bc%node1, 1)), intent(inout) :: node1, node2
+  node1 = bc%node1 
+  if (associated(bc%bc2)) then
+      node2 = bc%node2
+  else
+      node2 = bc%node1
+  end if
+end subroutine BC_DYNFLT_node
 
 ! update displacement on the fault nodes 
 ! only used by quasi-static

@@ -94,6 +94,7 @@ subroutine init_main(pb, ierr, InitFile)
   call VecSetFromOptions(pb%d, ierr)
   call VecDuplicate(pb%d, pb%v, ierr)
   call VecDuplicate(pb%d, pb%a, ierr)
+  call VecDuplicate(pb%d, pb%b, ierr) ! right hand side
 
   ! set initial values to 0
   call VecSet(pb%d, 0d0, ierr)
@@ -110,7 +111,7 @@ subroutine init_main(pb, ierr, InitFile)
  ! initialize assemble stiffness matrix
  ! this has to be done once for linear problem
  ! implemented in mat_gen
-  call MAT_init_KG(pb%K, ndof, npoin, ngll, ierr)  
+  call MAT_init_KG(pb%K, ndof, npoin, ngll, ierr) 
   CHKERRA(ierr)
   call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
   CHKERRA(ierr)
@@ -162,6 +163,27 @@ subroutine init_main(pb, ierr, InitFile)
 
  ! --------------------------------------------------------------------------
  ! initialize the Petsc KSP solver
+  
+  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
+  call KSPSetOperators(pb%ksp,pb%K, pb%K, ierr)
+  ! set the non-zero initial guess
+!  call KSPSetInitialGuessNonzero(ksp,PETSC_TRUE,ierr);
+
+ !   /*
+ !    Set linear solver defaults for this problem (optional).
+ !    - By extracting the KSP and PC contexts from the KSP context,
+ !      we can then directly call any KSP and PC routines to set
+ !      various options.
+ !    - The following two statements are optional; all of these
+ !      parameters could alternatively be specified at runtime via
+ !      KSPSetFromOptions().  All of these defaults can be
+ !      overridden at runtime, as indicated below.
+ ! */
+
+ ! set tolerance
+  call KSPSetTolerances(pb%ksp,1.d-5,1.d-50,&
+                    PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr)
+  CHKERRQ(ierr)
 
  ! define position of receivers and allocate database
   if (associated(pb%rec)) then

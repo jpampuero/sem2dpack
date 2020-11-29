@@ -41,7 +41,7 @@ module bc_kinflt
   end type
 
   public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_apply, BC_kinflt_write, &
-            BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set
+            BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set, BC_KINFLT_nnode, BC_KINFLT_node
 
 contains
 
@@ -945,7 +945,24 @@ subroutine BC_KINFLT_select(bc, field_in, field_out, side_in)
       end if
   end select
   
-  end subroutine BC_KINFLT_select
+end subroutine BC_KINFLT_select
+
+function BC_KINFLT_nnode(bc) result(n)
+  type(bc_kinflt_type), intent(in) :: bc
+  integer :: n
+  n = size(bc%node1, 1)
+end function BC_KINFLT_nnode
+
+subroutine BC_KINFLT_node(bc, node1, node2)
+  type(bc_kinflt_type), intent(in) :: bc
+  integer, dimension(size(bc%node1, 1)), intent(inout) :: node1, node2
+  node1 = bc%node1 
+  if (associated(bc%bc2)) then
+      node2 = bc%node2
+  else
+      node2 = bc%node1
+  end if
+end subroutine BC_KINFLT_node
 
 ! ==============================================================
 ! Transform a field on the fault boundary

@@ -56,7 +56,7 @@ module problem_class
 
    ! global displacement, velocity, acceleration, [npoin*ndof, 1]
    ! initialize subroutine in fields
-    Vec :: d, v, a 
+    Vec :: d, v, a, b 
 
    ! time integration coefficients
     type(timescheme_type) :: time
@@ -80,6 +80,7 @@ module problem_class
      call VecDestroy(pb%d, ierr)
      call VecDestroy(pb%v, ierr)
      call VecDestroy(pb%a, ierr)
+     call VecDestroy(pb%b, ierr)
      call KSPDestroy(pb%ksp, ierr)
    end subroutine destroyPetscStruct
 

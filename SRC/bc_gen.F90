@@ -401,6 +401,113 @@ contains
   
 end subroutine bc_apply_kind
 
+
+function BC_nfaultnode(bc) result(n)
+  type(bc_type), pointer :: bc(:)
+  integer :: i, n
+
+  if (.not. associated(bc)) return
+  
+  n = 0
+  do i = 1,size(bc)
+    select case(bc(i)%kind)
+    case (IS_KINFLT)
+        n = n + bc_kinflt_nnode(bc(i)%kinflt)
+    case (IS_DYNFLT)
+        n = n + bc_dynflt_nnode(bc(i)%dynflt)
+    end select
+  enddo
+
+end function
+
+! obtain all the fault nodes
+subroutine BC_faultnode(bc, node1, node2, nnode)
+  type(bc_type), pointer :: bc(:)
+  integer, intent(in):: nnode
+  integer, dimension(nnode), intent(inout):: node1, node2
+  integer, dimension(:), allocatable:: node1_tmp, node2_tmp
+  integer :: i, n, istart, iend
+
+  if (.not. associated(bc)) return
+  node1 = 0
+  node2 = 0
+  istart = 1
+  
+  do i = 1,size(bc)
+    select case(bc(i)%kind)
+    case (IS_KINFLT)
+        n = bc_kinflt_nnode(bc(i)%kinflt)
+        iend = istart + n - 1
+        allocate(node1_tmp(n))
+        allocate(node2_tmp(n))
+        call bc_kinflt_node(bc(i)%kinflt, node1_tmp, node2_tmp)
+        node1(istart:iend) = node1_tmp
+        node2(istart:iend) = node2_tmp
+        istart = iend + 1
+        deallocate(node1_tmp)
+        deallocate(node2_tmp)
+    case (IS_DYNFLT)
+        n = bc_dynflt_nnode(bc(i)%dynflt)
+        iend = istart + n - 1
+        allocate(node1_tmp(n))
+        allocate(node2_tmp(n))
+        call bc_dynflt_node(bc(i)%dynflt, node1_tmp, node2_tmp)
+        node1(istart:iend) = node1_tmp
+        node2(istart:iend) = node2_tmp
+        istart = iend + 1
+        deallocate(node1_tmp)
+        deallocate(node2_tmp)
+    end select
+  enddo
+
+end subroutine
+
+! build the global transformation matrix
+!
+! u' = X * u and 
+! u  = Xinv * u'
+! X for each split node pair is:
+!
+!  0.5 * [1 -1]
+!        [1  1]
+!
+! u'(1) = 0.5*(u(2)-u(1))
+! u'(2) = 0.5*(u(2)+u(1))
+!
+
+subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  type(bc_type), pointer :: bc(:)
+  Mat:: Xinv, X
+  integer:: ndof, npoin, i, j, n
+  integer,dimension(:), allocatable:: node1, node2
+  PetscErrorCode  :: ierr
+
+  ! obtain all the fault nodes
+
+  call MatCreate(PETSC_COMM_WORLD, X, ierr) 
+  CHKERRQ(ierr)
+! set matrix option at runtime
+
+  ! -mat_type mpiaij
+  call MatSetFromOptions(X, ierr);CHKERRQ(ierr)
+  call MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, ndof*npoin, ndof*npoin, ierr)
+  CHKERRQ(ierr)
+
+! Multiple ways of allocating memory
+  call MatMPIAIJSetPreallocation(X, 2, &
+       PETSC_NULL_INTEGER, 2, PETSC_NULL_INTEGER,ierr);
+  call MatSeqAIJSetPreallocation(X, 2, PETSC_NULL_INTEGER,ierr);
+  call MatSetUp(X, ierr); CHKERRQ(ierr)
+  
+  ! set diagonals, index is 0-based
+  do i = 0, npoin*ndof-1
+      call MatSetValue(X, i, i, 1d0, INSERT_VALUES, ierr)
+  end do
+
+end subroutine
+
 !=======================================================================
 ! Writes data for faults, and possibly other BCs
 subroutine BC_write(bc,time,d,v)
