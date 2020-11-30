@@ -48,7 +48,7 @@ module problem_class
 
    ! global stiffness matrix, [npoin*ndof, npoin*ndof]
    ! initialize subroutine in mat_gen 
-    Mat :: K
+    Mat :: K, MatA
 
    ! global transformation matrix, [npoin*ndof, npoin*ndof]
    ! initialize subroutine in bc_gen
@@ -77,6 +77,7 @@ module problem_class
      type(problem_type)::pb
      PetscErrorCode :: ierr
      call MatDestroy(pb%K, ierr)
+     call MatDestroy(pb%MatA, ierr)
      call VecDestroy(pb%d, ierr)
      call VecDestroy(pb%v, ierr)
      call VecDestroy(pb%a, ierr)

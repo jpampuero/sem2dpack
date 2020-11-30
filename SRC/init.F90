@@ -22,7 +22,7 @@ subroutine init_main(pb, ierr, InitFile)
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
-  use bc_gen, only : BC_init
+  use bc_gen, only : BC_init, BC_build_transform_mat
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init, &
                       MAT_init_KG, MAT_AssembleK
@@ -31,7 +31,7 @@ subroutine init_main(pb, ierr, InitFile)
   use plot_gen, only : PLOT_init
   use receivers, only : REC_init,REC_inquire
   use sources, only : SO_init,SO_check
-  use fields_class, only : FIELDS_init, FIELDS_read 
+  use fields_class, only : FIELDS_init, FIELDS_read, FIELD_SetVecFromField 
   use memory_info
   use echo, only : iout,info=>echo_init, fmt1,fmtok
   use energy, only : energy_init, stress_glut_init
@@ -40,8 +40,8 @@ subroutine init_main(pb, ierr, InitFile)
   type(problem_type), intent(inout) :: pb
   character(50), intent(in), optional :: InitFile
   PetscErrorCode :: ierr
-  PetscInt, dimension(:), allocatable :: index1
   double precision :: grid_cfl
+  real :: cputime0, cputime1
   integer :: recsamp,i,j, ndof, ndim, ngll, npoin 
   logical :: init_cond
   PetscViewer :: viewer
@@ -106,21 +106,21 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,*)
   endif
-
  ! --------------------------------------------------------------------------
  ! initialize assemble stiffness matrix
  ! this has to be done once for linear problem
  ! implemented in mat_gen
   call MAT_init_KG(pb%K, ndof, npoin, ngll, ierr) 
   CHKERRA(ierr)
+  call CPU_TIME(cputime0)
   call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
   CHKERRA(ierr)
-
- ! save stiffness matrix into matlab .mat format
- call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%K, viewer, ierr);CHKERRA(ierr)
- call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
-
+  call CPU_TIME(cputime1)
+  cputime0 = cputime1-cputime0
+  write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
+        '---  CPU TIME ESTIMATES (in seconds) :', &
+        'CPU time for assembling stiffness matrix . .', cputime0
+  
   if (info) then
     write(iout,*)
     write(iout,'(a)') '***********************************************'
@@ -128,6 +128,34 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,*)
   endif
+
+  if (info) then
+    write(iout,*)
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*    Writing global stiffness matrix  *' 
+    write(iout,'(a)') '***********************************************'
+    write(iout,*)
+  endif
+
+ call CPU_TIME(cputime0)
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%K, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+ call CPU_TIME(cputime1)
+ cputime0 = cputime1-cputime0
+
+ write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
+        '---  CPU TIME ESTIMATES (in seconds) :', &
+        'CPU time for writing stiffness matrix . .', cputime0
+
+  if (info) then
+    write(iout,*)
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*   Done writing global stiffness matrix  *' 
+    write(iout,'(a)') '***********************************************'
+    write(iout,*)
+  endif
+  
 
  ! build the mass matrix
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
@@ -139,35 +167,36 @@ subroutine init_main(pb, ierr, InitFile)
 
  ! --------------------------------------------------------------------------
   ! reset initial displacement and velocity vector
-  allocate(index1(npoin))
-  do i = 1, npoin 
-      index1(i) = i - 1
-  end do
-
-  do i = 1, ndof
-     if (i==2) index1 = index1 + 1
-      call VecSetValues(pb%d, npoin, index1, pb%fields%displ(:, i), INSERT_VALUES, ierr) 
-      call VecSetValues(pb%v, npoin, index1, pb%fields%veloc(:, i), INSERT_VALUES, ierr) 
-  end do
-
-  call VecAssemblyBegin(pb%d, ierr)
-  call VecAssemblyEnd(pb%d,ierr)
-  call VecAssemblyBegin(pb%v, ierr)
-  call VecAssemblyEnd(pb%v,ierr)
+  call FIELD_SetVecFromField(pb%d, pb%fields%displ, ierr)
+  call FIELD_SetVecFromField(pb%v, pb%fields%veloc, ierr)
   CHKERRQ(ierr)
-  deallocate(index1)
-  
+
  ! --------------------------------------------------------------------------
  ! initialize the transformation matrix X and Xinv
  ! implemented in bc_gen
-
+ call BC_build_transform_mat(pb%bc, pb%X, pb%Xinv, ndof, npoin, ierr)
+ CHKERRQ(ierr)
+ 
  ! --------------------------------------------------------------------------
  ! initialize the Petsc KSP solver
-  
-  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
-  call KSPSetOperators(pb%ksp,pb%K, pb%K, ierr)
-  ! set the non-zero initial guess
-!  call KSPSetInitialGuessNonzero(ksp,PETSC_TRUE,ierr);
+
+ ! compute the A matrix: A = Xinv * K * Xinv
+
+ ! the linear system is Xinv * K * Xinv * (X*d) = Xinv * f
+ call CPU_TIME(cputime0)
+ call MatMatMatMult(pb%Xinv, pb%K, pb%Xinv, MAT_INITIAL_MATRIX, PETSC_DEFAULT_REAL, pb%MatA, ierr)
+ call CPU_TIME(cputime1)
+ cputime0 = cputime1-cputime0
+
+ write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
+        '---  CPU TIME ESTIMATES (in seconds) :', &
+        'CPU time for construct A matrix for KSP (linear system) . .', cputime0
+ 
+ call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
+ call KSPSetOperators(pb%ksp,pb%MatA, pb%MatA, ierr)
+
+ ! set the non-zero initial guess
+ call KSPSetInitialGuessNonzero(pb%ksp, PETSC_TRUE, ierr);
 
  !   /*
  !    Set linear solver defaults for this problem (optional).
@@ -181,8 +210,8 @@ subroutine init_main(pb, ierr, InitFile)
  ! */
 
  ! set tolerance
-  call KSPSetTolerances(pb%ksp,1.d-5,1.d-50,&
-                    PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr)
+  call KSPSetTolerances(pb%ksp,pb%time%TolLin,1.d-50,&
+                        PETSC_DEFAULT_REAL, pb%time%MaxIterLin,ierr)
   CHKERRQ(ierr)
 
  ! define position of receivers and allocate database
@@ -223,13 +252,27 @@ subroutine init_main(pb, ierr, InitFile)
   if (COMPUTE_ENERGIES) call energy_init(pb%energy)
   if (COMPUTE_STRESS_GLUT) call stress_glut_init(pb%energy)
 
- ! required for quasi-static solution, not necessary with petsc 
+ ! required for quasi-static solution
  ! DEVEL only implemented in elastic material              
+ !
+ ! WARN: not necessary with petsc !!!!!!!!!!! 
+ !
   if (pb%time%kind =='adaptive') then
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'
+    call CPU_TIME(cputime0)
     call MAT_diag_stiffness_init(pb%invKDiag,pb%invKDiagTrans,pb%grid,pb%fields,pb%matwrk, pb%bc)
+    call CPU_TIME(cputime1)
+    cputime0 = cputime1-cputime0
+
+    write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
+           '---  CPU TIME ESTIMATES (in seconds) :', &
+           'CPU time for diagonal stiffness matrix . .', cputime0
+
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*    Done diagonal of stiffness matrix     *'
+    write(iout,'(a)') '***********************************************'
   endif
 
 end subroutine init_main

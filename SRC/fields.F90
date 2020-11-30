@@ -1,5 +1,7 @@
 module fields_class
 ! Fields (scalar or vector) with nodal storage
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   implicit none
   private
@@ -19,7 +21,8 @@ module fields_class
   end interface FIELD_add_elem
 
   public :: fields_type, FIELDS_read, FIELDS_init &
-          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
+          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem, &
+          FIELD_SetVecFromField, FIELD_SetFieldFromVec
 
 contains
 
@@ -127,6 +130,64 @@ subroutine FIELD_add_elem_2(fin,Fout,ibool)
   enddo
 
 end subroutine FIELD_add_elem_2
+
+subroutine FIELD_SetVecFromField(v, field, ierr)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  Vec :: v
+  double precision, dimension(:,:), intent(in)::field
+  integer, dimension(size(field,1)) :: index1
+  integer:: i, ndof, npoin
+  PetscErrorCode :: ierr
+
+  ndof  = size(field, 2)
+  npoin = size(field, 1)
+
+  ! note petsc index is 0 based
+  do i = 1, npoin
+      index1(i) = i - 1
+  end do
+
+  do i = 1, ndof
+      if (i == 2) index1 = index1 + 1
+      call VecSetValues(v, npoin, index1, field(:, i), INSERT_VALUES, ierr)
+  end do
+  call VecAssemblyBegin(v, ierr)
+  call VecAssemblyEnd(v,ierr)
+end subroutine
+
+subroutine FIELD_SetFieldFromVec(field, v, ierr)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  Vec :: v
+  double precision, dimension(:,:), intent(inout)::field
+  integer, dimension(size(field,1)) :: index1
+  integer:: i, ndof, npoin
+  PetscScalar, pointer :: xx_v(:)
+  PetscErrorCode :: ierr
+
+  ndof  = size(field, 2)
+  npoin = size(field, 1)
+
+  ! note fortran index is 1 based
+  do i = 1, npoin
+      index1(i) = i
+  end do
+
+  ! get the data from petsc vector (just for read)
+  call VecGetArrayReadF90(v, xx_v, ierr)
+
+  ! set values for fortran fields
+  do i = 1, ndof
+      if (i == 2) index1 = index1 + 1
+      field(:, i) = xx_v(index1)
+  end do
+
+  ! restore array
+  call VecRestoreArrayReadF90(v,xx_v,ierr)
+
+end subroutine
+
 
 !=============================================================================
 ! Get element contribution from a global field, in local element storage 

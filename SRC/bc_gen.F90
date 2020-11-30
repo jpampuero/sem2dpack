@@ -55,7 +55,7 @@ module bc_gen
 
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
-            bc_select_fix, bc_has_dynflt, bc_update_bcdv
+            bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat
 
 contains
 
@@ -401,7 +401,7 @@ contains
   
 end subroutine bc_apply_kind
 
-
+!=======================================================================
 function BC_nfaultnode(bc) result(n)
   type(bc_type), pointer :: bc(:)
   integer :: i, n
@@ -420,6 +420,8 @@ function BC_nfaultnode(bc) result(n)
 
 end function
 
+
+!=======================================================================
 ! obtain all the fault nodes
 subroutine BC_faultnode(bc, node1, node2, nnode)
   type(bc_type), pointer :: bc(:)
@@ -458,33 +460,54 @@ subroutine BC_faultnode(bc, node1, node2, nnode)
         deallocate(node1_tmp)
         deallocate(node2_tmp)
     end select
+
   enddo
 
 end subroutine
 
+!=======================================================================
 ! build the global transformation matrix
 !
 ! u' = X * u and 
 ! u  = Xinv * u'
 ! X for each split node pair is:
 !
-!  0.5 * [1 -1]
+!  0.5 * [-1 1]
 !        [1  1]
 !
 ! u'(1) = 0.5*(u(2)-u(1))
 ! u'(2) = 0.5*(u(2)+u(1))
 !
+!
+! Backward transform
+!
+!  u(1) = u'(2) - u'(1)
+!  u(2) = u'(2) + u'(1)
+!
+!  X'   = [-1, 1; 1, 1]
+!
+!
+! if index1 = index2 (symmetric assumption)
+! only node1 are stored
+! u'(1) = -u(1)
+! u(1)  = -u'(1)
+!
 
-subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin)
+subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
 #include <petsc/finclude/petscksp.h>
   use petscksp
   type(bc_type), pointer :: bc(:)
   Mat:: Xinv, X
-  integer:: ndof, npoin, i, j, n
+  integer:: ndof, npoin, i, j, nnode, n1, n2
   integer,dimension(:), allocatable:: node1, node2
+  integer, dimension(:), allocatable:: rows, cols
+  double precision, dimension(:,:), allocatable:: vals, valsinv
   PetscErrorCode  :: ierr
 
   ! obtain all the fault nodes
+  nnode = BC_nfaultnode(bc)
+  allocate(node1(nnode), node2(nnode))
+  call BC_faultnode(bc, node1, node2, nnode)
 
   call MatCreate(PETSC_COMM_WORLD, X, ierr) 
   CHKERRQ(ierr)
@@ -500,11 +523,57 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin)
        PETSC_NULL_INTEGER, 2, PETSC_NULL_INTEGER,ierr);
   call MatSeqAIJSetPreallocation(X, 2, PETSC_NULL_INTEGER,ierr);
   call MatSetUp(X, ierr); CHKERRQ(ierr)
+
+  call MatDuplicate(X, MAT_DO_NOT_COPY_VALUES, Xinv, ierr)
+  call MatSetUp(Xinv, ierr)
   
   ! set diagonals, index is 0-based
-  do i = 0, npoin*ndof-1
+  do i = 0, npoin*ndof - 1
       call MatSetValue(X, i, i, 1d0, INSERT_VALUES, ierr)
   end do
+
+!  call MatDuplicate(X, MAT_COPY_VALUES, Xinv, ierr)
+
+  ! create X and Xinv for each fault split node pair and each ndof
+  do i = 1, nnode
+      n1 = node1(i)
+      n2 = node2(i)
+
+      if (n1==n2) then
+          ! symmetric node 2 is not stored
+          allocate(rows(1), cols(1), vals(1,1), valsinv(1,1))
+      else
+          allocate(rows(2), cols(2), vals(2,2), valsinv(2,2))
+      end if
+      
+     do j = 1, ndof
+          if (n1==n2) then
+             rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
+             cols    = rows
+             vals(1,1) = -1d0
+             valsinv(1,1) = -1d0
+          else
+             rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
+             rows(2) = (n2 - 1) * ndof + j - 1 ! global index for node n2 and dof j
+             cols    = rows
+             vals(1,1) = -0.5d0
+             vals(1,2) =  0.5d0
+             vals(2,:) =  0.5d0
+             valsinv   = 2d0*vals
+          end if
+          call MatSetValues(X, size(rows), rows, size(cols), cols, vals, INSERT_VALUES, ierr)
+          call MatSetValues(Xinv, size(rows), rows, size(cols), cols, valsinv, INSERT_VALUES, ierr)
+     end do !j
+     deallocate(rows, cols, vals, valsinv)
+  end do !i
+
+  deallocate(node1, node2)
+
+  ! assemble matrix X and Xinv
+  call MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+  call MatAssemblyend(X, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+  call MatAssemblyBegin(Xinv, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+  call MatAssemblyend(Xinv, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
 
 end subroutine
 
