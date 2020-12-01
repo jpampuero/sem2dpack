@@ -55,7 +55,8 @@ module bc_gen
 
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
-            bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat
+            bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
+            bc_GetIndexDofFix, bc_nDofFix
 
 contains
 
@@ -530,6 +531,7 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   ! set diagonals, index is 0-based
   do i = 0, npoin*ndof - 1
       call MatSetValue(X, i, i, 1d0, INSERT_VALUES, ierr)
+      call MatSetValue(Xinv, i, i, 1d0, INSERT_VALUES, ierr)
   end do
 
 !  call MatDuplicate(X, MAT_COPY_VALUES, Xinv, ierr)
@@ -574,7 +576,6 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   call MatAssemblyend(X, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
   call MatAssemblyBegin(Xinv, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
   call MatAssemblyend(Xinv, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
-
 end subroutine
 
 !=======================================================================
@@ -700,6 +701,51 @@ subroutine bc_select_fix(bc, field_in, field_out)
 
 end subroutine bc_select_fix
 
+! Return the index of fixed dofs
+! Note the index is 1 based (fortran)
+! dirichlet dofs in dirneu and dirabs
+! -1 side dofs for dynflt and kinflt 
+! (in the transformed problem)
+
+subroutine bc_GetIndexDofFix(bc, indexDofFix, ndof)
+  type(bc_type), pointer :: bc(:)
+  integer, dimension(:), intent(inout) :: indexDofFix
+  integer :: i, n, istart, ndof
+  istart =1 
+
+  do i = 1,size(bc)
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+        call BC_DYNFLT_AppendDofFix(bc(i)%dynflt, indexDofFix, istart, ndof) 
+      case (IS_DIRNEU) 
+        call BC_DIRNEU_AppendDofFix(bc(i)%dirneu, indexDofFix, istart, ndof) 
+      case (IS_DIRABS) 
+        call BC_DIRABS_AppendDofFix(bc(i)%dirabs, indexDofFix, istart, ndof) 
+      case (IS_KINFLT) 
+        call BC_KINFLT_AppendDofFix(bc(i)%kinflt, indexDofFix, istart, ndof)
+      end select
+  enddo
+
+end subroutine
+
+function bc_nDofFix(bc, ndof) result(n)
+  type(bc_type), pointer :: bc(:)
+  integer :: i, n, ndof
+
+  n = 0
+  do i = 1,size(bc)
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+        n = n + BC_DYNFLT_nDofFix(bc(i)%dynflt, ndof) 
+      case (IS_DIRNEU) 
+        n = n + BC_DIRNEU_nDofFix(bc(i)%dirneu, ndof) 
+      case (IS_DIRABS) 
+        n = n + BC_DIRABS_nDofFix(bc(i)%dirabs, ndof) 
+      case (IS_KINFLT) 
+        n = n + BC_KINFLT_nDofFix(bc(i)%kinflt, ndof) 
+      end select
+  enddo
+end function 
 !======================================================================
 ! set the field on the fixed degree of freedom to zero
 !

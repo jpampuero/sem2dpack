@@ -22,7 +22,8 @@ module bc_dirneu
   integer,parameter :: IS_NEUMANN=1, IS_DIRICHLET=2
 
   public :: BC_DIRNEU_type, BC_DIRNEU_read, BC_DIRNEU_init, & 
-      BC_DIRNEU_apply, BC_DIRNEU_apply_kind, BC_DIRNEU_set_kind, BC_DIRNEU_select_kind
+      BC_DIRNEU_apply, BC_DIRNEU_apply_kind, BC_DIRNEU_set_kind, BC_DIRNEU_select_kind, &
+      BC_DIRNEU_AppendDofFix, BC_DIRNEU_nDofFix
 
 contains
 
@@ -195,6 +196,34 @@ subroutine bc_DIRNEU_apply(bc, disp, force,time)
   end select
  
 end subroutine bc_DIRNEU_apply
+
+function BC_DIRNEU_nDofFix(bc, ndof) result(n)
+    type(bc_dirneu_type), intent(in) :: bc
+    integer:: i, n, ndof
+    n = 0
+    do i = 1, ndof
+       if (bc%kind(i)==IS_DIRICHLET) n=n+size(bc%topo%node)
+    end do
+end function
+
+! select the fixed degree of freedom
+subroutine BC_DIRNEU_AppendDofFix(bc, indexFixDof, istart, ndof)
+  type(bc_dirneu_type), intent(in) :: bc
+  integer, dimension(:), intent(inout) :: indexFixDof 
+  integer, intent(inout)::istart
+  integer :: i, iend, ndof, nnode_i
+
+  nnode_i = size(bc%topo%node)
+  ! only select the dof associated with dirichlet kind
+  do i = 1, ndof
+      if (bc%kind(i)==IS_DIRICHLET) then
+          iend = istart + nnode_i - 1
+          indexFixDof(istart:iend)= (bc%topo%node - 1)*ndof + i
+          istart = iend + 1 
+      end if
+  end do
+
+end subroutine BC_DIRNEU_AppendDofFix
 
 ! only apply dirichlet or neumann boundary condition one at a time
 ! bc_kind = IS_NEUMANN=1 or IS_DIRICHLET=2

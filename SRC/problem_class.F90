@@ -43,6 +43,10 @@ module problem_class
     double precision, pointer :: invKdiag(:,:) => null()
     double precision, pointer :: invKdiagTrans(:,:) => null()
 
+   ! index of global dofs that are fixed in quasi-static solver 
+   ! note this index is 1-based in fortran
+   integer, pointer :: indexDofFix(:)=>null()
+
    ! petsc ksp linear solver
     KSP  :: ksp
 
@@ -56,7 +60,7 @@ module problem_class
 
    ! global displacement, velocity, acceleration, [npoin*ndof, 1]
    ! initialize subroutine in fields
-    Vec :: d, v, a, b 
+    Vec :: d, b 
 
    ! time integration coefficients
     type(timescheme_type) :: time
@@ -79,8 +83,6 @@ module problem_class
      call MatDestroy(pb%K, ierr)
      call MatDestroy(pb%MatA, ierr)
      call VecDestroy(pb%d, ierr)
-     call VecDestroy(pb%v, ierr)
-     call VecDestroy(pb%a, ierr)
      call VecDestroy(pb%b, ierr)
      call KSPDestroy(pb%ksp, ierr)
    end subroutine destroyPetscStruct

@@ -25,7 +25,8 @@ module bc_dirabs
   end type
 
   public :: BC_DIRABS_type, BC_DIRABS_read, BC_DIRABS_init, & 
-      BC_DIRABS_apply, BC_DIRABS_apply_kind, BC_DIRABS_set_kind, BC_DIRABS_select_kind
+      BC_DIRABS_apply, BC_DIRABS_apply_kind, BC_DIRABS_set_kind, BC_DIRABS_select_kind, &
+      BC_DIRABS_AppendDofFix, BC_DIRABS_nDofFix
 
 contains
 
@@ -148,5 +149,21 @@ subroutine bc_DIRABS_select_kind(bc, field_in, field_out, bc_kind)
   
   call bc_DIRNEU_select_kind(bc%bc_dir, field_in, field_out, bc_kind)
 end subroutine bc_DIRABS_select_kind
+
+function BC_DIRABS_nDofFix(bc, ndof) result(n)
+  type(bc_dirabs_type), intent(in) :: bc
+  integer :: n, ndof
+  n = BC_DIRNEU_nDofFix(bc%bc_dir, ndof)
+end
+
+subroutine BC_DIRABS_AppendDofFix(bc, indexFixDof, istart, ndof)
+  type(bc_dirabs_type), intent(in) :: bc
+  integer, dimension(:), intent(inout) :: indexFixDof 
+  integer, intent(inout)::istart
+  integer :: ndof
+
+  call BC_DIRNEU_AppendDofFix(bc%bc_dir, indexFixDof, istart, ndof)
+
+end subroutine BC_DIRABS_AppendDofFix
 
 end module bc_DIRABS

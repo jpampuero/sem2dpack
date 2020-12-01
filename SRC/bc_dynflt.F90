@@ -42,7 +42,7 @@ module bc_dynflt
             BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
             BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
-            BC_DYNFLT_nnode, BC_DYNFLT_node
+            BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix
 
 contains
 
@@ -1022,6 +1022,28 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   end if
 
   end subroutine BC_DYNFLT_apply_dynamic
+
+
+function BC_DYNFLT_nDofFix(bc, ndof) result(n)
+    type(bc_dynflt_type), intent(in) :: bc
+    integer:: n, ndof
+    n = size(bc%node1) * ndof
+end function
+
+! append index of dof to indexFixDof
+subroutine BC_DYNFLT_AppendDofFix(bc, indexFixDof, istart, ndof)
+  type(bc_dynflt_type), intent(in) :: bc
+  integer, dimension(:), intent(inout) :: indexFixDof
+  integer :: istart, ndof, i, iend, nnode_i
+
+  nnode_i = size(bc%node1)
+  do i = 1, ndof
+      iend = istart + nnode_i - 1
+      indexFixDof(istart: iend) = (bc%node1 - 1)*ndof + i
+      istart = iend + 1
+  end do
+
+end subroutine BC_DYNFLT_AppendDofFix
 
 !---------------------------------------------------------------------
   function get_jump (bc,v) result(dv)

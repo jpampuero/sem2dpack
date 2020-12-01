@@ -41,7 +41,8 @@ module bc_kinflt
   end type
 
   public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_apply, BC_kinflt_write, &
-            BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set, BC_KINFLT_nnode, BC_KINFLT_node
+            BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set, BC_KINFLT_nnode, BC_KINFLT_node, &
+            BC_KINFLT_AppendDofFix, BC_KINFLT_nDofFix
 
 contains
 
@@ -613,6 +614,28 @@ subroutine BC_KINFLT_apply_quasi_static(bc,MxA,V,D,time)
   ! only known after the quasi-static solve
 
 end subroutine BC_KINFLT_apply_quasi_static
+
+function BC_KINFLT_nDofFix(bc, ndof) result(n)
+    type(bc_kinflt_type), intent(in) :: bc
+    integer:: n, ndof
+    n = size(bc%node1) * ndof
+end function
+
+! append index of dof to indexFixDof, order does not matter
+! starting index is updated
+subroutine BC_KINFLT_AppendDofFix(bc, indexFixDof, istart, ndof)
+  type(bc_kinflt_type), intent(in) :: bc
+  integer, dimension(:), intent(inout) :: indexFixDof
+  integer :: istart, ndof 
+  integer :: i, iend, nnode_i
+  
+  nnode_i = size(bc%node1)
+  do i = 1, ndof
+      iend = istart + nnode_i - 1
+      indexFixDof(istart: iend) = (bc%node1 - 1) * ndof + i
+      istart = iend + 1 
+  end do
+end subroutine BC_KINFLT_AppendDofFix
 
 !=======================================================================
 !

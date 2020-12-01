@@ -1,4 +1,6 @@
 module solver
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
 ! SOLVER: solver for elasto-dynamic equation
 !         M.a = - K.d + F
@@ -9,6 +11,7 @@ module solver
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
                       bc_has_dynflt, bc_update_bcdv
+  use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
 
   implicit none
   private
@@ -44,12 +47,17 @@ end subroutine solve
 subroutine solve_adaptive(pb)
   type(problem_type), intent(inout) :: pb
 
-  if (.not. pb%time%isDynamic) then
-      ! quasi-static
-      call solve_quasi_static(pb)
-  else
+  if (pb%time%isDynamic) then
       ! dynamic
       call solve_dynamic(pb)
+  else
+      ! quasi-static
+      if (pb%time%isUsePetsc) then
+          call solve_quasi_static_petsc(pb)
+      else
+          call solve_quasi_static(pb)
+      end if
+
   end if
 
   if (.not. pb%time%fixdt) call update_adaptive_step(pb)
@@ -454,6 +462,143 @@ end subroutine solve_quasi_static
 !  pb%fields%displ = d
 !
 !end subroutine solve_quasi_static
+
+subroutine solve_quasi_static_petsc(pb)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  type(problem_type), intent(inout) :: pb
+  double precision, dimension(:,:), pointer :: d, v, a, f
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre
+  
+  ! vplate is built into the rate-state b.c.
+  double precision :: dt 
+  integer :: i, ndof, npoin
+  logical :: has_dynflt = .false.
+
+  integer :: IS_DIRNEU = 1, & 
+             IS_KINFLT = 2, & 
+             IS_DYNFLT = 6, &
+             IS_DIRABS = 7
+         
+  integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
+  PetscErrorCode :: ierr
+  PetscScalar, pointer :: xx_d(:)
+  PetscScalar, pointer :: xx_b(:)
+   
+  ndof  = pb%fields%ndof
+  npoin = pb%fields%npoin
+
+  ! points to displacement
+  ! save some memory by modifying in place
+  d => pb%fields%displ
+  v => pb%fields%veloc
+  ! use acceleration and f to work with force
+  a => pb%fields%accel
+  f => pb%fields%accel
+
+  dt = pb%time%dt
+  
+  ! use additional memory to keep the previous displacement
+  ! use to update predictor for rsf faults
+  d_pre = pb%fields%displ
+  
+  ! update displacement to obtain a better initial guess for pcg solver
+  ! update both d and pb%fields%disp
+  d   = d + dt * v 
+
+  ! apply dirichlet boundary condition and kinematic boundary condition
+  ! set displacement to desired value and zero-out forcing f at DIR nodes
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
+  v_pre = pb%fields%veloc
+
+  ! transform fields, apply half slip rate on side -1 and then transform back
+  ! different from dynamic, update displacement as well.
+  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
+
+  ! check if there's dynflt boundary
+  has_dynflt = bc_has_dynflt(pb%bc)
+  
+  ! start 2 passes
+  pb%time%pcg_iters = 0
+
+  do i = 1, 2
+
+    ! update fault displacement for rsf 
+    ! d(fault) = d_pre(fault) + dt * v(fault)
+    ! v  = 0.5 * (vpre + v)
+    !d = d_pre + (v + v_pre)/2d0 *dt
+    call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
+    
+    f = 0d0
+    ! apply newmann if there's any, used to solve dofs in the medium
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
+   
+    ! transform d to X*d
+    call BC_trans(pb%bc, d,  1)
+    ! transform f to Xinv*f
+    call BC_trans(pb%bc, f, -1)
+
+    ! copy d into pb%d
+    call FIELD_SetVecFromField(pb%d, d, ierr)
+    CHKERRQ(ierr)
+
+    ! copy f into pb%b
+    call FIELD_SetVecFromField(pb%b, f, ierr)
+    CHKERRQ(ierr)
+
+    call VecGetArrayReadF90(pb%d, xx_d, ierr)
+    call VecGetArrayF90(pb%b, xx_b, ierr)
+
+    ! set the RHS to be the same value as d at dirichlet dofs
+    xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
+    ! copy the 
+    call VecRestoreArrayReadF90(pb%d,xx_d,ierr)
+    call VecRestoreArrayF90(pb%b,xx_b,ierr)
+   
+    ! solve the linear system for d
+    call KSPSolve(pb%ksp, pb%b, pb%d, ierr)  
+    CHKERRQ(ierr) 
+
+    ! return the number of iterations
+    call KSPGetIterationNumber(pb%ksp, pb%time%pcg_iters(i), ierr)
+
+    ! copy the displacement from converged solution in petsc to d
+    call FIELD_SetFieldFromVec(d, pb%d, ierr)  
+    ! transfer the d' to d
+    call BC_trans(pb%bc, d,  -1)
+
+    ! update velocity for the off fault dofs
+    v = (d - d_pre)/dt
+
+    ! detect if there's dynflt fault boundary
+    ! if not, break the loop and exit after the pcg solver
+
+    if (.not. has_dynflt) exit
+    ! apply boundary conditions including following: 
+    !    1.  compute fault traction, compute state variable 
+    !    2.  update slip rate, update fault velocity in fields%veloc 
+    !
+    ! velocity is modified inside this subroutine
+
+    ! recompute the force use the updated total disp
+    call compute_Fint(f, d, pb%fields%veloc, pb)
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+
+    ! reapply dichlet boundary condition to overwrite the fault tip node
+    ! if there's a conflict between tip and Dirichlet bc.
+    !
+    ! Note this issue only occurs when simulating half domain 
+    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
+  enddo
+  
+  ! declare final slip values on the fault
+  call bc_update_bcdv(pb%bc, d, pb%time%time)
+  a   = 0d0
+  !a  = (v - v_pre)/dt ! a crude estimate of acceleration
+  
+end subroutine solve_quasi_static_petsc
 
 !=====================================================================
 ! f = - K * d 

@@ -12,6 +12,7 @@ module time_evol
     Logical :: EQEnd            ! a flag to indicate if an earthquake is occuring at this step 
     Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
+    Logical :: isUsePetsc
     ! dt_min: minimum time step in adaptive time stepping 
     double precision :: dt,courant,time,total,alpha,beta,& 
                         gamma, Omega_max, dt_min, dtev_max, & 
@@ -160,11 +161,11 @@ contains
   integer :: NbSteps,n, MaxIterLin, EQNumMax, ntflush
   character(12) :: kind
   character(12) :: kind_dyn
-  Logical :: fixdt
+  Logical :: fixdt, isUsePetsc
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf, fixdt, EQNumMax, ntflush
+                    dt_incf, fixdt, EQNumMax, ntflush, isUsePetsc
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -179,6 +180,7 @@ contains
   TolLin       = 1.0d-6
   MaxIterLin   = 4000
   fixdt        = .false.
+  isUsePetsc   = .true.
   EQNumMax     = 5
   ntflush      = 100
   
@@ -223,6 +225,8 @@ contains
   t%EQEnd     = .false.
   t%EQNumMax  = EQNumMax
   t%ntflush   = ntflush
+  t%isUsePetsc = isUsePetsc
+  write(*, *)"isUsePetsc:", isUsePetsc
 
   select case (kind)
     case ('adaptive')

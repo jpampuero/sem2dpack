@@ -22,7 +22,7 @@ subroutine init_main(pb, ierr, InitFile)
   use problem_class, only : problem_type
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
-  use bc_gen, only : BC_init, BC_build_transform_mat
+  use bc_gen, only : BC_init, BC_build_transform_mat, bc_GetIndexDofFix, bc_nDofFix
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init, &
                       MAT_init_KG, MAT_AssembleK
@@ -42,9 +42,10 @@ subroutine init_main(pb, ierr, InitFile)
   PetscErrorCode :: ierr
   double precision :: grid_cfl
   real :: cputime0, cputime1
-  integer :: recsamp,i,j, ndof, ndim, ngll, npoin 
+  integer :: recsamp,i,j, ndof, ndim, ngll, npoin, ndoffix
   logical :: init_cond
   PetscViewer :: viewer
+  character(160)::ksptype
 
 
   init_cond = present(InitFile)
@@ -92,13 +93,11 @@ subroutine init_main(pb, ierr, InitFile)
   call VecCreate(PETSC_COMM_WORLD, pb%d, ierr)
   call VecSetSizes(pb%d, PETSC_DECIDE, ndof * npoin,ierr)
   call VecSetFromOptions(pb%d, ierr)
-  call VecDuplicate(pb%d, pb%v, ierr)
-  call VecDuplicate(pb%d, pb%a, ierr)
-  call VecDuplicate(pb%d, pb%b, ierr) ! right hand side
-
+  
   ! set initial values to 0
   call VecSet(pb%d, 0d0, ierr)
-  call VecSet(pb%v, 0d0, ierr)
+  call VecDuplicate(pb%d, pb%b, ierr) ! right hand side
+
   if (info) then
     write(iout,*)
     write(iout,'(a)') '***********************************************'
@@ -155,7 +154,6 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,*)
   endif
-  
 
  ! build the mass matrix
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
@@ -168,7 +166,6 @@ subroutine init_main(pb, ierr, InitFile)
  ! --------------------------------------------------------------------------
   ! reset initial displacement and velocity vector
   call FIELD_SetVecFromField(pb%d, pb%fields%displ, ierr)
-  call FIELD_SetVecFromField(pb%v, pb%fields%veloc, ierr)
   CHKERRQ(ierr)
 
  ! --------------------------------------------------------------------------
@@ -176,43 +173,68 @@ subroutine init_main(pb, ierr, InitFile)
  ! implemented in bc_gen
  call BC_build_transform_mat(pb%bc, pb%X, pb%Xinv, ndof, npoin, ierr)
  CHKERRQ(ierr)
+ write(*, *) "Write X, Xinv:"
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_X',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%X, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+ 
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_Xinv',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%Xinv, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+
+ ndoffix = bc_nDofFix(pb%bc, ndof)
+ allocate(pb%indexDofFix(ndoffix))
+ ! fortran index
+ call bc_GetIndexDofFix(pb%bc, pb%indexDofFix, ndof) 
  
  ! --------------------------------------------------------------------------
  ! initialize the Petsc KSP solver
 
  ! compute the A matrix: A = Xinv * K * Xinv
-
  ! the linear system is Xinv * K * Xinv * (X*d) = Xinv * f
  call CPU_TIME(cputime0)
  call MatMatMatMult(pb%Xinv, pb%K, pb%Xinv, MAT_INITIAL_MATRIX, PETSC_DEFAULT_REAL, pb%MatA, ierr)
  call CPU_TIME(cputime1)
  cputime0 = cputime1-cputime0
+ 
+ write(*, *) "Write MatA:"
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
 
  write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
         '---  CPU TIME ESTIMATES (in seconds) :', &
         'CPU time for construct A matrix for KSP (linear system) . .', cputime0
+
+ ! zero out the rows if MatA for dirichlet boundary conditions
+ call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
+ write(*, *) "Write MatA zero rows:"
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA_zero_rows',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
  
  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
  call KSPSetOperators(pb%ksp,pb%MatA, pb%MatA, ierr)
 
+ !   /*
+ !    Set linear solver defaults for this problem (optional).
+ !    - all these parameters could be specified at runtime via
+ !      KSPSetFromOptions(). 
+ ! */
+
  ! set the non-zero initial guess
  call KSPSetInitialGuessNonzero(pb%ksp, PETSC_TRUE, ierr);
 
- !   /*
- !    Set linear solver defaults for this problem (optional).
- !    - By extracting the KSP and PC contexts from the KSP context,
- !      we can then directly call any KSP and PC routines to set
- !      various options.
- !    - The following two statements are optional; all of these
- !      parameters could alternatively be specified at runtime via
- !      KSPSetFromOptions().  All of these defaults can be
- !      overridden at runtime, as indicated below.
- ! */
-
  ! set tolerance
   call KSPSetTolerances(pb%ksp,pb%time%TolLin,1.d-50,&
-                        PETSC_DEFAULT_REAL, pb%time%MaxIterLin,ierr)
+                      PETSC_DEFAULT_REAL, pb%time%MaxIterLin,ierr)
   CHKERRQ(ierr)
+ 
+ ! enabling setting solver option from run time flags
+  call KSPSetFromOptions(pb%ksp, ierr)
+  call KSPGetType(pb%ksp,ksptype, ierr);
+  write(iout, *) "KSPTYPE:------------"
+  write(iout, *) ksptype
 
  ! define position of receivers and allocate database
   if (associated(pb%rec)) then
