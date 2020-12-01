@@ -56,7 +56,7 @@ module bc_gen
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
             bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
-            bc_GetIndexDofFix, bc_nDofFix
+            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree
 
 contains
 
@@ -710,7 +710,7 @@ end subroutine bc_select_fix
 subroutine bc_GetIndexDofFix(bc, indexDofFix, ndof)
   type(bc_type), pointer :: bc(:)
   integer, dimension(:), intent(inout) :: indexDofFix
-  integer :: i, n, istart, ndof
+  integer :: i, n, istart, ndof, npoin
   istart =1 
 
   do i = 1,size(bc)
@@ -725,6 +725,28 @@ subroutine bc_GetIndexDofFix(bc, indexDofFix, ndof)
         call BC_KINFLT_AppendDofFix(bc(i)%kinflt, indexDofFix, istart, ndof)
       end select
   enddo
+
+end subroutine
+
+subroutine bc_GetIndexDofFree(bc, indexDofFree, indexDofFix, ndoffix, ndof, npoin)
+  implicit none
+  type(bc_type), pointer :: bc(:)
+  integer, dimension(:), pointer :: indexDofFree
+  integer, dimension(ndoffix) :: indexDofFix
+  integer, dimension(ndof*npoin) :: tmp
+  integer :: i, n, ndof, npoin, ndoffix
+
+  allocate(indexDofFree(npoin*ndof-ndoffix))
+  do i = 1, ndof*npoin
+      tmp = i
+  end do
+  tmp(indexDofFix) = 0
+  n = 0
+  do i = 1, ndof*npoin
+      if (tmp(i)==0) cycle
+      n = n + 1
+      indexDofFree(n) = tmp(i)
+  end do
 
 end subroutine
 

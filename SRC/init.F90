@@ -46,6 +46,9 @@ subroutine init_main(pb, ierr, InitFile)
   logical :: init_cond
   PetscViewer :: viewer
   character(160)::ksptype
+  character(160)::pctype
+  PC            ::ksp_pc
+
 
 
   init_cond = present(InitFile)
@@ -206,12 +209,9 @@ subroutine init_main(pb, ierr, InitFile)
         '---  CPU TIME ESTIMATES (in seconds) :', &
         'CPU time for construct A matrix for KSP (linear system) . .', cputime0
 
- ! zero out the rows if MatA for dirichlet boundary conditions
- call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
- write(*, *) "Write MatA zero rows:"
- call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA_zero_rows',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
- call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+ ! zero out the rows and columns of MatA for dirichlet boundary conditions
+ ! right hand side vector is modified in the solver using fortran subroutines
+ call MatZeroRowsColumns(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
  
  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
  call KSPSetOperators(pb%ksp,pb%MatA, pb%MatA, ierr)
@@ -235,6 +235,10 @@ subroutine init_main(pb, ierr, InitFile)
   call KSPGetType(pb%ksp,ksptype, ierr);
   write(iout, *) "KSPTYPE:------------"
   write(iout, *) ksptype
+  call KSPGetPC(pb%ksp,ksp_pc, ierr);
+  write(iout, *) "PCTYPE:------------"
+  call PCGetType(ksp_pc, pctype, ierr)
+  write(iout, *) pctype
 
  ! define position of receivers and allocate database
   if (associated(pb%rec)) then

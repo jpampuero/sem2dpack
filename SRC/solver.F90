@@ -469,6 +469,7 @@ subroutine solve_quasi_static_petsc(pb)
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
   double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_fix, v_fix, f_fix
   
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
@@ -518,6 +519,9 @@ subroutine solve_quasi_static_petsc(pb)
 
   ! check if there's dynflt boundary
   has_dynflt = bc_has_dynflt(pb%bc)
+
+  d_fix = 0.0d0
+  v_fix = 0.0d0
   
   ! start 2 passes
   pb%time%pcg_iters = 0
@@ -529,11 +533,18 @@ subroutine solve_quasi_static_petsc(pb)
     ! v  = 0.5 * (vpre + v)
     !d = d_pre + (v + v_pre)/2d0 *dt
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
-    
-    f = 0d0
+    call bc_select_fix(pb%bc, d, d_fix)
+    call bc_select_fix(pb%bc, v, v_fix)
+
+    ! compute the forcing from just the fixed dof
+    call compute_Fint(f, d_fix, v_fix, pb)
+    call bc_select_fix(pb%bc, f, f_fix)
+    f = f - f_fix
+
     ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
-   
+
+    ! compute the internal forcing from fixed dofs and added to the right side
     ! transform d to X*d
     call BC_trans(pb%bc, d,  1)
     ! transform f to Xinv*f
@@ -552,6 +563,7 @@ subroutine solve_quasi_static_petsc(pb)
 
     ! set the RHS to be the same value as d at dirichlet dofs
     xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
+
     ! copy the 
     call VecRestoreArrayReadF90(pb%d,xx_d,ierr)
     call VecRestoreArrayF90(pb%b,xx_b,ierr)
@@ -565,6 +577,7 @@ subroutine solve_quasi_static_petsc(pb)
 
     ! copy the displacement from converged solution in petsc to d
     call FIELD_SetFieldFromVec(d, pb%d, ierr)  
+
     ! transfer the d' to d
     call BC_trans(pb%bc, d,  -1)
 
@@ -606,6 +619,7 @@ subroutine compute_Fint(f,d,v,pb)
 
   use fields_class, only : FIELD_get_elem, FIELD_add_elem
   use mat_gen, only : MAT_Fint
+  use constants, only : TINY_XABS
 
   double precision, dimension(:,:), intent(out) :: f
   double precision, dimension(:,:), intent(in) :: d,v
@@ -623,6 +637,11 @@ subroutine compute_Fint(f,d,v,pb)
   do e = 1,pb%grid%nelem
     dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
     vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+
+    ! skip the elements with zero v and d
+
+    !if (all(abs(dloc)<TINY_XABS) .and. all(abs(vloc)<TINY_XABS)) cycle
+
     call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
                    pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
                    E_ep,E_el,sg,sgp)
