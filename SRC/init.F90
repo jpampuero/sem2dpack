@@ -176,15 +176,7 @@ subroutine init_main(pb, ierr, InitFile)
  ! implemented in bc_gen
  call BC_build_transform_mat(pb%bc, pb%X, pb%Xinv, ndof, npoin, ierr)
  CHKERRQ(ierr)
- write(*, *) "Write X, Xinv:"
- call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_X',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%X, viewer, ierr);CHKERRA(ierr)
- call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
  
- call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_Xinv',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%Xinv, viewer, ierr);CHKERRA(ierr)
- call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
-
  ndoffix = bc_nDofFix(pb%bc, ndof)
  allocate(pb%indexDofFix(ndoffix))
  ! fortran index
@@ -211,8 +203,9 @@ subroutine init_main(pb, ierr, InitFile)
 
  ! zero out the rows and columns of MatA for dirichlet boundary conditions
  ! right hand side vector is modified in the solver using fortran subroutines
+ !call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
  call MatZeroRowsColumns(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
- 
+
  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
  call KSPSetOperators(pb%ksp,pb%MatA, pb%MatA, ierr)
 

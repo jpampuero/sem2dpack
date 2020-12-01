@@ -295,6 +295,8 @@ subroutine solve_quasi_static(pb)
          
   integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
 
+  write(*,*)"solver_quasi_static_no_petsc"
+
   ! points to displacement
   ! save some memory by modifying in place
   d => pb%fields%displ
@@ -485,7 +487,7 @@ subroutine solve_quasi_static_petsc(pb)
   PetscErrorCode :: ierr
   PetscScalar, pointer :: xx_d(:)
   PetscScalar, pointer :: xx_b(:)
-   
+  
   ndof  = pb%fields%ndof
   npoin = pb%fields%npoin
 
@@ -525,6 +527,8 @@ subroutine solve_quasi_static_petsc(pb)
   
   ! start 2 passes
   pb%time%pcg_iters = 0
+
+  f_fix = 0d0
 
   do i = 1, 2
 
