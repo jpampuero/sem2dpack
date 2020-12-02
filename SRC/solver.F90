@@ -295,8 +295,6 @@ subroutine solve_quasi_static(pb)
          
   integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
 
-  write(*,*)"solver_quasi_static_no_petsc"
-
   ! points to displacement
   ! save some memory by modifying in place
   d => pb%fields%displ
@@ -471,7 +469,7 @@ subroutine solve_quasi_static_petsc(pb)
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
   double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre
-  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_fix, v_fix, f_fix
+  !double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_fix, v_fix, f_fix
   
   ! vplate is built into the rate-state b.c.
   double precision :: dt 
@@ -522,13 +520,11 @@ subroutine solve_quasi_static_petsc(pb)
   ! check if there's dynflt boundary
   has_dynflt = bc_has_dynflt(pb%bc)
 
-  d_fix = 0.0d0
-  v_fix = 0.0d0
+  !d_fix = 0.0d0
+  !v_fix = 0.0d0
   
   ! start 2 passes
   pb%time%pcg_iters = 0
-
-  f_fix = 0d0
 
   do i = 1, 2
 
@@ -537,13 +533,15 @@ subroutine solve_quasi_static_petsc(pb)
     ! v  = 0.5 * (vpre + v)
     !d = d_pre + (v + v_pre)/2d0 *dt
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
-    call bc_select_fix(pb%bc, d, d_fix)
-    call bc_select_fix(pb%bc, v, v_fix)
-
-    ! compute the forcing from just the fixed dof
-    call compute_Fint(f, d_fix, v_fix, pb)
-    call bc_select_fix(pb%bc, f, f_fix)
-    f = f - f_fix
+!    call bc_select_fix(pb%bc, d, d_fix)
+!    call bc_select_fix(pb%bc, v, v_fix)
+!
+!    f_fix = 0d0
+!    ! compute the forcing from just the fixed dof
+!    call compute_Fint(f, d_fix, v_fix, pb)
+!    call bc_select_fix(pb%bc, f, f_fix)
+!    f = f - f_fix
+    f=0d0
 
     ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 

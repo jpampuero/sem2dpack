@@ -692,14 +692,14 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   time%EQEnd   = .false.
 
   if (vmax>f%vEQ) then
-      if (.not. time%isEQ) then
+      if ((.not. time%isEQ) .and. (.not. time%isDynamic)) then
           time%EQStart = .true.
           write(*,*) "Start another earthquake ... "
       end if
       time%isEQ = .true.
   else
-      if (time%isEQ) then
-          time%EQEnd  = .false.
+      if (time%isEQ .and. time%isDynamic) then
+          time%EQEnd  = .true.
           time%EQNum  = time%EQNum + 1
           write(*,*) "Finish EQNum: ", time%EQNum
       end if

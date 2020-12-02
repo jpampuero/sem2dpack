@@ -79,7 +79,8 @@ module mat_gen
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
             MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
-            MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke, MAT_AssembleK, MAT_init_KG
+            MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke, MAT_AssembleK, MAT_init_KG, &
+            MAT_testKe
 
 contains
 
@@ -1077,6 +1078,75 @@ end subroutine MAT_stress_dv
   endif
 
   end function MAT_forces
+
+function MAT_testKe(matwrk, ndof, ngll) result(isMatch)
+  type(matwrk_elem_type), intent(in) :: matwrk
+  integer :: ndof, ngll,i,j
+  double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof):: Ke, KeFint
+  double precision :: small
+  logical :: isMatch
+  Ke     = 0d0
+  KeFint = 0d0
+  small  = 1e-6
+
+  isMatch = .false.
+  write(*, *) "==============Compare Ke and KeFint================="
+  call MAT_Ke(Ke, matwrk, ndof, ngll, 2)
+  call MAT_Ke_Fint(KeFint, matwrk, ndof, ngll)
+  
+!  write(*, *) "Ke=" 
+!  do i =1, size(Ke, 1)
+!      write(*, *) Ke(i,:) 
+!  end do
+!  
+!  write(*, *) "KeFint=" 
+!  do i =1, size(Ke, 1)
+!      write(*, *) KeFint(i,:) 
+!  end do
+
+  do i = 1, size(Ke, 1)
+      do j = 1, size(Ke, 2)
+          if (abs(Ke(i,j)-KeFint(i,j))>small*abs(Ke(i,j))) write(*, *) i, j
+      end do
+      end do
+
+  if (maxval(abs(abs(Ke)-abs(KeFint)))<=small*maxval(Ke)) isMatch=.true.
+end function
+
+! =====================================================================
+!
+! find elemental stiffness matrix from computing forcing
+! low efficiency, just for testing purposes
+!
+! Only works for elasticity
+subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
+  type(matwrk_elem_type), intent(in) :: matwrk
+  integer :: p,q,r,s,k,l, ndof, ngll, ik, il
+  double precision, dimension(ngll,ngll,ndof) :: dloc,floc
+  double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof):: Ke
+
+  dloc = 0d0
+  do p=1,ngll
+  do q=1,ngll
+    do k=1, ndof
+      dloc(p,q,k) = 1.0d0
+      ik = ((p-1)*ngll + q - 1)*ndof + k
+      call MAT_ELAST_f(floc,dloc,matwrk%elast,matwrk%derint%H,matwrk%derint%Ht,ngll,ndof)
+      do r=1, ngll
+      do s=1, ngll
+      do l=1, ndof
+          il = ((r-1)*ngll + s - 1)*ndof + l
+          Ke(il, ik) = -floc(r,s,l)
+      end do
+      end do
+      end do
+      dloc(p,q,k) = 0.0d0
+    enddo
+  enddo
+  enddo
+
+end subroutine
+
 
 !=======================================================================
 ! finds the diagonal of the stiffness matrix, and stores its inverse

@@ -93,7 +93,7 @@ all: $(EXEC)
 # linking
 $(EXEC): $(OBJS)
 	$(F90) $(OPT) -o $@ $(OBJS) $(PETSC_LIB) 
-	rm *.o *.mod
+#	rm *.o *.mod
 
 clean:
 	rm -f $(EXEC) $(OBJS) *.M *.mod 

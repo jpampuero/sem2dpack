@@ -25,7 +25,7 @@ subroutine init_main(pb, ierr, InitFile)
   use bc_gen, only : BC_init, BC_build_transform_mat, bc_GetIndexDofFix, bc_nDofFix
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init, &
-                      MAT_init_KG, MAT_AssembleK
+                      MAT_init_KG, MAT_AssembleK, MAT_testKe
   use mat_elastic, only : MAT_IsElastic
   use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
   use plot_gen, only : PLOT_init
@@ -48,6 +48,7 @@ subroutine init_main(pb, ierr, InitFile)
   character(160)::ksptype
   character(160)::pctype
   PC            ::ksp_pc
+  logical :: ismatch
 
 
 
@@ -203,8 +204,8 @@ subroutine init_main(pb, ierr, InitFile)
 
  ! zero out the rows and columns of MatA for dirichlet boundary conditions
  ! right hand side vector is modified in the solver using fortran subroutines
- !call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
- call MatZeroRowsColumns(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
+ call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
+ !call MatZeroRowsColumns(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
 
  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
  call KSPSetOperators(pb%ksp,pb%MatA, pb%MatA, ierr)
@@ -293,6 +294,13 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '*    Done diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'
   endif
+    
+    write(iout,'(a)') '***********************************************'
+    write(iout,'(a)') '*    Test the stiffness matrix of first element *'
+    write(iout,'(a)') '***********************************************'
+
+    ismatch = MAT_testKe(pb%matwrk(1), ndof, ngll)
+    write(iout, *) "Match=", ismatch 
 
 end subroutine init_main
 
