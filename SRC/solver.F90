@@ -565,7 +565,7 @@ subroutine solve_quasi_static_petsc(pb)
 
     ! set the RHS to be the same value as d at dirichlet dofs
     xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
-
+    
     ! copy the 
     call VecRestoreArrayReadF90(pb%d,xx_d,ierr)
     call VecRestoreArrayF90(pb%b,xx_b,ierr)

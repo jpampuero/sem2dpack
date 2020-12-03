@@ -145,7 +145,7 @@ subroutine FIELD_SetVecFromField(v, field, ierr)
 
   ! note petsc index is 0 based
   do i = 1, npoin
-      index1(i) = i - 1
+      index1(i) = (i - 1)*ndof 
   end do
 
   do i = 1, ndof
@@ -171,7 +171,7 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
 
   ! note fortran index is 1 based
   do i = 1, npoin
-      index1(i) = i
+      index1(i) = (i - 1)*ndof + 1 
   end do
 
   ! get the data from petsc vector (just for read)

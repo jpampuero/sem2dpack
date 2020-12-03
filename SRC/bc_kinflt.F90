@@ -456,7 +456,6 @@ contains
       write(hunit,*) onx,NDAT,NSAMP,bc%odt
   end if
 
-write(*,*) 'DONE 6.4'
   if (bc%osides) then 
     if (ndof==1) then
       write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:D1t:D2t:V1t:V2t'

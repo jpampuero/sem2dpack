@@ -681,9 +681,9 @@ subroutine MAT_WeightsMat(WsMat, matwrk, ndof, ngll, ndim)
               Cijkl(i,j,k,l, :, :) * a_b_xl_xj(a,l,:,:) * a_b_xl_xj(b,j,:,:) 
           end if
       end do !l
-      end do !k
-      WsMat(a, b, i, k, :, :) = WsMat(a, b, i, k, :, :) * matwrk%derint%weights
       end do !j
+      WsMat(a, b, i, k, :, :) = WsMat(a, b, i, k, :, :) * matwrk%derint%weights
+      end do !k
       end do !i
   end do !b
   end do !a
@@ -709,7 +709,7 @@ subroutine MAT_Ke(Ke, matwrk, ndof, ngll, ndim)
   double precision :: Ke_xi_xi
   double precision :: Ke_xi_eta
   double precision :: Ke_eta_xi
-  double precision :: Ke_eta_eta, Ke_iter, w
+  double precision :: Ke_eta_eta, w
 !  double precision, dimension(ngll, ngll, ndof, ngll, ngll, ndof) :: Ke
   double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof) :: Ke
   
@@ -817,11 +817,12 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   PetscErrorCode  :: ierr
 
   do e = 1, size(matwrk)
-      call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
+      call MAT_Ke_Fint(Ke, matwrk(e), ndof, ngll)
+     ! call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
       do p = 1, ngll
       do q = 1, ngll
       do i = 1, ndof
-          k = ((p-1)*ngll + q - 1)*ndof + i
+          k = ((p - 1) * ngll + q - 1)*ndof + i
           ! note that row indices are 0 based
           rows(k) = (ibool(p, q, e) - 1) * ndof + i - 1
       end do
@@ -1083,34 +1084,30 @@ function MAT_testKe(matwrk, ndof, ngll) result(isMatch)
   type(matwrk_elem_type), intent(in) :: matwrk
   integer :: ndof, ngll,i,j
   double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof):: Ke, KeFint
+  logical, dimension(ngll*ngll*ndof, ngll*ngll*ndof)::misMatch
   double precision :: small
   logical :: isMatch
   Ke     = 0d0
   KeFint = 0d0
   small  = 1e-6
 
-  isMatch = .false.
+  isMatch = .true.
   write(*, *) "==============Compare Ke and KeFint================="
   call MAT_Ke(Ke, matwrk, ndof, ngll, 2)
   call MAT_Ke_Fint(KeFint, matwrk, ndof, ngll)
   
-!  write(*, *) "Ke=" 
-!  do i =1, size(Ke, 1)
-!      write(*, *) Ke(i,:) 
-!  end do
-!  
-!  write(*, *) "KeFint=" 
-!  do i =1, size(Ke, 1)
-!      write(*, *) KeFint(i,:) 
-!  end do
-
+  misMatch = abs(Ke-KeFint)>small*maxval(Ke)
+  write(*, *) "Match Pattern:" 
+  do i =1, size(Ke, 1)
+      write(*, *) (.not. misMatch(i,:)) 
+  end do
   do i = 1, size(Ke, 1)
       do j = 1, size(Ke, 2)
-          if (abs(Ke(i,j)-KeFint(i,j))>small*abs(Ke(i,j))) write(*, *) i, j
+          if (misMatch(i,j)) write(*, *) i,j,Ke(i,j), KeFint(i,j)
       end do
-      end do
+  end do
 
-  if (maxval(abs(abs(Ke)-abs(KeFint)))<=small*maxval(Ke)) isMatch=.true.
+  if (any(mismatch)) isMatch=.false.
 end function
 
 ! =====================================================================
@@ -1126,6 +1123,7 @@ subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
   double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof):: Ke
 
   dloc = 0d0
+  Ke   = 0d0
   do p=1,ngll
   do q=1,ngll
     do k=1, ndof
