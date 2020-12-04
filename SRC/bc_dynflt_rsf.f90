@@ -10,14 +10,15 @@ module bc_dynflt_rsf
   private
 
   type rsf_input_type
-    type(cd_type) :: dc, mus, a, b, Vstar, theta
+    type(cd_type) :: dc, mus, a, b, Vstar, theta, Vc
   end type rsf_input_type
 
   type rsf_type
     private
     integer :: kind
     double precision, dimension(:), pointer :: dc=>null(), mus=>null(), a=>null(), b=>null(), &
-                                               Vstar=>null(), theta=>null(), Tc=>null(), coeft=>null()
+                                               Vstar=>null(), theta=>null(), Vc=>null(), &
+                                               Tc=>null(), coeft=>null()
     double precision :: dt
     type(rsf_input_type) :: input
   end type rsf_type
@@ -61,12 +62,12 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar,theta
-  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH
+  double precision :: Dc,MuS,a,b,Vstar,theta,Vc
+  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,VcH
   integer :: kind
   character(25) :: kind_txt
 
-  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,DcH,MuSH,aH,bH,VstarH,thetaH
+  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,Vc,DcH,MuSH,aH,bH,VstarH,thetaH,VcH
 
   kind = 1
   Dc = 0.5d0
@@ -75,11 +76,13 @@ contains
   b = 0.02d0
   Vstar = 1d0
   theta = 0d0;
+  Vc    = 1d-6;
   DcH = ''
   MuSH = ''
   aH = ''
   bH = ''
   VstarH = ''
+  VcH = ''
   thetaH = '';
 
   read(iin,BC_DYNFLT_RSF,END=300)
@@ -89,6 +92,7 @@ contains
     case(1); kind_txt = 'Strong velocity-weakening'
     case(2); kind_txt = 'Classical with aging law'
     case(3); kind_txt = 'Classical with slip law'
+    case(4); kind_txt = 'V-shape RSF with slip law'
     case default; call IO_abort('BC_DYNFLT_RSF: invalid kind')
   end select
   rsf%kind = kind
@@ -99,8 +103,9 @@ contains
   call DIST_CD_Read(rsf%input%b,b,bH,iin,bH)
   call DIST_CD_Read(rsf%input%Vstar,Vstar,VstarH,iin,VstarH)
   call DIST_CD_Read(rsf%input%theta,theta,thetaH,iin,thetaH)
+  call DIST_CD_Read(rsf%input%Vc,Vc,VcH,iin,VcH)
 
-  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH
+  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH,VcH
 
   return
 
@@ -111,7 +116,8 @@ contains
             /5x,'  Direct effect coefficient . . . . . .(a) = ',A,&
             /5x,'  Evolution effect coefficient  . . . .(b) = ',A,&
             /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A,&
-            /5x,'  State variable  . . . . . . . . .(theta) = ',A)
+            /5x,'  State variable  . . . . . . . . .(theta) = ',A,&
+            /5x,'  Cutoff sliprate . . . . . . . . .  .(Vc) = ',A)
 
   end subroutine rsf_read
 
@@ -130,6 +136,7 @@ contains
   call DIST_CD_Init(rsf%input%b,coord,rsf%b)
   call DIST_CD_Init(rsf%input%Vstar,coord,rsf%Vstar)
   call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
+  call DIST_CD_Init(rsf%input%Vc,coord,rsf%Vc)
   
   n = size(coord,2)
   allocate(rsf%Tc(n))
@@ -156,6 +163,8 @@ contains
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+    case(4)
+      mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vc*f%theta/f%Dc+1))/f%a)) 
   end select
 
   end function rsf_mu
@@ -276,6 +285,11 @@ contains
      ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
       theta_new = f%Dc/abs(v)
       theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
+    case(4) 
+     ! Kaneko et al (2008) eq 19 - "Aging Law"
+     ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
+      theta_new = f%Dc/abs(v)
+      theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
   end select
 
   end function rsf_update_theta
@@ -313,7 +327,7 @@ contains
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
  
-    case(2,3) 
+    case(2,3,4) 
      ! "Aging Law and Slip Law"
      ! Find each element's velocity:
      do it=1,size(tau_stick)
@@ -507,7 +521,12 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       !  mu = mus +a*log(v/Vstar) + b*log(theta*Vstar/Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Lapusta et al. (2000))
       !  solved in terms of v
+  select case(f%kind)
+    case(2,3)
       tmp = f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it) )
+    case(4)
+      tmp = f%mus(it) +f%b(it)*log( f%Vc(it)*theta/f%Dc(it) + 1 )
+  end select
       tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       v = sinh(tau/(-sigma*f%a(it)))*tmp
       func_tau = tau_stick - Z*v - tau
@@ -531,14 +550,27 @@ subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+
+
+ select case(f%kind)
+    case(2,3)
       mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
+    case(4)
+      mu = (f%mus(it)+f%b(it)*log(f%Vc(it)*f%theta(it)/f%Dc(it)+1))/f%a(it)
+  end select
+
       mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
       func_v = tau_stick - Z*v - sigma*mu
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+ select case(f%kind)
+    case(2,3)
       dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
+    case(4)
+      dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vc(it)*f%theta(it)/f%Dc(it)+1))/f%a(it))/(2*f%Vstar(it))
+  end select
       dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
       dfunc_dv = -Z - sigma*dmu_dv
   
