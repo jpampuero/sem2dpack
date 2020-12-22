@@ -75,18 +75,19 @@ contains
   a = 0.01d0
   b = 0.02d0
   Vstar = 1d0
-  theta = 0d0;
+  theta = 0d0
   Vc    = 1d-6;
   DcH = ''
   MuSH = ''
   aH = ''
   bH = ''
   VstarH = ''
-  VcH = ''
-  thetaH = '';
+  thetaH = ''
+  VcH = '';
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
+
   
   select case (kind)
     case(1); kind_txt = 'Strong velocity-weakening'
@@ -96,7 +97,8 @@ contains
     case default; call IO_abort('BC_DYNFLT_RSF: invalid kind')
   end select
   rsf%kind = kind
-  
+
+
   call DIST_CD_Read(rsf%input%Dc,Dc,DcH,iin,DcH)
   call DIST_CD_Read(rsf%input%MuS,MuS,MuSH,iin,MuSH)
   call DIST_CD_Read(rsf%input%a,a,aH,iin,aH)
@@ -108,6 +110,7 @@ contains
   if (echo_input) write(iout,400) kind_txt,DcH,MuSH,aH,bH,VstarH,thetaH,VcH
 
   return
+
 
   400 format(5x,'Friction law  . . . . . . . . . . . . . .  = Rate and State Dependent', &
             /5x,'  Type of weakening . . . . . . . . (kind) = ',A,&
@@ -137,7 +140,7 @@ contains
   call DIST_CD_Init(rsf%input%Vstar,coord,rsf%Vstar)
   call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
   call DIST_CD_Init(rsf%input%Vc,coord,rsf%Vc)
-  
+
   n = size(coord,2)
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
@@ -164,7 +167,8 @@ contains
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
     case(4)
-      mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vc*f%theta/f%Dc+1))/f%a)) 
+      !mu = f%mus +f%a*log(abs(v)/f%Vstar) + f%b*log(f%theta*f%Vc/f%Dc + 1) 
+      mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vc*f%theta/f%Dc+1))/f%a))
   end select
 
   end function rsf_mu
@@ -220,12 +224,6 @@ contains
 
   double precision, dimension(size(v)) :: v_new,theta_new
 
-! Reset nagative sliprates as Vstar accounting for the healing effect
-  do it=1,size(v)
-    if(v(it)<f%Vstar) then
-        v(it)=f%Vstar
-    endif
-  enddo
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
@@ -429,7 +427,11 @@ contains
     endif
   
     ! Check convergence criterion:
-    if (abs(dx)<abs(x_acc)) return
+    !if (abs(dx)<abs(x_acc)) return
+    if (abs(dx)<abs(x_acc))  then
+       call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+       return
+   end if
   
     ! Evaluate function with new estimate of x
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
@@ -524,18 +526,25 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
   select case(f%kind)
     case(2,3)
       tmp = f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it) )
-    case(4)
-      tmp = f%mus(it) +f%b(it)*log( f%Vc(it)*theta/f%Dc(it) + 1 )
-  end select
       tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       v = sinh(tau/(-sigma*f%a(it)))*tmp
       func_tau = tau_stick - Z*v - tau
-    
+
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
       dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1d0
+    case(4)
+      tmp = f%mus(it) +f%b(it)*log( f%Vc(it)*theta/f%Dc(it) + 1 )
+      tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
+      v = sinh(tau/(-sigma*f%a(it)))*tmp
+      func_tau = tau_stick - Z*v - tau
+
+      dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
+      dfunc_dtau = -Z*dv_dtau - 1d0
+  end select
+    
   
 end subroutine nr_fric_func_tau
 
@@ -552,25 +561,14 @@ subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
 
 
- select case(f%kind)
-    case(2,3)
       mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-    case(4)
-      mu = (f%mus(it)+f%b(it)*log(f%Vc(it)*f%theta(it)/f%Dc(it)+1))/f%a(it)
-  end select
-
       mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
       func_v = tau_stick - Z*v - sigma*mu
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
- select case(f%kind)
-    case(2,3)
       dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
-    case(4)
-      dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vc(it)*f%theta(it)/f%Dc(it)+1))/f%a(it))/(2*f%Vstar(it))
-  end select
       dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
       dfunc_dv = -Z - sigma*dmu_dv
   
