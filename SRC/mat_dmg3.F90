@@ -14,13 +14,13 @@ module mat_dmg3
 ! . Evolution of elastic moduli:
 !
 !     lambda = lambda_0 constant
-!     mu     = mu_0 + mu_r * alpha
+!     mu     = mu_0 + mu_r * mu_0 * alpha
 !
 !     where alpha = damage state variable, in [0,1]
-!           mu_r  = damage modulus, mu_0 + mu_r is minimal 
+!           mu_r  = (-1, 0], (1 + mu_r)*mu_0 is minimal 
 !                   shear modulus when alpha = 1 
 !
-!  By choosing |mu_r|<mu_0, convexity is guaranteed
+!  By choosing |mu_r| < 1, convexity is guaranteed
 !
 !
 ! . Damage evolution:
@@ -32,7 +32,7 @@ module mat_dmg3
 !        where i2 is e_{31}^2 + e_{32}^2 
 !              i2_cr = 0.5*[(-f0*sigma_0+c0)/mu_0]^2
 !              sigma_0 is the initial mean stress [negative]
-!              f0,c0 initial static friction, cohesion 
+!              f0, c0 initial static friction, cohesion 
 !
 !        . Damage-related plasticity:
 !
@@ -77,8 +77,7 @@ module mat_dmg3
  !-- damage
   type matwrk_dmg3_type
     private
-!    double precision, pointer, dimension(:,:) :: mu => null(), lambda => null()
-    double precision :: mu
+    double precision, pointer, dimension(:, :)  :: mu      -> null()
     double precision, pointer, dimension(:,:,:) :: ep      => null()
     double precision, pointer, dimension(:,:,:) :: e0      => null()
     double precision, pointer, dimension(:, :)  :: alpha   => null()
@@ -125,6 +124,7 @@ contains
 ! ARG: cp       [dble][0d0] P wave velocity
 ! ARG: cs       [dble][0d0] S wave velocity
 ! ARG: rho      [dble][0d0] density
+! ARG: mu_r     [dble][0d0] damage ratio for mu
 ! ARG: f0       [dble][0d0] internal friction coefficient
 ! ARG: c0       [dble][0d0] internal cohesion
 ! ARG: Sm0      [dble][0d0] initial value of mean stress [negative] 
@@ -141,8 +141,10 @@ contains
 !
 ! END INPUT BLOCK
 !
-! SYNTAX : &MAT_DAMAGE cp, cs, rho, f0, c0, Sm0, Sm0H, e1H, e2H, 
-!                      alpha, Cd, C1, C2, Rp, Th, R, e0, ep /
+! SYNTAX : &MAT_DAMAGE3 alpha|alphaH, Sm0|Sm0H, e0|(e1H, e2H), ep 
+!                      cp, cs, rho, f0, c0, Cd, C1, C2, Rp, Th, R /
+!
+! Note that: alphaH, Sm0H, e1H, e2H can be distributions
 !
 
   subroutine MAT_DMG_read(input,iin)
@@ -153,29 +155,38 @@ contains
   integer, intent(in) :: iin
 
   double precision :: rho,cp, cs, f0, c0, alpha, Cd, C1, C2
-  double precision :: Rp, Th, R, ep(2)
-  double precision :: e0(2) 
-  cd_type :: cd_e1, cd_e2, cd_sm0, cd_alpha,
+  double precision :: Rp, Th, R, ep(2), e0(2), sm0
+  cd_type :: cd_e1, cd_e2, cd_sm0, cd_alpha
+  character(20):: e1H, e2H, alphaH, sm0H
 
-  NAMELIST / MAT_DAMAGE / cp,cs,rho,phi,alpha,C,beta,R,e0,ep
+  NAMELIST / MAT_DAMAGE / alpha, sm0, e0, ep, alphaH, sm0H, e1H, e2H, & 
+                          cp, cs, rho, f0, c0, Cd, C1, C2, R, Rp, Th
   
   cp    = 0d0
   cs    = 0d0
   rho   = 0d0
-  Cd    = 0d0
-  R     = 0d0
-  beta  = 0d0
+  alpha = 0d0
   e0    = 0d0
   ep    = 0d0
-  phi   = 0d0
-  alpha = 0d0
+  sm0   = 0d0
+  alphaH = ''
+  sm0H  = ''
+  e1H   = ''
+  e2H   = ''
+  f0    = 0d0
+  c0    = 0d0
+  Cd    = 0d0
+  C1    = 0d0
+  C2    = 0d0
+  R     = 0d0
+  Rp    = 0d0
+  Th    = 0d0
 
   read(iin, MAT_DAMAGE, END=100)
 
   write(iout,200) cp,cs,rho,phi,alpha,Cd,beta,R,e0,ep
 
-  call MAT_setKind(input,isDamage)
-  
+  call MAT_setKind(input,isDamage3)
   call MAT_setProp(input,'cp',cp)
   call MAT_setProp(input,'cs',cs)
   call MAT_setProp(input,'rho',rho)
