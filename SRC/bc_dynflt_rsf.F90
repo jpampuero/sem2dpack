@@ -23,7 +23,7 @@ module bc_dynflt_rsf
                      coeft=>null(), vplate=>null()
     double precision :: dt
     integer :: iter, NRMaxIter
-    double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ
+    double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ, tEqPrev, minGap
     type(rsf_input_type) :: input
   end type rsf_type
 
@@ -61,6 +61,7 @@ contains
 ! ARG: vmaxS2D  [dble] [5d-3] max slip velocity for switch from static to dynamic 
 ! ARG: vmaxD2S  [dble] [2d-3] max slip velocity for switch from dynamic to static
 ! ARG: vEQ      [dble] [10d-3] threshold slip velocity for earthquake event 
+! ARG: minGap   [dble] [10 s] minimum time gap between two earthquake events
 ! ARG: NRTol    [dble] [1.0d-4] relative tolerance for NR solver 
 ! ARG: NRMaxIter [Int] [200] maximum interation number for NR solver 
 !
@@ -75,7 +76,7 @@ contains
   integer, intent(in) :: iin
 
   double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
-  double precision :: NRTol 
+  double precision :: NRTol,minGap 
   integer :: NRMaxIter 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
@@ -83,7 +84,7 @@ contains
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
-           vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ
+           vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap
 
   kind = 1
   Dc = 0.5d0
@@ -103,6 +104,7 @@ contains
   vmaxS2D = 5d-3 ! 5 mm/s
   vmaxD2S = 2d-3 ! 2 mm/s
   vEQ     = 10d-3 ! 10 mm/s
+  minGap  = 10 ! 10 s
   NRMaxIter = 200 
   NRTol     = 1.0d-4
 
@@ -128,8 +130,10 @@ contains
   rsf%vmaxS2D = vmaxS2D
   rsf%vmaxD2S = vmaxD2S
   rsf%vEQ     = vEQ
+  rsf%minGap  = minGap
   rsf%NRTol   = NRTol
-  rsf%NRMaxIter   = NRMaxIter
+  rsf%NRMaxIter = NRMaxIter
+  rsf%teqPrev = -huge(1d0) 
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
                MuSH,aH,bH,VstarH,thetaH,vplateH,& 
@@ -692,7 +696,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   time%EQEnd   = .false.
 
   if (vmax>f%vEQ) then
-      if ((.not. time%isEQ) .and. (.not. time%isDynamic)) then
+      if ((.not. time%isEQ) .and. ((time%time-f%tEqPrev)>f%minGap)) then
           time%EQStart = .true.
           write(*,*) "Start another earthquake ... "
       end if
@@ -702,6 +706,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
           time%EQEnd  = .true.
           time%EQNum  = time%EQNum + 1
           write(*,*) "Finish EQNum: ", time%EQNum
+          f%tEqPrev   = time%time
       end if
       time%isEQ = .false.
   end if

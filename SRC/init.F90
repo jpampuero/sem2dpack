@@ -122,7 +122,7 @@ subroutine init_main(pb, ierr, InitFile)
   cputime0 = cputime1-cputime0
   write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
         '---  CPU TIME ESTIMATES (in seconds) :', &
-        'CPU time for assembling stiffness matrix . .', cputime0
+        'CPU time for initial assembling stiffness matrix . .', cputime0
   
   if (info) then
     write(iout,*)
@@ -131,6 +131,20 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,*)
   endif
+  
+  ! Test reassemble the stiffness matrix
+  ! 
+!  call CPU_TIME(cputime0)
+!  do i = 1, 10
+!      call MatZeroEntries(pb%K, ierr)
+!      call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
+!      CHKERRA(ierr)
+!  end do
+!  call CPU_TIME(cputime1)
+!  cputime0 = (cputime1-cputime0)/10.0
+!  write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
+!        '---  CPU TIME ESTIMATES (in seconds) :', &
+!        'CPU time for Re-assembling stiffness matrix . .', cputime0
 
   if (info) then
     write(iout,*)

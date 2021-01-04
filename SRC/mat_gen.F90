@@ -782,6 +782,7 @@ subroutine MAT_init_KG(KG, ndof, npoin, ngll, ierr)
   call MatSetFromOptions(KG, ierr);CHKERRQ(ierr)
   call MatSetSizes(KG, PETSC_DECIDE, PETSC_DECIDE, ndof*npoin, ndof*npoin, ierr)
   CHKERRQ(ierr)
+  call MatSetBlockSize(KG, ndof, ierr)
 
 ! Multiple ways of allocating memory
   call MatMPIAIJSetPreallocation(KG, 4*ndof*ngll*ngll, &
@@ -817,8 +818,8 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   PetscErrorCode  :: ierr
 
   do e = 1, size(matwrk)
-      call MAT_Ke_Fint(Ke, matwrk(e), ndof, ngll)
-     ! call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
+      !call MAT_Ke_Fint(Ke, matwrk(e), ndof, ngll)
+      call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
       do p = 1, ngll
       do q = 1, ngll
       do i = 1, ndof

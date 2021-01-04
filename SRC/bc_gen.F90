@@ -516,6 +516,7 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
 
   ! -mat_type mpiaij
   call MatSetFromOptions(X, ierr);CHKERRQ(ierr)
+  call MatSetBlockSize(X, ndof, ierr)
   call MatSetSizes(X, PETSC_DECIDE, PETSC_DECIDE, ndof*npoin, ndof*npoin, ierr)
   CHKERRQ(ierr)
 
@@ -526,6 +527,7 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   call MatSetUp(X, ierr); CHKERRQ(ierr)
 
   call MatDuplicate(X, MAT_DO_NOT_COPY_VALUES, Xinv, ierr)
+  call MatSetBlockSize(X, ndof, ierr)
   call MatSetUp(Xinv, ierr)
   
   ! set diagonals, index is 0-based

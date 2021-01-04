@@ -438,7 +438,7 @@ contains
 
   bc%T = 0d0
   bc%D = 0d0
-  !bc%V = 0d0  ! DEVEL: RSF can't have zero slip velocity !
+  bc%V = 0d0  ! initialize 
   call DIST_CD_Init(bc%input%V, bc%coord, V)
   bc%V(:,1) = V
   deallocate(V)
