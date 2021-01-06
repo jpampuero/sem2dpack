@@ -208,7 +208,7 @@ contains
 !-----------------------------------------------------------------------
   subroutine MAT_DMG_init_elem_work(m,p,n)
 
-  use spec_grid, only : sem_grid_type, SE_InverseJacobian, SE_VolumeWeights
+!  use spec_grid, only : sem_grid_type, SE_InverseJacobian, SE_VolumeWeights
 
   type(matwrk_dmg_type), intent(inout) :: m
   type(matpro_elem_type), intent(in) :: p

@@ -38,6 +38,7 @@ module mat_gen
   use mat_damage
   use mat_plastic
   use mat_visco
+  use mat_dmg3
 !!  use mat_user  
 
   implicit none
@@ -51,7 +52,8 @@ module mat_gen
   integer, parameter :: IS_ELAST = 0, &
                         IS_PLAST = 1, &
                         IS_DAMAG = 2, &
-                        IS_VISCO = 3 
+                        IS_VISCO = 3, &
+                        IS_DMG3  = 4
 
  ! working arrays for each element
   type matwrk_elem_type
@@ -62,6 +64,7 @@ module mat_gen
     type(matwrk_kv_type)   , pointer :: kv=>null() 
     type(matwrk_plast_type), pointer :: plast=>null()
     type(matwrk_dmg_type)  , pointer :: dmg=>null()
+    type(matwrk_dmg3_type)  , pointer :: dmg3=>null()
     type(matwrk_visco_type), pointer :: visco=>null()
 !!    type(matwrk_user_type), pointer :: user=>null()
   end type matwrk_elem_type
@@ -95,7 +98,7 @@ contains
 !
 ! ARG: tag      [int] [none]    Number identifying a mesh domain 
 ! ARG: kind     [name(2)] ['ELAST','']  Material types:
-!               'ELAST', 'DMG','PLAST', 'KV' 
+!               'ELAST', 'DMG','PLAST', 'KV', 'DMG3' 
 !
 ! NOTE   : Some combinations of material kinds can be assigned to the same domain.
 !          Any material type can be combined with 'KV', for instance:
@@ -156,6 +159,7 @@ subroutine MAT_read(mat,iin)
           case ('DMG')  ; name(k) = 'Damage'
           case ('KV')   ; name(k) = 'Kelvin-Voigt'
           case ('VISCO'); name(k) = 'Visco'
+          case ('DMG3'); name(k) = 'Dmg3'
           !! case ('USER'); name(k) = 'User'
           case default  ; name(k) = kind(k)
         end select
@@ -177,6 +181,7 @@ subroutine MAT_read(mat,iin)
         case ('DMG')  ; call MAT_DMG_read(mat(tag),iin)
         case ('KV')   ; call MAT_KV_read(mat(tag),iin)
         case ('VISCO'); call MAT_VISCO_read(mat(tag),iin)
+        case ('DMG3'); call MAT_DMG3_read(mat(tag),iin)
         !! case ('USER'); call MAT_USER_read(mat(tag),iin)
         case ('')     ; continue
         case default  ; call IO_abort('MAT_read: unkown kind')
@@ -254,6 +259,7 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   call storearray('matpro:dmg',MAT_DMG_mempro,idouble)
   call storearray('matpro:plast',MAT_PLAST_mempro,idouble)
   call storearray('matpro:visco',MAT_VISCO_mempro,idouble)
+  call storearray('matpro:dmg3',MAT_DMG3_mempro,idouble)
   !!call storearray('matpro:user',MAT_USER_mempro,idouble)
 
   ! export velocity and density model
@@ -322,6 +328,7 @@ subroutine MAT_init_elem_prop(elem,ecoord)
   if (MAT_isKelvinVoigt(elem)) call MAT_KV_init_elem_prop(elem,ecoord)
   if (MAT_isDamage(elem)) call MAT_DMG_init_elem_prop(elem,ecoord)
   if (MAT_isVisco(elem)) call MAT_VISCO_init_elem_prop(elem,ecoord)
+  if (MAT_isDmg3(elem)) call MAT_DMG3_init_elem_prop(elem,ecoord)
   !!if (MAT_isUser(elem)) call MAT_USER_init_elem_prop(elem,ecoord)
 
 end subroutine MAT_init_elem_prop
@@ -336,6 +343,8 @@ subroutine MAT_Set_matwrk_kind(matwrk, matpro)
   if (MAT_isKelvinVoigt(matpro)) matwrk%IS_KV = .true. 
   if (MAT_isDamage(matpro)) matwrk%kind  = IS_DAMAG 
   if (MAT_isVisco(matpro)) matwrk%kind   = IS_VISCO
+  if (MAT_isDmg3(matpro)) matwrk%kind   = IS_DMG3
+  !! if (MAT_isUser(matpro)) matwrk%kind   = IS_DMG3
 
 end subroutine
 
@@ -402,6 +411,10 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       if (ndof/=2) call IO_abort('MAT_init_work: visco-elasticity requires ndof=2 (P-SV) ')
       allocate(matwrk(e)%visco)
       call MAT_VISCO_init_elem_work(matwrk(e)%visco,matpro(e),grid%ngll)
+    
+    elseif (MAT_isDmg3(matpro(e))) then
+      allocate(matwrk(e)%dmg3)
+      call MAT_DMG3_init_elem_work(matwrk(e)%dmg3,matpro(e),grid%ngll)
 
 
   !!  elseif (MAT_isUser(matpro(e)))
@@ -424,6 +437,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   call storearray('matwrk%dmg',MAT_DMG_memwrk,idouble)
   call storearray('matwrk%plast',MAT_PLAST_memwrk,idouble)
   call storearray('matwrk%visco',MAT_VISCO_memwrk,idouble)
+  call storearray('matwrk%dmg3',MAT_DMG3_memwrk,idouble)
   !!call storearray('matwrk%user',MAT_USER_memwrk,idouble)
 
 end subroutine MAT_init_work
@@ -497,6 +511,8 @@ end subroutine MAT_Fint
   if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
                                                 E_ep_local,E_el_local,sg_local,sgp_local)
   if (MAT_isVisco(matpro)) call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
+  if (MAT_isDmg3(matpro)) call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt, &
+                                                E_ep_local,E_el_local,sg_local,sgp_local)
 !!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
 
   if (present(E_ep)) E_ep = sum( matwrk%derint%weights * E_ep_local )
@@ -520,6 +536,7 @@ subroutine MAT_write(matwrk,matpro,tag)
 
   call MAT_PLAST_write(matwrk,matpro,tag)
   call MAT_DMG_write(matwrk,matpro,tag)
+  call MAT_DMG3_write(matwrk,matpro,tag)
   !!call MAT_USER_write(matwrk,matpro,tag)
 
 end subroutine MAT_write

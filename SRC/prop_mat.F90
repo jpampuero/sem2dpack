@@ -8,7 +8,7 @@ module prop_mat
   private
 
  !! MAX_NKIND must be > number of material types implemented
-  integer, parameter :: MAX_NKIND = 10 
+  integer, parameter :: MAX_NKIND = 11 
   integer, save :: MAT_nkind=0
   integer, parameter :: PROP_NAME_LEN = 8  ! max length of property names
                                             ! currently should be >= 6
