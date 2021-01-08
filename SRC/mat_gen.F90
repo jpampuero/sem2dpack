@@ -343,7 +343,7 @@ subroutine MAT_Set_matwrk_kind(matwrk, matpro)
   if (MAT_isKelvinVoigt(matpro)) matwrk%IS_KV = .true. 
   if (MAT_isDamage(matpro)) matwrk%kind  = IS_DAMAG 
   if (MAT_isVisco(matpro)) matwrk%kind   = IS_VISCO
-  if (MAT_isDmg3(matpro)) matwrk%kind   = IS_DMG3
+  if (MAT_isDmg3(matpro)) matwrk%kind    = IS_DMG3
   !! if (MAT_isUser(matpro)) matwrk%kind   = IS_DMG3
 
 end subroutine
@@ -461,7 +461,7 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   type(sem_grid_type), intent(in) :: grid
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
-  double precision, intent(out) :: sg(3),sgp(3)   !stress glut
+  double precision, intent(out) :: sg(ndof+1),sgp(ndof+1)   !stress glut
 
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
 
@@ -651,6 +651,61 @@ end subroutine MAT_write
 
   end subroutine MAT_DMG_write
 
+!-----------------------------------------------------------------------
+! write damage variable for mode 3 damage model
+! Export snapshots of damage variables to binary file dmg_xxx_sem2d.dat
+! (where xxx is the snapshot index):
+!   
+! The ASCII file dmg_elems_sem2d.tab contains the list of elements concerned,
+! in two columns:
+!   col 1 = element index in the dmg_xxx_sem2d.dat file
+!   col 2 = element index in the global mesh
+!
+  subroutine MAT_DMG3_write(mw,mp,tag)
+
+  use stdio, only : IO_new_unit
+
+  type (matwrk_elem_type), intent(in) :: mw(:)
+  type (matpro_elem_type), intent(in) :: mp(:)
+  character(*), intent(in) :: tag
+  character(30) :: fname
+
+  integer :: e,k,nelem, iout,iol=0
+  logical :: initialized = .false.
+
+  if (.not. MAT_anyDmg3() ) return
+
+  nelem = size(mp)
+
+ ! initialize
+  if (.not.initialized) then 
+    iout = IO_new_unit()
+    open(unit=iout,file='dmg_elems_sem2d.tab')
+    k=0
+    do e = 1,nelem
+      if ( .not. MAT_isDmg3(mp(e)) ) cycle
+      k=k+1
+      write(iout,*) k,e
+      if (k==1) iol = e
+    enddo
+    close(iout)
+    inquire( IOLENGTH=iol ) MAT_DMG3_export(mw(iol)%dmg3)
+    initialized = .true.
+  endif
+
+ ! export snapshots
+  write(fname,'("dmg_",A,"_sem2d.dat")') trim(tag)
+  iout = IO_new_unit()
+  open(unit=iout,file=trim(fname),status='replace',access='direct',recl=iol)
+  k=0
+  do e = 1,nelem
+    if ( .not. MAT_isDmg3(mp(e)) ) cycle
+    k=k+1
+    write(iout,rec=k) MAT_DMG3_export(mw(e)%dmg)
+  enddo
+  close(iout)
+
+  end subroutine MAT_DMG3_write
 !=======================================================================
 !
 ! Compute the weight matrix that contains the information of the tangent matrix
