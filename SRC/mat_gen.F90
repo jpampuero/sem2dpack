@@ -701,7 +701,7 @@ end subroutine MAT_write
   do e = 1,nelem
     if ( .not. MAT_isDmg3(mp(e)) ) cycle
     k=k+1
-    write(iout,rec=k) MAT_DMG3_export(mw(e)%dmg)
+    write(iout,rec=k) MAT_DMG3_export(mw(e)%dmg3)
   enddo
   close(iout)
 

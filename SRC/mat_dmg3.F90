@@ -150,7 +150,6 @@ contains
 
   subroutine MAT_DMG3_read(input,iin)
 
-  use distribution_cd, only : cd_type
   use echo, only : echo_input, iout
   type (matpro_input_type), intent(inout) :: input
   integer, intent(in) :: iin
@@ -306,7 +305,7 @@ contains
     type(matwrk_dmg3_type), intent(inout) :: m
     type(matpro_elem_type), intent(in) :: p
     integer, intent(in) :: ngll
-    double precision :: R, f0, c0, sm0(ngll, ngll), mu0, lambda0
+    double precision :: R, f0, c0, sm0(ngll, ngll), mu0, lambda0, mu
    
     allocate(m%alpha(ngll,ngll))
     allocate(m%e0(2))
@@ -365,7 +364,7 @@ contains
     call MAT_getProp(m%ep(:,:,2), p, 'e32_p')
    
     ! initial antiplane shear stress, uniform
-    m = m%mu0 + m%mu0 * m%mu_r * m%alpha(1,1)
+    mu = m%mu0 + m%mu0 * m%mu_r * m%alpha(1,1)
     m%s0 = 2d0 * mu * (m%e0 - m%ep(1,1,:)) 
     
     ! track memory usage
@@ -377,28 +376,29 @@ contains
                       + size(m%s0) &
                       + size(m%i2_cr)
     
-    if associated(m%alpha0) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%alpha0)
-    if associated(m%t0) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%t0)
-    if associated(m%e_cmp) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%e_cmp)
+    if (associated(m%alpha0)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%alpha0)
+    if (associated(m%t0)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%t0)
+    if (associated(m%e_cmp)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%e_cmp)
 
 end subroutine MAT_DMG3_init_elem_work
 
 ! compute the critical I2 beyond which damage starts
 ! allow sm0 be spatially variable
 !-----------------------------------------------------------------------
- double precision function compute_i2_cr(f0, mu0, c0, sm0) result(i2_cr)
+  function compute_i2_cr(f0, mu0, c0, sm0) result(i2_cr)
       double precision, intent(in) :: f0, mu0, c0, sm0(:,:)
       double precision, dimension(size(sm0,1), size(sm0,2)) :: i2_cr
 
       i2_cr = 0.5d0* ((-f0*sm0+c0)/mu0)**2d0 
       
-      end function compute_i2_cr
+  end function compute_i2_cr
 
 !- compute the compaction strain for healing
 !-----------------------------------------------------------------------
-  double precision function compute_ecmp(sm0, lambda0, mu0) result(e_cmp)
-      double precision, intent(in) :: sm0(:, :), lambda0, mu0, K0
+  function compute_ecmp(sm0, lambda0, mu0) result(e_cmp)
+      double precision, intent(in) :: sm0(:, :), lambda0, mu0
       double precision, dimension(size(sm0,1), size(sm0,2)) :: e_cmp
+      double precision :: K0
 
       ! compute bulk modulus
       K0 = lambda0 + 2d0/3d0*mu0
@@ -437,95 +437,96 @@ end subroutine MAT_DMG3_init_elem_work
   double precision, dimension(ngll,ngll,2) :: dep
   integer :: i,j
 
- !-- total strain
-  e(:,:,1) = etot(:,:,1) + m%e0(1)
-  e(:,:,2) = etot(:,:,2) + m%e0(2)
+ !!-- total strain
+ ! e(:,:,1) = etot(:,:,1) + m%e0(1)
+ ! e(:,:,2) = etot(:,:,2) + m%e0(2)
 
- !-- elastic strain
-  e = e - m%ep
+ !!-- elastic strain
+ ! e = e - m%ep
 
- !-- damaged elastic moduli
-  rl = m%lambda
-  rm = m%mu + m%xi_0 * m%gamma_r * m%alpha
-!  rl = m%lambda(1,1)
-!  rm = m%mu(1,1) + m%xi_0 * m%gamma_r * m%alpha
-  rg = m%gamma_r * (m%alpha**(1d0+m%beta)) / (1d0+m%beta) ! Hamiel et al (2004) eq 3
+ !!-- damaged elastic moduli
+ ! rl = m%lambda
+ ! rm = m%mu + m%xi_0 * m%gamma_r * m%alpha
+!!  rl = m%lambda(1,1)
+!!  rm = m%mu(1,1) + m%xi_0 * m%gamma_r * m%alpha
+ ! rg = m%gamma_r * (m%alpha**(1d0+m%beta)) / (1d0+m%beta) ! Hamiel et al (2004) eq 3
 
- !-- compute stresses and two strain invariants
-  do j=1,ngll
-  do i=1,ngll
-    eij = e(i,j,:)
-    call compute_stress(sij,eij,rl(i,j),rm(i,j),rg(i,j),i1(i,j),i2(i,j),xi(i,j))
-    s(i,j,:) = sij
-  enddo
-  enddo
+ !!-- compute stresses and two strain invariants
+ ! do j=1,ngll
+ ! do i=1,ngll
+ !   eij = e(i,j,:)
+ !   call compute_stress(sij,eij,rl(i,j),rm(i,j),rg(i,j),i1(i,j),i2(i,j),xi(i,j))
+ !   s(i,j,:) = sij
+ ! enddo
+ ! enddo
 
-!------- Update damage variables and plastic strain --------------- 
-  if (update) then
+!!------- Update damage variables and plastic strain --------------- 
+ ! if (update) then
 
-    if (.not.present(dt)) &
-      call IO_abort('mat_dmg3:MAT_DMG3_stress: update requested but argument dt is absent')
+ !   if (.not.present(dt)) &
+ !     call IO_abort('mat_dmg3:MAT_DMG3_stress: update requested but argument dt is absent')
 
-   !-- damage evolution
-!    if (m%beta==0d0) then
-      dalpha = dt*m%Cd*i2*positive_part( xi - m%xi_0 )
-!    else
-     ! from Hamiel et al (2004) eq 7
-!      dalpha = dt*m%Cd*i2*positive_part( xi * m%alpha**m%beta  - m%xi_0 ) 
-!    endif
-    m%alpha = m%alpha + dalpha
-  
-   !-- plasticity update
-   ! Damage-related viscosity, if alpha_dot > 0
-   ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
-   ! where tij = deviatoric stress
+ !  !-- damage evolution
+!!    if (m%beta==0d0) then
+ !     dalpha = dt*m%Cd*i2*positive_part( xi - m%xi_0 )
+!!    else
+ !    ! from Hamiel et al (2004) eq 7
+!!      dalpha = dt*m%Cd*i2*positive_part( xi * m%alpha**m%beta  - m%xi_0 ) 
+!!    endif
+ !   m%alpha = m%alpha + dalpha
+ ! 
+ !  !-- plasticity update
+ !  ! Damage-related viscosity, if alpha_dot > 0
+ !  ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
+ !  ! where tij = deviatoric stress
 
-    dalpha = m%Cv * positive_part(dalpha)
-    dep(:,:,1) = s(:,:,1)*dalpha
-    dep(:,:,2) = s(:,:,2)*dalpha
-    m%ep = m%ep + dep
+ !   dalpha = m%Cv * positive_part(dalpha)
+ !   dep(:,:,1) = s(:,:,1)*dalpha
+ !   dep(:,:,2) = s(:,:,2)*dalpha
+ !   m%ep = m%ep + dep
 
-    if (COMPUTE_ENERGIES) then
-     ! increment of plastic energy dissipation
-      E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
-     ! total elastic energy change
-     ! WARNING: assumes zero initial plastic strain
-      i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) 
-!      E_el = 0.5d0*(rl*i1*i1 - m%lambda*i1_0*i1_0) + ( rm*i2 - m%mu*i2_0 ) - rg*i1*sqrt(i2)
-    else
-      E_ep = 0d0
-      E_el = 0d0
-    endif
+ !   if (COMPUTE_ENERGIES) then
+ !    ! increment of plastic energy dissipation
+ !     E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
+ !    ! total elastic energy change
+ !    ! WARNING: assumes zero initial plastic strain
+ !     i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) 
+!!      E_el = 0.5d0*(rl*i1*i1 - m%lambda*i1_0*i1_0) + ( rm*i2 - m%mu*i2_0 ) - rg*i1*sqrt(i2)
+ !   else
+ !     E_ep = 0d0
+ !     E_el = 0d0
+ !   endif
 
-    if (COMPUTE_STRESS_GLUT) then
-      rm = 2d0*m%mu
-     ! damage components
-      sg(:,:,1) = s(:,:,1) - (rl+rm)*e(:,:,1) - rl*e(:,:,2)
-      sg(:,:,2) = s(:,:,2) - rl*e(:,:,1) - (rl+rm)*e(:,:,2)
-      sg(:,:,3) = s(:,:,3) - rm*e(:,:,3)
-     ! plastic components
-      sgp(:,:,1) = - rm*m%ep(:,:,1)
-      sgp(:,:,2) = - rm*m%ep(:,:,2)
-      sgp(:,:,3) = - rm*m%ep(:,:,3)
-    else
-      sg = 0d0
-      sgp = 0d0
-    endif
+ !   if (COMPUTE_STRESS_GLUT) then
+ !     rm = 2d0*m%mu
+ !    ! damage components
+ !     sg(:,:,1) = s(:,:,1) - (rl+rm)*e(:,:,1) - rl*e(:,:,2)
+ !     sg(:,:,2) = s(:,:,2) - rl*e(:,:,1) - (rl+rm)*e(:,:,2)
+ !     sg(:,:,3) = s(:,:,3) - rm*e(:,:,3)
+ !    ! plastic components
+ !     sgp(:,:,1) = - rm*m%ep(:,:,1)
+ !     sgp(:,:,2) = - rm*m%ep(:,:,2)
+ !     sgp(:,:,3) = - rm*m%ep(:,:,3)
+ !   else
+ !     sg = 0d0
+ !     sgp = 0d0
+ !   endif
 
-  endif
+ ! endif
 
- !-- relative stresses
-  s(:,:,1) = s(:,:,1) - m%s0(1)
-  s(:,:,2) = s(:,:,2) - m%s0(2)
+ !!-- relative stresses
+ ! s(:,:,1) = s(:,:,1) - m%s0(1)
+ ! s(:,:,2) = s(:,:,2) - m%s0(2)
 
   end subroutine MAT_DMG3_stress
 
 !-------------------------------------------------------------------
 !
-  subroutine compute_stress(s, e, mu)
-      double precision, intent(in) :: e(2), s(2), mu
+  function compute_stress(e, mu) result(s)
+      double precision, intent(in) :: e(2), mu
+      double precision :: s(2)
       s = 2d0*mu*e
-  end subroutine compute_stress
+  end function compute_stress
 
 !=======================================================================
 ! export output data
