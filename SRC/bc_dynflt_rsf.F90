@@ -20,7 +20,7 @@ module bc_dynflt_rsf
     double precision, dimension(:), pointer :: dc=>null(),& 
                      mus=>null(), a=>null(), b=>null(), &
                      Vstar=>null(), theta=>null(), Tc=>null(),&
-                     coeft=>null(), vplate=>null()
+                     coeft=>null(), vplate=>null(), theta_pre=>null()
     double precision :: dt
     integer :: iter, NRMaxIter
     double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ, tEqPrev, minGap
@@ -30,7 +30,7 @@ module bc_dynflt_rsf
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
             rsf_vplate, rsf_get_theta, rsf_get_a, &
-            rsf_get_b, rsf_get_NRTol 
+            rsf_get_b, rsf_get_NRTol, rsf_reset 
 
 contains
 
@@ -186,6 +186,8 @@ contains
 
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
+  allocate(rsf%theta_pre(n))
+  rsf%theta_pre = rsf%theta
                                               
   rsf%Tc = rsf%dc / rsf%Vstar
   ! if adaptive stepping is activated, 
@@ -209,6 +211,18 @@ contains
                * f%Dc / f%Vstar
 
   end subroutine rsf_init_theta
+
+! reset the state variable and update to new dt
+  subroutine rsf_reset(f, dt)
+    type(rsf_type), intent(inout) :: f
+    double precision :: dt
+   
+    f%theta = f%theta_pre
+    f%dt    = dt
+    f%iter  = 0
+    if (f%kind==1) f%coeft = exp(-f%dt/f%Tc)
+  
+  end subroutine rsf_reset
 
   function rsf_get_theta(f) result(theta)
       type(rsf_type), intent(in) :: f
@@ -344,7 +358,8 @@ contains
   double precision, dimension(size(v)) :: theta
   type(rsf_type), intent(inout) :: f
  
-  theta = rsf_update_theta(f%theta,v,f)
+  f%theta_pre = f%theta
+  theta = rsf_update_theta(f%theta_pre,v,f)
   v = rsf_v(f, tau, sigma, theta)
 
   ! increment the counter until 2 (passes)

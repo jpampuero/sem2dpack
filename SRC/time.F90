@@ -13,6 +13,7 @@ module time_evol
     Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
     Logical :: isUsePetsc
+    Logical :: isUpdateKsp 
     ! dt_min: minimum time step in adaptive time stepping 
     double precision :: dt,courant,time,total,alpha,beta,& 
                         gamma, Omega_max, dt_min, dtev_max, & 
@@ -24,6 +25,8 @@ module time_evol
     integer :: EQNum, it, EQNumMax, ntflush 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin, pcg_iters(2),nr_iters(2)
+    ! for output for snapshots if adaptive time step is used 
+    integer :: ou_time
   end type timescheme_type
 
 contains
@@ -161,11 +164,11 @@ contains
   integer :: NbSteps,n, MaxIterLin, EQNumMax, ntflush
   character(12) :: kind
   character(12) :: kind_dyn
-  Logical :: fixdt, isUsePetsc
+  Logical :: fixdt, isUsePetsc,isUpdateKsp 
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf, fixdt, EQNumMax, ntflush, isUsePetsc
+                    dt_incf, fixdt, EQNumMax, ntflush, isUsePetsc,isUpdateKsp 
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -181,6 +184,7 @@ contains
   MaxIterLin   = 4000
   fixdt        = .false.
   isUsePetsc   = .true.
+  isUpdateKsp  = .false.
   EQNumMax     = 5
   ntflush      = 100
   
@@ -201,7 +205,7 @@ contains
   if (NbSteps*TotalTime /= 0.d0)  &
     call IO_abort('TIME: bad combination of settings, NbSteps or TotalTime')
 
-  if (dt > 0.d0) then
+  if (dt > 0.d0 .and. kind/= 'adaptive') then
     if (TotalTime > 0.d0) NbSteps = ceiling(TotalTime/dt)
     TotalTime = dt*NbSteps
   endif
@@ -226,7 +230,7 @@ contains
   t%EQNumMax  = EQNumMax
   t%ntflush   = ntflush
   t%isUsePetsc = isUsePetsc
-  write(*, *)"isUsePetsc:", isUsePetsc
+  t%isUpdateKsp = isUpdateKsp
 
   select case (kind)
     case ('adaptive')
@@ -417,11 +421,11 @@ contains
   subroutine TIME_init(t,grid_cfl)
 
   use echo, only : echo_check,iout
-  use stdio, only : IO_warning
+  use stdio, only : IO_warning, IO_new_unit
 
   type(timescheme_type), intent(inout) :: t
   double precision, intent(in) :: grid_cfl
-
+  character(80)::oname
   double precision :: critical_CFL
 
  ! Check the Courant number or set the timestep
@@ -452,6 +456,13 @@ contains
   end if
   
   t%it = 0
+
+  ! create output time unit 
+  if (t%kind == 'adaptive') then
+      write(oname,'("Snapshot_time_sem2d.tab")')
+      t%ou_time = IO_new_unit()
+      open(t%ou_time, file=oname, status='replace')
+  end if
 
   if (echo_check) then
 

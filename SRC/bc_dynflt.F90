@@ -42,7 +42,8 @@ module bc_dynflt
             BC_DYNFLT_apply, BC_DYNFLT_write, BC_DYNFLT_set, &
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
             BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
-            BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix
+            BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix,&
+            BC_DYNFLT_reset
 
 contains
 
@@ -769,7 +770,12 @@ subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
 
 end subroutine BC_DYNFLT_apply
 
-
+! reset the state parameter of rsf
+subroutine BC_DYNFLT_reset(bc, dt)
+  type(bc_dynflt_type), intent(inout) :: bc
+  double precision :: dt
+  call rsf_reset(bc%rsf, dt)
+end subroutine BC_DYNFLT_reset
 
 ! ==============================================================================
 ! quasi-static kaneko 2011.

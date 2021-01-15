@@ -83,7 +83,7 @@ module mat_gen
             derint_type, &
             MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
             MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke, MAT_AssembleK, MAT_init_KG, &
-            MAT_testKe
+            MAT_testKe, MAT_dtmax, MAT_Update_DMG, MAT_Fint_EP
 
 contains
 
@@ -442,31 +442,63 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
 
 end subroutine MAT_init_work
 
+! compute the maximum allowed time step
+! this is only implemented for the DMG3 model
+! and only used in the quasistatic period
+
+subroutine MAT_dtmax(d, matwrk, ngll, ndof, dtmax)
+  integer, intent(in) :: ngll,ndof
+  double precision, dimension(ngll,ngll,ndof), intent(in) :: d
+  type(matwrk_elem_type), intent(in) :: matwrk
+  double precision :: dtmax
+  double precision, dimension(ngll,ngll,ndof+1) :: e,s
+  
+  if (matwrk%kind==IS_DMG3) then
+    e  = MAT_strain(d,matwrk,ngll,ndof)
+    call MAT_DMG3_dtmax(s,e,matwrk%dmg3,ngll,dtmax) 
+  endif
+
+end subroutine MAT_dtmax
+
+! Update internal variables for damage 3 model 
+! implement only for DMG3
+subroutine MAT_Update_DMG(d, matwrk, ngll, ndof, dt, t)
+  integer, intent(in) :: ngll,ndof
+  double precision, dimension(ngll,ngll,ndof), intent(in) :: d
+  type(matwrk_elem_type), intent(in) :: matwrk
+  double precision :: dt, t
+  double precision, dimension(ngll,ngll,ndof+1) :: e,s
+  
+  if (matwrk%kind==IS_DMG3) then
+    e  = MAT_strain(d,matwrk,ngll,ndof)
+    call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll, .true., dt, t)
+  endif
+end subroutine MAT_Update_DMG
 
 !=======================================================================
 ! Compute the internal forces -K*d on a single element 
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
+subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, t, grid, update, E_ep,E_el,sg,sgp)
 
   use spec_grid, only : sem_grid_type
 
   integer, intent(in) :: ngll,ndof
   double precision, dimension(ngll,ngll,ndof), intent(out) :: f
   double precision, dimension(ngll,ngll,ndof), intent(inout) :: d,v
-  type(matpro_elem_type), intent(in) :: matpro
   type(matwrk_elem_type), intent(inout) :: matwrk
-  double precision, intent(in) :: dt
+  double precision, intent(in) :: dt, t
   type(sem_grid_type), intent(in) :: grid
+  logical, intent(in) :: update
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
   double precision, intent(out) :: sg(ndof+1),sgp(ndof+1)   !stress glut
-
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
 
-  if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
-  if (MAT_isElastic(matpro)) then
+  if (matwrk%IS_KV) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
+  
+  if (matwrk%kind==IS_ELAST) then
    ! elastic material has a specialized scheme
    ! that does not require intermediate computation of strain and stress
     call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof)
@@ -480,45 +512,74 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
     e  = MAT_strain(d,matwrk,ngll,ndof)
 ! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
     !e = e + eta*( MAT_strain(v,matwrk,ngll,ndof) - ep_rate )
-    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp)
+    
+    ! update is always set .true.
+    call MAT_stress(s,e,matwrk,ngll,ndof, update, dt, t, E_ep,E_el,sg,sgp)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
 end subroutine MAT_Fint
 
+! compute internal force from plastic strain for dmg3
+!
+subroutine MAT_Fint_EP(f, matwrk, ngll, ndof)
+  integer, intent(in) :: ngll,ndof
+  double precision, dimension(ngll,ngll,ndof), intent(out) :: f
+  type(matwrk_elem_type), intent(inout) :: matwrk
+  double precision, dimension(ngll,ngll,ndof+1) :: s
+
+  f=0d0
+  if (matwrk%kind==IS_DMG3) then
+    call MAT_DMG3_stress_ep(s,matwrk%dmg3, ngll)
+    f = MAT_forces(s,matwrk%derint,ngll,ndof)
+  endif
+
+end subroutine MAT_Fint_EP
+
 !=======================================================================
- subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
+!
+! compute stress and update (or not) the internal state variable
+!
+ subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, dt, t, E_ep,E_el,sg,sgp)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
   double precision, intent(out) :: s(ngll,ngll,ndof+1)
   type (matwrk_elem_type) :: matwrk
-  type(matpro_elem_type), intent(in) :: matpro
-  logical, intent(in) :: update
+  logical, optional, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
+  double precision, optional, intent(in) :: t
+  double precision, optional, intent(out) :: E_ep, E_el, sg(ndof+1),sgp(ndof+1)
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
-  double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local
+  double precision, dimension(ngll,ngll,ndof+1) :: sg_local,sgp_local
   integer :: k
 
   sg_local = 0d0
   sgp_local = 0d0
 
-  if (MAT_isElastic(matpro)) call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
-  if (MAT_isPlastic(matpro)) call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update, &
-                                                   E_ep_local,E_el_local,sgp_local) 
-  if (MAT_isDamage(matpro)) call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
-                                                E_ep_local,E_el_local,sg_local,sgp_local)
-  if (MAT_isVisco(matpro)) call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
-  if (MAT_isDmg3(matpro)) call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt, &
-                                                E_ep_local,E_el_local,sg_local,sgp_local)
-!!  if (MAT_isUser(matpro)) call MAT_USER_stress(s,e,matwrk,ngll,update,...)
+  select case (matwrk%kind)
+    case (IS_ELAST)
+      ! never called
+      !call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
+    case (IS_PLAST)
+      call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update, &
+                            E_ep_local,E_el_local,sgp_local)
+    case (IS_DAMAG)
+      call MAT_DMG_stress(s,e,matwrk%dmg,ngll,update,dt, &
+                          E_ep_local,E_el_local,sg_local,sgp_local)
+    case (IS_VISCO)
+      call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
+    case (IS_DMG3)
+      call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt, t)
+!!  case (IS_USER)
+!!      call MAT_USER_stress(...)
+  end select 
 
   if (present(E_ep)) E_ep = sum( matwrk%derint%weights * E_ep_local )
   if (present(E_el)) E_el = sum( matwrk%derint%weights * E_el_local )
   if (present(sg)) then
-    do k =1,3
+    do k =1,ndof+1
       sg(k) = sum( matwrk%derint%weights * sg_local(:,:,k) )
       sgp(k) = sum( matwrk%derint%weights * sgp_local(:,:,k) )
     enddo
@@ -735,8 +796,10 @@ subroutine MAT_WeightsMat(WsMat, matwrk, ndof, ngll, ndim)
   ! obtain the tangent matrix
   if (matwrk%kind==IS_ELAST) then
      call MAT_ELAST_Cijkl(Cijkl, isCijklZero, matwrk%elast, ndof, ngll)
+  elseif (matwrk%kind==IS_DMG3) then
+     call MAT_DMG3_Cijkl(Cijkl, isCijklZero, matwrk%dmg3, ndof, ngll)
   else
-     call IO_abort('Only linear isotropic elasticity is implement so far')
+     call IO_abort('Only ELAST or DMG3 are implement so far')
   end if
  
   ! compute the weight matrix
@@ -928,7 +991,7 @@ subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
   
   if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   call MAT_stress(s, MAT_strain(d,matwrk,grid,e,ngll,ndof) &
-                 ,matwrk,matpro,ngll,ndof,update=.false.)
+                 ,matwrk,ngll,ndof,update=.false.)
   
 end subroutine MAT_stress_dv
 
@@ -1119,6 +1182,7 @@ end subroutine MAT_stress_dv
   end function MAT_divcurl_PSV
 
 !=======================================================================
+! internal force F = -K*d
 ! computes element forces from element stresses
 
   function MAT_forces(s,m,ngll,ndof) result(f)
@@ -1188,12 +1252,13 @@ end function
 ! find elemental stiffness matrix from computing forcing
 ! low efficiency, just for testing purposes
 !
-! Only works for elasticity
+! Only works for elasticity or dmg3
 subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
   type(matwrk_elem_type), intent(in) :: matwrk
   integer :: p,q,r,s,k,l, ndof, ngll, ik, il
   double precision, dimension(ngll,ngll,ndof) :: dloc,floc
   double precision, dimension(ngll*ngll*ndof, ngll*ngll*ndof):: Ke
+  double precision, dimension(ngll,ngll,ndof+1):: ss,ee
 
   dloc = 0d0
   Ke   = 0d0
@@ -1202,7 +1267,14 @@ subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
     do k=1, ndof
       dloc(p,q,k) = 1.0d0
       ik = ((p-1)*ngll + q - 1)*ndof + k
-      call MAT_ELAST_f(floc,dloc,matwrk%elast,matwrk%derint%H,matwrk%derint%Ht,ngll,ndof)
+      select case (matwrk%kind)
+      case (IS_ELAST) 
+          call MAT_ELAST_f(floc,dloc,matwrk%elast,matwrk%derint%H,matwrk%derint%Ht,ngll,ndof)
+      case (IS_DMG3)
+        ee  = MAT_strain(dloc,matwrk,ngll,ndof)
+        call MAT_DMG3_stress(ss, ee, matwrk%dmg3, ngll, .false.) 
+        floc = MAT_forces(ss,matwrk%derint,ngll,ndof)
+      end select
       do r=1, ngll
       do s=1, ngll
       do l=1, ndof

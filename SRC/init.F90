@@ -5,7 +5,7 @@ module init
   implicit none
   private
 
-  public :: init_main
+  public :: init_main, UpdateKsp
 
 contains
 
@@ -49,8 +49,6 @@ subroutine init_main(pb, ierr, InitFile)
   character(160)::pctype
   PC            ::ksp_pc
   logical :: ismatch
-
-
 
   init_cond = present(InitFile)
 
@@ -131,20 +129,6 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '***********************************************'
     write(iout,*)
   endif
-  
-  ! Test reassemble the stiffness matrix
-  ! 
-!  call CPU_TIME(cputime0)
-!  do i = 1, 10
-!      call MatZeroEntries(pb%K, ierr)
-!      call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
-!      CHKERRA(ierr)
-!  end do
-!  call CPU_TIME(cputime1)
-!  cputime0 = (cputime1-cputime0)/10.0
-!  write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
-!        '---  CPU TIME ESTIMATES (in seconds) :', &
-!        'CPU time for Re-assembling stiffness matrix . .', cputime0
 
   if (info) then
     write(iout,*)
@@ -291,6 +275,7 @@ subroutine init_main(pb, ierr, InitFile)
  !
  ! WARN: not necessary with petsc !!!!!!!!!!! 
  !
+ if (.not. pb%time%isUsePetsc) then
   if (pb%time%kind =='adaptive') then
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Finding diagonal of stiffness matrix     *'
@@ -308,6 +293,7 @@ subroutine init_main(pb, ierr, InitFile)
     write(iout,'(a)') '*    Done diagonal of stiffness matrix     *'
     write(iout,'(a)') '***********************************************'
   endif
+  endif
     
     write(iout,'(a)') '***********************************************'
     write(iout,'(a)') '*    Test the stiffness matrix of first element *'
@@ -318,6 +304,31 @@ subroutine init_main(pb, ierr, InitFile)
 
 end subroutine init_main
 
+subroutine UpdateKsp(pb)
+#include <petsc/finclude/petscksp.h>
+#include <petsc/finclude/petscsys.h>
+  use petscksp
+  use petscsys
+  use problem_class, only : problem_type
+  use mat_gen, only : MAT_AssembleK
+  type(problem_type)::pb
+  integer::ndof, ngll, ndim
+  PetscErrorCode :: ierr
+
+  ndof  = pb%fields%ndof
+  ndim  = 2
+  ngll  = pb%grid%ngll
+
+  call MatZeroEntries(pb%K, ierr)
+  call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
+  call MatMatMatMult(pb%Xinv, pb%K, pb%Xinv, MAT_REUSE_MATRIX, &
+                    PETSC_DEFAULT_REAL, pb%MatA, ierr)
+
+  call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%d, ierr)
+  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
+  call KSPSetOperators(pb%ksp, pb%MatA, pb%MatA, ierr)
+
+end
 !=======================================================================
 !
 ! Checks:

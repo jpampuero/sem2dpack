@@ -20,6 +20,14 @@ program main
   integer :: it, iexec
   integer, parameter :: NT_CHECK=10
   PetscErrorCode :: ierr
+  CHARACTER(len=32) :: inputfile
+
+  ! allow different input file names
+  if (iargc()>0) then
+      call getarg(1, inputfile)
+  else
+      inputfile='Par.inp'
+  endif
 
   call CPU_TIME(cputime0)
 
@@ -28,7 +36,7 @@ program main
 
 !*************  i n p u t   p h a s e  **************
 
-  call read_main(pb,iexec,input_file='Par.inp')
+  call read_main(pb,iexec,input_file=inputfile)
 
 !*************  i n i t i a l i z a t i o n   p h a s e  ***************
 
@@ -61,7 +69,7 @@ program main
 
   it = 1
   pb%time%time = pb%time%time + pb%time%dt
-
+  
   do while (pb%time%time < pb%time%total .and. pb%time%EQNum <= pb%time%EQNumMax) 
 
     ! save the time step number
@@ -120,6 +128,9 @@ program main
 
     endif
   !------------------------------------------------------------------------
+    if (pb%time%kind=='adaptive') then
+      write(pb%time%ou_time, *) pb%time%it, pb%time%dt, pb%time%time
+    end if
 
     it = it + 1
     pb%time%time = pb%time%time + pb%time%dt

@@ -1,6 +1,7 @@
 module solver
 #include <petsc/finclude/petscksp.h>
   use petscksp
+  use init, only : UpdateKsp
 
 ! SOLVER: solver for elasto-dynamic equation
 !         M.a = - K.d + F
@@ -10,7 +11,7 @@ module solver
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
-                      bc_has_dynflt, bc_update_bcdv
+                      bc_has_dynflt, bc_update_bcdv, bc_reset
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
 
   implicit none
@@ -57,11 +58,10 @@ subroutine solve_adaptive(pb)
       else
           call solve_quasi_static(pb)
       end if
-
   end if
 
   if (.not. pb%time%fixdt) call update_adaptive_step(pb)
-
+  
 end subroutine solve_adaptive
 
 ! update time step 
@@ -395,86 +395,23 @@ subroutine solve_quasi_static(pb)
   
 end subroutine solve_quasi_static
 
-!subroutine solve_quasi_static(pb)
-!  type(problem_type), intent(inout) :: pb
+! solve the mechanical balance 2 passes with dt
+! compute dtmax to update the damage variable
+! if dtmax<dt
+!    dt = dtmax
+!    resolve the mechanical balance, 2 passes
 !
-!  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: d_pre, d_medium, d_fault, d, f
-!  ! Note the d_fault and d_medium still have the same dimension of the d and d_pre.
-!  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: v_pre, v_plate, v_f0
-!  double precision, parameter :: tolerance = 10.0d-5
-!  double precision :: plate_rate
-!  integer :: i
-! 
-!  ! store initial 
-!  ! the plate rate should be treated as dirichlet boundary condition
-!  plate_rate = (2.0d-3)/(365*24*60*60) !DEVEL Trevor: ad hoc 
-!  v_pre = pb%fields%veloc
-!  d_pre = pb%fields%displ
-! 
-!  ! create field with plate velocity on fault, zeros in medium
-!  v_f0 = 0d0
-!  call BC_set(pb%bc, v_f0, plate_rate, v_plate)
-!  ! Note that BC_set is only used for DYNFLT with RSF.
-!  
-!  ! add plate velocity to fault
-!  ! veloc = v + vp on the fault plane 
-!  ! veloc = v     off the fault plane
-!
-!  pb%fields%veloc = pb%fields%veloc + v_plate 
-!
-!  ! update the slip velocity
-!  v_f0 = pb%fields%veloc
-!
-!  do i=1,2
-!    ! correct velocity for improved estimate and
-!    ! make prediction of all displacements 
-!    pb%fields%veloc = 0.5*(v_f0 + pb%fields%veloc)
-!    d = d_pre + pb%time%dt*pb%fields%veloc
-!   
-!    ! set displacements in medium to be zero
-!   call BC_set(pb%bc, d, 0.0d0, d_medium)
-!    d_fault = d - d_medium
-!                  
-!    ! solve for forces created by d_fault, finding K_{21}d^f 
-!    ! (v_pre doesn't influence force, just energy, which isn't used)
-!    call compute_Fint(f, d_fault, pb%fields%veloc, pb)
-!    f = -f
-!    call BC_set(pb%bc, f, 0.0d0, f) 
-!
-!    ! inputting the previous displacements as the initial guess into
-!    ! (preconditioned) conjugate gradient method solver for the 
-!    ! displacements in the medium
-!    call BC_set(pb%bc, pb%fields%displ, 0.0d0, d_medium)
-!    call pcg_solver(d_medium, f, pb, tolerance)
-!    
-!    ! combine displacements and calculate forces
-!    d = d_fault + d_medium
-!    call compute_Fint(f, d, pb%fields%veloc, pb)
-!
-!    ! apply boundary conditions 
-!    call BC_apply(pb%bc, pb%time, pb%fields, f)
-!  enddo
-!
-!  ! subtract plate velocity from fault for delta v 
-!  pb%fields%veloc = pb%fields%veloc - v_plate
-!
-!  ! store final displacements
-!  pb%fields%displ = d
-!
-!end subroutine solve_quasi_static
-
 subroutine solve_quasi_static_petsc(pb)
 #include <petsc/finclude/petscksp.h>
   use petscksp
   type(problem_type), intent(inout) :: pb
   double precision, dimension(:,:), pointer :: d, v, a, f
-  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre
-  !double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_fix, v_fix, f_fix
+  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre, fp
   
   ! vplate is built into the rate-state b.c.
-  double precision :: dt 
-  integer :: i, ndof, npoin
-  logical :: has_dynflt = .false.
+  double precision :: dt, dtmax, tn 
+  integer :: i, ndof, npoin,j
+  logical :: has_dynflt = .false., update=.false.
 
   integer :: IS_DIRNEU = 1, & 
              IS_KINFLT = 2, & 
@@ -498,75 +435,67 @@ subroutine solve_quasi_static_petsc(pb)
   f => pb%fields%accel
 
   dt = pb%time%dt
+  tn = pb%time%time - dt! previous time step 
   
   ! use additional memory to keep the previous displacement
   ! use to update predictor for rsf faults
   d_pre = pb%fields%displ
-  
-  ! update displacement to obtain a better initial guess for pcg solver
-  ! update both d and pb%fields%disp
-  d   = d + dt * v 
-
-  ! apply dirichlet boundary condition and kinematic boundary condition
-  ! set displacement to desired value and zero-out forcing f at DIR nodes
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
   v_pre = pb%fields%veloc
-
-  ! transform fields, apply half slip rate on side -1 and then transform back
-  ! different from dynamic, update displacement as well.
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
-
+  
   ! check if there's dynflt boundary
   has_dynflt = bc_has_dynflt(pb%bc)
 
-  !d_fix = 0.0d0
-  !v_fix = 0.0d0
+  ! compute fp, which does not change over time step
+  call compute_Fint_EP(fp, pb)
   
-  ! start 2 passes
-  pb%time%pcg_iters = 0
+  ! reassemble the stiffness matrix and configure Ksp
+  if (pb%time%isUpdateKsp) call UpdateKsp(pb)
 
-  do i = 1, 2
+  do j = 1, 2
+   
+    pb%time%pcg_iters = 0
+    ! update displacement to obtain a better initial guess for pcg solver
+    ! update both d and pb%fields%disp
+    
+    d  = d_pre + dt * v_pre 
 
+    ! apply dirichlet boundary condition and kinematic boundary condition
+    ! set displacement to desired value and zero-out forcing f at DIR nodes
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
+
+    ! transform fields, apply half slip rate on side -1 and then transform back
+    ! different from dynamic, update displacement as well.
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
+   
+    !mechanical balance without update damage variable
+    ! start 2 passes
+    do i = 1, 2
     ! update fault displacement for rsf 
     ! d(fault) = d_pre(fault) + dt * v(fault)
     ! v  = 0.5 * (vpre + v)
     !d = d_pre + (v + v_pre)/2d0 *dt
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
-!    call bc_select_fix(pb%bc, d, d_fix)
-!    call bc_select_fix(pb%bc, v, v_fix)
-!
-!    f_fix = 0d0
-!    ! compute the forcing from just the fixed dof
-!    call compute_Fint(f, d_fix, v_fix, pb)
-!    call bc_select_fix(pb%bc, f, f_fix)
-!    f = f - f_fix
     f=0d0
 
     ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
 
-    ! compute the internal forcing from fixed dofs and added to the right side
-    ! transform d to X*d
+    ! if there's damage or plastic strain, compute force from ep 
+    f = f + fp
+
+    ! transform d to X*d, f to Xinv*f
     call BC_trans(pb%bc, d,  1)
-    ! transform f to Xinv*f
     call BC_trans(pb%bc, f, -1)
 
-    ! copy d into pb%d
     call FIELD_SetVecFromField(pb%d, d, ierr)
-    CHKERRQ(ierr)
-
-    ! copy f into pb%b
     call FIELD_SetVecFromField(pb%b, f, ierr)
-    CHKERRQ(ierr)
-
     call VecGetArrayReadF90(pb%d, xx_d, ierr)
     call VecGetArrayF90(pb%b, xx_b, ierr)
 
     ! set the RHS to be the same value as d at dirichlet dofs
     xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
     
-    ! copy the 
     call VecRestoreArrayReadF90(pb%d,xx_d,ierr)
     call VecRestoreArrayF90(pb%b,xx_b,ierr)
    
@@ -597,17 +526,44 @@ subroutine solve_quasi_static_petsc(pb)
     ! velocity is modified inside this subroutine
 
     ! recompute the force use the updated total disp
-    call compute_Fint(f, d, pb%fields%veloc, pb)
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+    ! do not update damage state variable
 
-    ! reapply dichlet boundary condition to overwrite the fault tip node
-    ! if there's a conflict between tip and Dirichlet bc.
-    !
-    ! Note this issue only occurs when simulating half domain 
-    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
-    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
-  enddo
+    call compute_Fint(f, d, pb%fields%veloc, pb, .false.)
+
+    ! update rate-state fault
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+  enddo !i 
   
+  ! now compute the maximum time step to update the damage variable
+  call compute_dtmax(d, pb, dtmax)
+   
+  if (dt<=dtmax .or. j==2) then
+      write(*, *) "Used_dt, dtmax", dt, dtmax
+      ! update fault state variable
+      call Update_DMG(d, pb)
+      ! update dt
+      ! if there's no rate state fault, update the time step
+      if (.not. pb%time%fixdt) then
+          if (.not. has_dynflt) then
+              pb%time%dt = 0.9*dtmax
+          end if
+      end if
+      exit
+  else
+      if (pb%time%fixdt) then
+          call IO_Abort('Solver: fixed time step too small!!')
+      end if
+
+      ! change dt, t
+      dt = dtmax*0.9
+      pb%time%time = tn + dt
+      pb%time%dt   = dt
+      ! reset the fault state variable
+      call bc_reset(pb%bc, dt)
+      ! redo the mechanical balance
+  end if
+  enddo !j
+
   ! declare final slip values on the fault
   call bc_update_bcdv(pb%bc, d, pb%time%time)
   a   = 0d0
@@ -615,9 +571,57 @@ subroutine solve_quasi_static_petsc(pb)
   
 end subroutine solve_quasi_static_petsc
 
+! compute the maximum allowed time step
+! limited by updating the internal variable of 
+! bulk material
+
+subroutine compute_dtmax(d, pb, dtmax)
+  use fields_class, only : FIELD_get_elem
+  use mat_gen, only : MAT_dtmax
+
+  type(problem_type), intent(inout) :: pb
+  double precision, dimension(:,:) :: d
+  double precision :: dtmax, dtmax_i
+  integer :: e
+  double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc
+  
+  dtmax_i = 0d0
+  dtmax   = huge(0d0)
+
+  do e = 1,pb%grid%nelem
+    dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
+    ! compute the maximum time step allowed 
+    ! to update state variable in the bulk material
+    call MAT_dtmax(dloc, pb%matwrk(e), pb%grid%ngll, pb%fields%ndof, dtmax_i)
+    dtmax = min(dtmax, dtmax_i)
+  end do
+
+end subroutine
+
+! update internal variable for damage models
+subroutine Update_DMG(d, pb)
+  use fields_class, only : FIELD_get_elem
+  use mat_gen, only : MAT_Update_DMG
+
+  type(problem_type), intent(inout) :: pb
+  double precision, dimension(:,:) :: d
+  integer :: e
+  double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc
+  
+  do e = 1,pb%grid%nelem
+    dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
+    ! compute the maximum time step allowed 
+    ! to update state variable in the bulk material
+    call MAT_Update_DMG(dloc, pb%matwrk(e), pb%grid%ngll, & 
+                        pb%fields%ndof, pb%time%dt, pb%time%time)
+  end do
+
+end subroutine
+
 !=====================================================================
 ! f = - K * d 
-subroutine compute_Fint(f,d,v,pb)
+! update: update the internal variables
+subroutine compute_Fint(f,d,v,pb,update)
 
   use fields_class, only : FIELD_get_elem, FIELD_add_elem
   use mat_gen, only : MAT_Fint
@@ -626,15 +630,24 @@ subroutine compute_Fint(f,d,v,pb)
   double precision, dimension(:,:), intent(out) :: f
   double precision, dimension(:,:), intent(in) :: d,v
   type(problem_type), intent(inout) :: pb
+  logical, optional :: update
+  logical :: update_in
 
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc,vloc,floc
-  double precision :: E_ep, E_el, sg(3), sgp(3)
+  double precision :: E_ep, E_el, sg(pb%fields%ndof+1), sgp(pb%fields%ndof+1)
   integer :: e
 
   f = 0d0
   pb%energy%E_el = 0d0
   pb%energy%sg   = 0d0
   pb%energy%sgp  = 0d0
+
+  if (present(update)) then
+      update_in = update
+  else
+      update_in = .true.
+  end if
+
 
   do e = 1,pb%grid%nelem
     dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
@@ -644,9 +657,9 @@ subroutine compute_Fint(f,d,v,pb)
 
     !if (all(abs(dloc)<TINY_XABS) .and. all(abs(vloc)<TINY_XABS)) cycle
 
-    call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
-                   pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
-                   E_ep,E_el,sg,sgp)
+    call MAT_Fint(floc,dloc,vloc,pb%matwrk(e), & 
+                   pb%grid%ngll,pb%fields%ndof,pb%time%dt, pb%time%dt, &
+                   pb%grid, update_in, E_ep,E_el,sg,sgp)
     call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
 
    ! total elastic energy change
@@ -670,6 +683,24 @@ subroutine compute_Fint(f,d,v,pb)
 ! enddo
 
 end subroutine compute_Fint
+
+subroutine compute_Fint_EP(f, pb)
+  use fields_class, only : FIELD_add_elem
+  use mat_gen, only : MAT_Fint_EP
+
+  double precision, dimension(:,:), intent(out) :: f
+  type(problem_type), intent(inout) :: pb
+
+  double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: floc
+  integer :: e
+
+  f = 0d0
+  do e = 1,pb%grid%nelem
+    call MAT_Fint_EP(floc, pb%matwrk(e), pb%grid%ngll,pb%fields%ndof)
+    call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+  enddo
+
+end subroutine compute_Fint_EP
 
 !=====================================================================
 ! NOT SUPPORTED

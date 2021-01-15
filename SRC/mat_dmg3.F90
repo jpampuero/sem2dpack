@@ -2,7 +2,7 @@ module mat_dmg3
 !
 ! Damage rheology for only mode 3 (antiplane shear) 
 ! following the formulation by Vladimir Lyakhovsky, as in Lyakhovsky et al (1997)
-! but modified by Chao Liang. Here, I drop the interaction between i1 and i2 and 
+! but modified by Chao Liang, drop the interaction between i1 and i2 and 
 ! focus only on antiplane strain components
 !
 ! . Stress-strain relation:
@@ -15,10 +15,10 @@ module mat_dmg3
 ! . Evolution of elastic moduli:
 !
 !     lambda = lambda_0 constant
-!     mu     = mu_0 + mu_r * mu_0 * alpha
+!     mu     = mu_0 - mu_r * mu_0 * alpha
 !
 !     where alpha = damage state variable, in [0,1]
-!           mu_r  = (-1, 0], (1 + mu_r)*mu_0 is minimal 
+!           mu_r  = [0, 1), (1 - mu_r)*mu_0 is minimal 
 !                   shear modulus when alpha = 1 
 !
 !  By choosing |mu_r| < 1, convexity is guaranteed
@@ -28,7 +28,7 @@ module mat_dmg3
 !
 !   i2>i2_cr, damage increase:
 !
-!        dalpha/dt = Cd*i2 (positive)
+!        dalpha/dt = Cd*(i2-i2_cr) (positive)
 !
 !        where i2 is e_{31}^2 + e_{32}^2 
 !              i2_cr = 0.5*[(-f0*sigma_0+c0)/mu_0]^2
@@ -47,12 +47,11 @@ module mat_dmg3
 !
 !       .Damage law similar to Lyakhovsky et al., 1997 (logarithmic healing)
 !
-!           dalpha/dt = C1 * exp(alpha/C2) * e_cmp^2 
+!           dalpha/dt = C1 * exp(alpha/C2) * (i2-i2_cr) 
 !
-!           alpha = alpha_n - C2*ln(10)*log10(1-C1/C2*exp(alpha_n/C2)*e_cmp^2*dt)
+!           alpha = alpha_n - C2*ln(10)*log10(1+C1/C2*exp(alpha_n/C2)*(i2-i2_cr)*dt)
 !
-!           where C1<0, C2>0 are constants
-!                 e_cmp = compaction strain ~-sigma_0/K0
+!           where C1>0, C2>0 are constants
 !                 value of C1 and C2 are estimated according to rate state experiment
 !
 !                C2*ln(10)~A, C1~-B*C2*exp(-1/C2)/e_cmp^2
@@ -87,10 +86,12 @@ module mat_dmg3
     double precision, pointer, dimension(:, :)  :: t0     => null()
     double precision :: mu0 = 0d0, mu_r = 0d0, Cd = 0d0, Cv=0d0 
     double precision :: C1 = 0d0, C2 = 0d0, Th = 0d0, Rp = 0d0
+    double precision :: R  = 0d0, da_max=0d0, dtmax=1d10
     character(5) :: healLaw = 'EXP'
   end type matwrk_dmg3_type
 
   integer, save :: isDmg3 = 0
+  character(10), save :: healLaw = 'EXP'
 
   ! for memory report
   integer, save :: MAT_DMG3_mempro = 0
@@ -99,7 +100,8 @@ module mat_dmg3
   public :: matwrk_dmg3_type &
           , MAT_isDmg3, MAT_anyDmg3, MAT_DMG3_read, MAT_DMG3_init_elem_prop &
           , MAT_DMG3_init_elem_work, MAT_DMG3_stress, MAT_DMG3_export &
-          , MAT_DMG3_mempro, MAT_DMG3_memwrk
+          , MAT_DMG3_mempro, MAT_DMG3_memwrk, MAT_DMG3_dtmax,MAT_DMG3_Cijkl &
+          , MAT_DMG3_stress_ep
   
 contains
 
@@ -128,7 +130,7 @@ contains
 ! ARG: mu_r     [dble][0d0] damage ratio for mu (-1, 0]
 ! ARG: f0       [dble][0d0] internal friction coefficient
 ! ARG: c0       [dble][0d0] internal cohesion
-! ARG: Sm0      [dble][0d0] initial value of mean stress [negative] 
+! ARG: sm0      [dble][0d0] initial confining mean stress [positive] 
 ! ARG: alpha    [dble][0d0] initial value of damage variable
 ! ARG: Cd       [dble][0d0] damage evolution coefficient
 ! ARG: C1       [dble][0d0] damage evolution coefficient [healing]
@@ -139,11 +141,15 @@ contains
 !                 normalized by the inverse of the intact shear modulus
 ! ARG: e0       [dble(2)][0d0] initial total strain (31, 32)
 ! ARG: ep       [dble(2)][0d0] initial plastic strain (31, 32)
+! ARG: da_max   [dble] 1d-2, max damage per step 
+! ARG: healLaw  [character(10)] 'EXP','LOG','NONE'
+! ARG: dtmax    [dble] maximum time step limit for controlling time step
 !
 ! END INPUT BLOCK
 !
 ! SYNTAX : &MAT_DMG3 alpha|alphaH, Sm0|Sm0H, e0, ep 
-!                    cp, cs, rho, mu_r, f0, c0, Cd, C1, C2, Rp, Th, R /
+!                    cp, cs, rho, mu_r, f0, c0, Cd, 
+!                    C1, C2, Rp, Th, R , da_max /
 !
 ! Note that: alphaH, Sm0H can be spatial distributions
 !
@@ -154,12 +160,13 @@ contains
   type (matpro_input_type), intent(inout) :: input
   integer, intent(in) :: iin
 
-  double precision :: rho, cp, cs, f0, c0, alpha, Cd, C1, C2
-  double precision :: mu_r, Rp, Th, R, ep(2), e0(2), sm0
-  character(20):: alphaH, sm0H, healLaw
+  double precision :: rho, cp, cs, f0, c0, alpha, Cd, C1, C2, dtmax
+  double precision :: mu_r, Rp, Th, R, ep(2), e0(2), sm0,da_max
+  character(20):: alphaH, sm0H
 
-  NAMELIST / MAT_DAMAGE / alpha, sm0, e0, ep, alphaH, sm0H, mu_r, & 
-                          cp, cs, rho, f0, c0, Cd, C1, C2, R, Rp, Th
+  NAMELIST / MAT_DMG3 / alpha, sm0, e0, ep, alphaH, sm0H, mu_r, & 
+                          cp, cs, rho, f0, c0, Cd, C1, C2, R, Rp, Th, &
+                          da_max, healLaw, dtmax
   
   ! undamaged elastic property
   cp    = 0d0
@@ -188,15 +195,11 @@ contains
   C2    = 0d0
   Rp    = 0d0
   Th    = 0d0
+  da_max= 1d-2
+  dtmax = 1d10
 
   ! read parameters
-  read(iin, MAT_DAMAGE, END=100)
-
-  if (Rp>0 .and. Th>0) then
-      healLaw = 'Exponential'
-  else
-      healLaw = 'Logarithmic'
-  end if
+  read(iin, MAT_DMG3, END=100)
 
   call MAT_setKind(input,isDmg3)
 
@@ -220,6 +223,8 @@ contains
   call MAT_setProp(input,'Cd', Cd)
   call MAT_setProp(input,'mu_r',mu_r)
   call MAT_setProp(input,'R', R)
+  call MAT_setProp(input,'da_max', da_max)
+  call MAT_setProp(input,'dtmax', dtmax)
 
   ! healing parameters
   ! Logarithmic healing parameters
@@ -231,7 +236,7 @@ contains
   call MAT_setProp(input,'Th', Th)
 
   write(iout,200) cp, cs, rho, f0, c0, &
-                  sm0H, alphaH, Cd, mu_r, R, &
+                  sm0H, alphaH, Cd, mu_r, R, da_max, &
                   C1, C2, Rp, Th, healLaw, e0, ep
 
   return
@@ -249,6 +254,7 @@ contains
     'Damage evolution coefficient. . . . .(Cd) =',EN12.3,/5x, &
     'Damage modulus ratio . . . . . . . (mu_r) =',EN12.3,/5x, &
     'Damage-related plasticity coefficient (R) =',EN12.3,/5x, &
+    'Maximum damage per step allowed .(da_max) =',EN12.3,/5x, &
     'Damage healing coefficient . . . . . (C1) =',EN12.3,/5x, &
     'Damage healing coefficient . . . . . (C2) =',EN12.3,/5x, &
     'Damage healing coefficient . . . . . (Rp) =',EN12.3,/5x, &
@@ -289,6 +295,8 @@ contains
   call MAT_setProp(elem,'Cd',ecoord,MAT_DMG3_mempro)
   call MAT_setProp(elem,'mu_r',ecoord,MAT_DMG3_mempro)
   call MAT_setProp(elem,'R',ecoord,MAT_DMG3_mempro)
+  call MAT_setProp(elem,'da_max',ecoord,MAT_DMG3_mempro)
+  call MAT_setProp(elem,'dtmax',ecoord,MAT_DMG3_mempro)
 
   call MAT_setProp(elem,'C1',ecoord,MAT_DMG3_mempro)
   call MAT_setProp(elem,'C2',ecoord,MAT_DMG3_mempro)
@@ -312,7 +320,10 @@ contains
     allocate(m%s0(2))
     allocate(m%ep(ngll,ngll,2))
     allocate(m%i2_cr(ngll,ngll))
-    
+    allocate(m%alpha0(ngll, ngll))
+    allocate(m%t0(ngll, ngll))
+    allocate(m%e_cmp(ngll,ngll)) 
+
    
     ! elastic coefficients for intact material (zero damage)
     call MAT_getProp(mu0,p,'mu')
@@ -324,6 +335,7 @@ contains
     call MAT_getProp(m%C1, p, 'C1')
     call MAT_getProp(m%C2, p, 'C2')
     call MAT_getProp(m%mu_r,p,'mu_r')
+    call MAT_getProp(m%da_max,p,'da_max')
    
     ! Cv = R/mu = coefficient for damage-related plasticity 
      call MAT_getProp(R,p,'R')
@@ -331,21 +343,14 @@ contains
    
     ! damage variable 
     call MAT_getProp(m%alpha, p, 'alpha')
+    m%alpha0 = m%alpha
+    m%t0     = 0d0 
 
     ! exp healing
     call MAT_getProp(m%Rp,p,'Rp')
     call MAT_getProp(m%Th,p,'Th')
     
-    if (m%Rp>0 .and. m%Th>0) then
-        m%healLaw = 'EXP'
-       allocate(m%alpha0(ngll, ngll))
-       allocate(m%t0(ngll, ngll))
-       m%alpha0 = m%alpha
-       m%t0     = 0d0 
-    else
-        m%healLaw = 'LOG'
-        allocate(m%e_cmp(ngll,ngll)) 
-    end if
+    m%healLaw = healLaw
    
     ! i2_cr = damage yield threshold for i2
     call Mat_getProp(sm0, p, 'sm0')
@@ -364,7 +369,7 @@ contains
     call MAT_getProp(m%ep(:,:,2), p, 'e32_p')
    
     ! initial antiplane shear stress, uniform
-    mu = m%mu0 + m%mu0 * m%mu_r * m%alpha(1,1)
+    mu = m%mu0 - m%mu0 * m%mu_r * m%alpha(1,1)
     m%s0 = 2d0 * mu * (m%e0 - m%ep(1,1,:)) 
     
     ! track memory usage
@@ -389,7 +394,7 @@ end subroutine MAT_DMG3_init_elem_work
       double precision, intent(in) :: f0, mu0, c0, sm0(:,:)
       double precision, dimension(size(sm0,1), size(sm0,2)) :: i2_cr
 
-      i2_cr = 0.5d0* ((-f0*sm0+c0)/mu0)**2d0 
+      i2_cr = 0.5d0* ((f0*sm0+c0)/mu0)**2d0 
       
   end function compute_i2_cr
 
@@ -404,129 +409,226 @@ end subroutine MAT_DMG3_init_elem_work
       K0 = lambda0 + 2d0/3d0*mu0
 
       ! compute the compaction strain
-      e_cmp = abs(Sm0/K0)
+      e_cmp = abs(sm0/K0)
   end function compute_ecmp
+
+!
+! Compute the Cijkl with damage (scale shear modulus)
+! ===========================================================
+!
+subroutine MAT_DMG3_Cijkl(Cijkl, isCijklZero, m, ndof, ngll)
+   implicit none
+   integer :: i, j, k , l, ndim, ndof, ngll
+   double precision :: Cijkl(ndof, 2, ndof, 2, ngll, ngll), v
+   logical :: isCijklZero(ndof, 2, ndof, 2)
+   type (matwrk_dmg3_type), intent(in) :: m
+   double precision :: mu(ngll, ngll)
+
+   ndim = 2
+   Cijkl = 0d0
+   isCijklZero = .true.
+
+   if (.not. ndof==1) call IO_abort('ndof must be 1 for mode 3 damage model') 
+
+   mu = m%mu0 - m%mu0*m%mu_r*m%alpha
+
+   Cijkl(1,1,1,1, :, :) = mu
+   Cijkl(1,2,1,2, :, :) = mu
+   isCijklZero(1,1,1,1) = .false.
+   isCijklZero(1,2,1,2) = .false.
+
+end subroutine MAT_DMG3_Cijkl
 
 !=======================================================================
 ! Constitutive law:
 ! compute relative stresses from given strains
 ! and (if requested) update damage variable and plastic strain
 !
-! subroutine MAT_DMG3_stress(s,e,m,ngll,update,dt)
-  subroutine MAT_DMG3_stress(s,etot,m,ngll,update,dt,E_ep,E_el,sg,sgp)
+! compute stress and update or not the damage variable
+!
 
+subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
+  use echo, only : iout
   use utils, only: positive_part
-  use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
-
   integer, intent(in) :: ngll
-  double precision, intent(in) :: etot(ngll,ngll,2)
+  double precision, intent(in)  :: etot(ngll,ngll,2)
   double precision, intent(out) :: s(ngll,ngll,2)
   type (matwrk_dmg3_type), intent(inout) :: m
   logical, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, intent(out) :: E_ep(ngll,ngll)
-  double precision, intent(out) :: E_el(ngll,ngll)
-  double precision, intent(out) :: sg(ngll,ngll,2)
-  double precision, intent(out) :: sgp(ngll,ngll,2)
-
-  double precision :: e(ngll,ngll,2)
-  double precision, dimension(2) :: eij,sij
-
-  double precision :: i2_0
-  double precision, dimension(ngll,ngll) :: i1, i2, rl,rm,rg, xi, sm,dalpha
-  double precision, dimension(ngll,ngll,2) :: dep
+  double precision, optional, intent(in) :: t
+  double precision :: e(ngll,ngll,2), mu(ngll, ngll)
+  double precision, dimension(ngll,ngll) :: i2
+  double precision, dimension(2) :: dep
+  double precision :: a0, ap, da, t0, an
   integer :: i,j
+  ! TESTING ONLY!!
+  double precision :: e_cr, s_cr
+
+  da     = 0d0
+
+  e_cr = sqrt(maxval(m%i2_cr))
+  s_cr = 2*m%mu0*e_cr 
 
  !!-- total strain
- ! e(:,:,1) = etot(:,:,1) + m%e0(1)
- ! e(:,:,2) = etot(:,:,2) + m%e0(2)
-
+  e(:,:,1) = etot(:,:,1) + m%e0(1)
+  e(:,:,2) = etot(:,:,2) + m%e0(2)
  !!-- elastic strain
- ! e = e - m%ep
+  e  = e - m%ep
 
- !!-- damaged elastic moduli
- ! rl = m%lambda
- ! rm = m%mu + m%xi_0 * m%gamma_r * m%alpha
-!!  rl = m%lambda(1,1)
-!!  rm = m%mu(1,1) + m%xi_0 * m%gamma_r * m%alpha
- ! rg = m%gamma_r * (m%alpha**(1d0+m%beta)) / (1d0+m%beta) ! Hamiel et al (2004) eq 3
+  i2 = e(:,:,1)**2d0 + e(:,:,2)**2d0 
+  mu = m%mu0 - m%mu0*m%mu_r*m%alpha 
 
- !!-- compute stresses and two strain invariants
- ! do j=1,ngll
- ! do i=1,ngll
- !   eij = e(i,j,:)
- !   call compute_stress(sij,eij,rl(i,j),rm(i,j),rg(i,j),i1(i,j),i2(i,j),xi(i,j))
- !   s(i,j,:) = sij
- ! enddo
- ! enddo
+  ! total stress
+  do i = 1, 2
+    s(:, :, i)  = 2d0*mu*e(:,:,i)
+  end do
 
 !!------- Update damage variables and plastic strain --------------- 
- ! if (update) then
+  if (update) then
 
- !   if (.not.present(dt)) &
- !     call IO_abort('mat_dmg3:MAT_DMG3_stress: update requested but argument dt is absent')
+    if (.not.present(dt)) &
+      call IO_abort('MAT_DMG3_stress: update requested but argument dt is absent')
+    if (.not.present(t)) &
+      call IO_abort('MAT_DMG3_stress: update requested but argument t is absent')
 
- !  !-- damage evolution
-!!    if (m%beta==0d0) then
- !     dalpha = dt*m%Cd*i2*positive_part( xi - m%xi_0 )
-!!    else
- !    ! from Hamiel et al (2004) eq 7
-!!      dalpha = dt*m%Cd*i2*positive_part( xi * m%alpha**m%beta  - m%xi_0 ) 
-!!    endif
- !   m%alpha = m%alpha + dalpha
- ! 
- !  !-- plasticity update
- !  ! Damage-related viscosity, if alpha_dot > 0
- !  ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
- !  ! where tij = deviatoric stress
+    ! determine the maximum allowed time step 
+    do i =1, ngll
+    do j =1, ngll
+      da = 0d0
+      !-- damage evolution
+      if (i2(i,j)>m%i2_cr(i,j)) then
+        ! damage increase
+        da           = dt*m%Cd*(i2(i,j) - m%i2_cr(i,j))
+        m%alpha(i,j) = m%alpha(i,j) + da
 
- !   dalpha = m%Cv * positive_part(dalpha)
- !   dep(:,:,1) = s(:,:,1)*dalpha
- !   dep(:,:,2) = s(:,:,2)*dalpha
- !   m%ep = m%ep + dep
+        if (m%alpha(i, j) > 1d0) call IO_abort('Damage exceeds 1, simulation Stop!!')
+        !-- plasticity update
+        ! Damage-related viscosity, if alpha_dot > 0
+        ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
+        ! where tij = deviatoric stress
+        da           = m%Cv * da
+        dep(1)       = s(i,j,1)*da
+        dep(2)       = s(i,j,2)*da
+        m%ep(i,j,:)  = m%ep(i,j,:) + dep
 
- !   if (COMPUTE_ENERGIES) then
- !    ! increment of plastic energy dissipation
- !     E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
- !    ! total elastic energy change
- !    ! WARNING: assumes zero initial plastic strain
- !     i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) 
-!!      E_el = 0.5d0*(rl*i1*i1 - m%lambda*i1_0*i1_0) + ( rm*i2 - m%mu*i2_0 ) - rg*i1*sqrt(i2)
- !   else
- !     E_ep = 0d0
- !     E_el = 0d0
- !   endif
-
- !   if (COMPUTE_STRESS_GLUT) then
- !     rm = 2d0*m%mu
- !    ! damage components
- !     sg(:,:,1) = s(:,:,1) - (rl+rm)*e(:,:,1) - rl*e(:,:,2)
- !     sg(:,:,2) = s(:,:,2) - rl*e(:,:,1) - (rl+rm)*e(:,:,2)
- !     sg(:,:,3) = s(:,:,3) - rm*e(:,:,3)
- !    ! plastic components
- !     sgp(:,:,1) = - rm*m%ep(:,:,1)
- !     sgp(:,:,2) = - rm*m%ep(:,:,2)
- !     sgp(:,:,3) = - rm*m%ep(:,:,3)
- !   else
- !     sg = 0d0
- !     sgp = 0d0
- !   endif
-
- ! endif
-
- !!-- relative stresses
- ! s(:,:,1) = s(:,:,1) - m%s0(1)
- ! s(:,:,2) = s(:,:,2) - m%s0(2)
+        ! update the latest damage and time
+        if (m%healLaw == 'EXP') then
+            m%t0(i,j)     = t
+            m%alpha0(i,j) = m%alpha(i,j)
+        end if
+      else
+        ! damage healing, two laws: EXP or LOG
+        select case (m%healLaw)
+          case ('EXP')
+            ! exponential healing
+            a0 = m%alpha0(i,j)
+            ap = a0*m%Rp
+            t0 = m%t0(i,j)
+            m%alpha(i,j) = a0 - (a0-ap)*(1d0-exp(-(t-t0)/m%Th)) 
+          case ('LOG')
+            an = m%alpha(i,j)
+            da = -m%C2*log(1 - m%C1/m%C2*exp(an/m%C2)*(i2(i,j)-m%i2_cr(i,j))*dt)
+            m%alpha(i,j) = an + da 
+            ! damage must be positive
+            m%alpha(i,j) = max(m%alpha(i,j), 0d0)
+          case ('NONE')
+          ! do nothing, no healing
+        end select
+      end if ! damage evolve
+    end do !j
+    end do !i
+  end if !update
+ 
+ !-- relative stresses
+  s(:,:,1) = s(:,:,1) - m%s0(1)
+  s(:,:,2) = s(:,:,2) - m%s0(2)
 
   end subroutine MAT_DMG3_stress
 
-!-------------------------------------------------------------------
+! compute frictitious stress due to plasticity
+! relative stress:
+! sij = 2*mu*e_ij + s_ij_ep
 !
-  function compute_stress(e, mu) result(s)
-      double precision, intent(in) :: e(2), mu
-      double precision :: s(2)
-      s = 2d0*mu*e
-  end function compute_stress
+
+subroutine MAT_DMG3_stress_ep(s, m, ngll)
+  use echo, only : iout
+  integer, intent(in) :: ngll
+  double precision, intent(out) :: s(ngll,ngll,2)
+  type (matwrk_dmg3_type), intent(inout) :: m
+  double precision :: e(ngll,ngll,2), mu(ngll, ngll)
+  integer :: i,j
+
+  mu = m%mu0 - m%mu0*m%mu_r*m%alpha 
+ !!-- elastic strain
+  do i = 1, 2
+    s(:,:,i)  = 2d0*mu*(m%e0(i) - m%ep(:,:,i)) - m%s0(i)
+  end do
+
+end subroutine MAT_DMG3_stress_ep
+
+subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
+  integer, intent(in) :: ngll
+  double precision, intent(in)  :: etot(ngll,ngll,2)
+  double precision, intent(out) :: s(ngll,ngll,2)
+  type (matwrk_dmg3_type), intent(inout) :: m
+  double precision :: dtmax
+  double precision :: e(ngll,ngll,2), mu(ngll, ngll)
+  double precision, dimension(ngll,ngll) :: i2 
+  double precision :: dtmax_ij, di2, an, tcr, t0, a0, ap
+  integer :: i,j
+
+ !!-- total strain
+  e(:,:,1) = etot(:,:,1) + m%e0(1)
+  e(:,:,2) = etot(:,:,2) + m%e0(2)
+
+ !!-- elastic strain
+  e  = e - m%ep
+
+  i2 = e(:,:,1)**2d0 + e(:,:,2)**2d0 
+
+  mu = m%mu0 - m%mu0*m%mu_r*m%alpha 
+
+  ! total stress
+  do i = 1, 2
+    s(:,:,i)  = 2d0*mu*e(:,:,i)
+  end do
+  
+  dtmax=huge(0d0)
+  dtmax_ij = 0d0
+
+  do i =1, ngll
+    do j =1, ngll
+   !-- damage evolution
+   di2 = i2(i,j) - m%i2_cr(i,j)
+    if (di2>0) then
+      ! damage increase
+      dtmax_ij    = min(m%da_max/(m%Cd*di2), m%da_max/(m%Cd*di2)/m%R)
+    else
+      ! maximum time step allowed from healing 
+      select case(m%healLaw)
+      case ('EXP')
+         a0 = m%alpha0(i, j)
+         ap = a0 * m%Rp
+         an = m%alpha(i, j)
+         t0 = m%t0(i,j)
+         dtmax_ij = abs(log(-m%da_max/(an-ap)+1d0)*m%Th) 
+      case ('LOG')
+         an  = m%alpha(i, j) 
+         tcr = m%C2/m%C1/(-di2)*exp(-an/m%C2)
+         dtmax_ij = (exp(m%da_max/m%C2)-1)*tcr 
+      case ('NONE')
+      end select
+    end if ! damage evolve
+      dtmax       = min(dtmax, dtmax_ij)
+    end do !j
+  end do !i
+
+  if (an<1d-8) dtmax=huge(0d0)
+
+  dtmax = min(dtmax, m%dtmax)
+
+  end subroutine MAT_DMG3_dtmax
 
 !=======================================================================
 ! export output data

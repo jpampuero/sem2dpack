@@ -56,7 +56,7 @@ module bc_gen
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
             bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
-            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree
+            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset
 
 contains
 
@@ -266,6 +266,18 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
 
 end subroutine bc_init
 
+! reset all the rate-state faults
+subroutine bc_reset(bc, dt)
+  type(bc_type), pointer :: bc(:)
+  double precision::dt
+  integer :: i
+
+  if (.not. associated(bc)) return
+
+  do i = 1,size(bc)
+    if ( bc(i)%kind == IS_DYNFLT) call bc_dynflt_reset(bc(i)%dynflt, dt)
+  enddo
+end subroutine bc_reset
 
 !=======================================================================
 !! Applies the boundary condition
@@ -420,7 +432,6 @@ function BC_nfaultnode(bc) result(n)
   enddo
 
 end function
-
 
 !=======================================================================
 ! obtain all the fault nodes

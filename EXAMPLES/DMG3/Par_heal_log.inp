@@ -1,0 +1,38 @@
+# Test homogeneous loading with mode 3 damage rheology
+# 
+# Test logarithmic healing 
+# 
+
+# ----------- General Parameters -------------------------
+&GENERAL iexec=1, ngll=5, fmax=1d0, ndof=1,
+         title = 'Test dmg3 homogeneous', verbose='1111',
+         itInfo = 1 /
+
+# ----------- build a simple mesh ------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=0.d0, 1.d0, zlim=0.d0,1.d0, nelem= 1, 1 /
+
+# ----------- Elastic material parameters ----------------
+&MATERIAL tag=1, kind='DMG3' /
+&MAT_DMG3 rho=1.d0, cp=1.7d0, cs=1.0d0 , alpha=0.9d0,
+          sm0=0.014142135623731d0, e0=0d0, 0.008944271909999d0, 
+          ep=0d0,0d0, mu_r=0.99d0, f0=1.d0, c0=0d0, Cd=1d0, healLaw='LOG', 
+          R=1.d0, da_max=1.d-2, dtmax=1.d10, C1=1d-6, C2=5d-2 /
+
+# ----------- Boundary condition -------------------------
+# bottom fixed vertically
+&BC_DEF tag=1, kind='DIRNEU' /
+&BC_DIRNEU h='D', hstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = 0.0d0 /
+
+# top boundary extension, 0.001 length/time
+&BC_DEF tag=3, kind='DIRNEU' /
+&BC_DIRNEU h='D', hstf='LINEAR' / 
+&STF_LINEAR  intercept= 0.d0, slope = 0.0d0 /
+
+# ------------- Time stepping ---------------------------
+&TIME kind='adaptive', kind_dyn='leapfrog', Dt = 1d-3, TotalTime = 1.0d10 , 
+      MaxIterLin = 2000, TolLin = 1.0d-8, fixdt=F /
+
+# ------------ Output block -----------------------------
+&SNAP_DEF it1=0, itd=1000, fields='', ps=F, bin=T / 
