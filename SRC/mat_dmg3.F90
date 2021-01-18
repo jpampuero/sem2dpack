@@ -80,10 +80,8 @@ module mat_dmg3
     double precision, pointer, dimension(:)     :: e0      => null()
     double precision, pointer, dimension(:)     :: s0      => null()
     double precision, pointer, dimension(:, :)  :: alpha   => null()
-    double precision, pointer, dimension(:, :)  :: e_cmp   => null()
     double precision, pointer, dimension(:, :)  :: i2_cr   => null()
     double precision, pointer, dimension(:, :)  :: alpha0 => null()
-    double precision, pointer, dimension(:, :)  :: t0     => null()
     double precision :: mu0 = 0d0, mu_r = 0d0, Cd = 0d0, Cv=0d0 
     double precision :: C1 = 0d0, C2 = 0d0, Th = 0d0, Rp = 0d0
     double precision :: R  = 0d0, da_max=0d0, dtmax=1d10
@@ -321,9 +319,6 @@ contains
     allocate(m%ep(ngll,ngll,2))
     allocate(m%i2_cr(ngll,ngll))
     allocate(m%alpha0(ngll, ngll))
-    allocate(m%t0(ngll, ngll))
-    allocate(m%e_cmp(ngll,ngll)) 
-
    
     ! elastic coefficients for intact material (zero damage)
     call MAT_getProp(mu0,p,'mu')
@@ -343,12 +338,12 @@ contains
    
     ! damage variable 
     call MAT_getProp(m%alpha, p, 'alpha')
-    m%alpha0 = m%alpha
-    m%t0     = 0d0 
 
     ! exp healing
     call MAT_getProp(m%Rp,p,'Rp')
     call MAT_getProp(m%Th,p,'Th')
+
+    m%alpha0 = m%alpha*m%Rp
     
     m%healLaw = healLaw
    
@@ -358,7 +353,6 @@ contains
     call Mat_getProp(c0, p, 'c0')
    
     m%i2_cr = compute_i2_cr(f0, mu0, c0, sm0) 
-    if (m%healLaw=='LOG') m%e_cmp = compute_ecmp(sm0, lambda0, mu0) 
    
     ! initial strain
     call MAT_getProp(m%e0(1), p, 'e31_0')
@@ -382,8 +376,6 @@ contains
                       + size(m%i2_cr)
     
     if (associated(m%alpha0)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%alpha0)
-    if (associated(m%t0)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%t0)
-    if (associated(m%e_cmp)) MAT_DMG3_memwrk = MAT_DMG3_memwrk + size(m%e_cmp)
 
 end subroutine MAT_DMG3_init_elem_work
 
@@ -397,20 +389,6 @@ end subroutine MAT_DMG3_init_elem_work
       i2_cr = 0.5d0* ((f0*sm0+c0)/mu0)**2d0 
       
   end function compute_i2_cr
-
-!- compute the compaction strain for healing
-!-----------------------------------------------------------------------
-  function compute_ecmp(sm0, lambda0, mu0) result(e_cmp)
-      double precision, intent(in) :: sm0(:, :), lambda0, mu0
-      double precision, dimension(size(sm0,1), size(sm0,2)) :: e_cmp
-      double precision :: K0
-
-      ! compute bulk modulus
-      K0 = lambda0 + 2d0/3d0*mu0
-
-      ! compute the compaction strain
-      e_cmp = abs(sm0/K0)
-  end function compute_ecmp
 
 !
 ! Compute the Cijkl with damage (scale shear modulus)
@@ -460,7 +438,7 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
   double precision :: e(ngll,ngll,2), mu(ngll, ngll)
   double precision, dimension(ngll,ngll) :: i2
   double precision, dimension(2) :: dep
-  double precision :: a0, ap, da, t0, an
+  double precision :: ap, da, t0, an
   integer :: i,j
   ! TESTING ONLY!!
   double precision :: e_cr, s_cr
@@ -502,6 +480,11 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
         da           = dt*m%Cd*(i2(i,j) - m%i2_cr(i,j))
         m%alpha(i,j) = m%alpha(i,j) + da
 
+        ! increase the permenent damage
+        if (m%healLaw == 'EXP') then
+            m%alpha0(i,j) = m%alpha0(i,j) + da*m%Rp
+        end if
+
         if (m%alpha(i, j) > 1d0) call IO_abort('Damage exceeds 1, simulation Stop!!')
         !-- plasticity update
         ! Damage-related viscosity, if alpha_dot > 0
@@ -511,21 +494,14 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
         dep(1)       = s(i,j,1)*da
         dep(2)       = s(i,j,2)*da
         m%ep(i,j,:)  = m%ep(i,j,:) + dep
-
-        ! update the latest damage and time
-        if (m%healLaw == 'EXP') then
-            m%t0(i,j)     = t
-            m%alpha0(i,j) = m%alpha(i,j)
-        end if
       else
         ! damage healing, two laws: EXP or LOG
         select case (m%healLaw)
           case ('EXP')
             ! exponential healing
-            a0 = m%alpha0(i,j)
-            ap = a0*m%Rp
-            t0 = m%t0(i,j)
-            m%alpha(i,j) = a0 - (a0-ap)*(1d0-exp(-(t-t0)/m%Th)) 
+            ap = m%alpha0(i,j) ! permenent damage
+            an = m%alpha(i,j) 
+            m%alpha(i,j) = ap + (an-ap) * exp(-dt/m%Th) 
           case ('LOG')
             an = m%alpha(i,j)
             da = -m%C2*log(1 - m%C1/m%C2*exp(an/m%C2)*(i2(i,j)-m%i2_cr(i,j))*dt)
@@ -539,7 +515,7 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
     end do !j
     end do !i
   end if !update
- 
+
  !-- relative stresses
   s(:,:,1) = s(:,:,1) - m%s0(1)
   s(:,:,2) = s(:,:,2) - m%s0(2)
@@ -575,7 +551,7 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
   double precision :: dtmax
   double precision :: e(ngll,ngll,2), mu(ngll, ngll)
   double precision, dimension(ngll,ngll) :: i2 
-  double precision :: dtmax_ij, di2, an, tcr, t0, a0, ap
+  double precision :: dtmax_ij, di2, an, tcr, ap, da
   integer :: i,j
 
  !!-- total strain
@@ -608,15 +584,19 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
       ! maximum time step allowed from healing 
       select case(m%healLaw)
       case ('EXP')
-         a0 = m%alpha0(i, j)
-         ap = a0 * m%Rp
+         ap = m%alpha0(i, j)
          an = m%alpha(i, j)
-         t0 = m%t0(i,j)
-         dtmax_ij = abs(log(-m%da_max/(an-ap)+1d0)*m%Th) 
+         da = an-ap
+         if (da<=m%da_max) then 
+             dtmax_ij = huge(0d0)
+         else 
+             dtmax_ij = abs(log(da-m%da_max/da)*m%Th) 
+         end if
       case ('LOG')
          an  = m%alpha(i, j) 
          tcr = m%C2/m%C1/(-di2)*exp(-an/m%C2)
          dtmax_ij = (exp(m%da_max/m%C2)-1)*tcr 
+         if (an<=m%da_max) dtmax_ij=huge(0d0)
       case ('NONE')
       end select
     end if ! damage evolve
@@ -624,7 +604,6 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
     end do !j
   end do !i
 
-  if (an<1d-8) dtmax=huge(0d0)
 
   dtmax = min(dtmax, m%dtmax)
 

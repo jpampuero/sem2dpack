@@ -538,7 +538,6 @@ subroutine solve_quasi_static_petsc(pb)
   call compute_dtmax(d, pb, dtmax)
    
   if (dt<=dtmax .or. j==2) then
-      write(*, *) "Used_dt, dtmax", dt, dtmax
       ! update fault state variable
       call Update_DMG(d, pb)
       ! update dt
