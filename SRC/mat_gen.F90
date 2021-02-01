@@ -83,7 +83,7 @@ module mat_gen
             derint_type, &
             MAT_set_derint, MAT_strain, MAT_divcurl, MAT_forces, &
             MAT_diag_stiffness_init, MAT_WeightsMat, MAT_Ke, MAT_AssembleK, MAT_init_KG, &
-            MAT_testKe, MAT_dtmax, MAT_Update_DMG, MAT_Fint_EP
+            MAT_testKe, MAT_dtmax, MAT_Update_DMG, MAT_Fint_EP, MAT_isUpdateDMG
 
 contains
 
@@ -462,16 +462,16 @@ end subroutine MAT_dtmax
 
 ! Update internal variables for damage 3 model 
 ! implement only for DMG3
-subroutine MAT_Update_DMG(d, matwrk, ngll, ndof, dt, t)
+subroutine MAT_Update_DMG(d, matwrk, ngll, ndof, dt)
   integer, intent(in) :: ngll,ndof
   double precision, dimension(ngll,ngll,ndof), intent(in) :: d
   type(matwrk_elem_type), intent(in) :: matwrk
-  double precision :: dt, t
+  double precision :: dt
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
   
   if (matwrk%kind==IS_DMG3) then
     e  = MAT_strain(d,matwrk,ngll,ndof)
-    call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll, .true., dt, t)
+    call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll, .true., dt)
   endif
 end subroutine MAT_Update_DMG
 
@@ -480,7 +480,7 @@ end subroutine MAT_Update_DMG
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, t, grid, update, E_ep,E_el,sg,sgp)
+subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp, isdynamic)
 
   use spec_grid, only : sem_grid_type
 
@@ -488,13 +488,14 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, t, grid, update, E_ep,E_el,sg,
   double precision, dimension(ngll,ngll,ndof), intent(out) :: f
   double precision, dimension(ngll,ngll,ndof), intent(inout) :: d,v
   type(matwrk_elem_type), intent(inout) :: matwrk
-  double precision, intent(in) :: dt, t
+  double precision, intent(in) :: dt
   type(sem_grid_type), intent(in) :: grid
   logical, intent(in) :: update
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
   double precision, intent(out) :: sg(ndof+1),sgp(ndof+1)   !stress glut
-  double precision, dimension(ngll,ngll,ndof+1) :: e,s
+  double precision, dimension(ngll,ngll,ndof+1) :: e,s,edot
+  logical, optional :: isdynamic
 
   if (matwrk%IS_KV) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   
@@ -512,9 +513,19 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, t, grid, update, E_ep,E_el,sg,
     e  = MAT_strain(d,matwrk,ngll,ndof)
 ! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
     !e = e + eta*( MAT_strain(v,matwrk,ngll,ndof) - ep_rate )
+
+    ! if is damage 3 set parameter Cd
+    if (matwrk%kind==IS_DMG3) then
+      edot  = MAT_strain(v,matwrk,ngll,ndof)  
+      if (present(isdynamic)) then
+         call MAT_DMG3_Set_Cd(edot, matwrk%dmg3, ngll, ndof, isdynamic)
+      else
+         call  MAT_DMG3_Set_Cd(edot, matwrk%dmg3, ngll, ndof)
+      end if
+    end if
     
     ! update is always set .true.
-    call MAT_stress(s,e,matwrk,ngll,ndof, update, dt, t, E_ep,E_el,sg,sgp)
+    call MAT_stress(s,e,matwrk,ngll,ndof, update, dt, E_ep,E_el,sg,sgp)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
@@ -540,7 +551,7 @@ end subroutine MAT_Fint_EP
 !
 ! compute stress and update (or not) the internal state variable
 !
- subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, dt, t, E_ep,E_el,sg,sgp)
+ subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, dt, E_ep,E_el,sg,sgp)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
@@ -548,7 +559,6 @@ end subroutine MAT_Fint_EP
   type (matwrk_elem_type) :: matwrk
   logical, optional, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, optional, intent(in) :: t
   double precision, optional, intent(out) :: E_ep, E_el, sg(ndof+1),sgp(ndof+1)
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
@@ -571,7 +581,7 @@ end subroutine MAT_Fint_EP
     case (IS_VISCO)
       call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
     case (IS_DMG3)
-      call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt, t)
+      call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt)
 !!  case (IS_USER)
 !!      call MAT_USER_stress(...)
   end select 
@@ -1289,6 +1299,13 @@ subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
   enddo
 
 end subroutine
+
+  logical function MAT_isUpdateDMG(m)
+  type(matwrk_elem_type), intent(in) :: m
+  if (m%kind==IS_DMG3) then
+       MAT_isUpdateDMG = MAT_isUpdateDmg3()
+  end if
+  end function MAT_isUpdateDMG
 
 
 !=======================================================================

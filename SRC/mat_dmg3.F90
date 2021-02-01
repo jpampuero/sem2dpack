@@ -82,7 +82,8 @@ module mat_dmg3
     double precision, pointer, dimension(:, :)  :: alpha   => null()
     double precision, pointer, dimension(:, :)  :: i2_cr   => null()
     double precision, pointer, dimension(:, :)  :: alpha0 => null()
-    double precision :: mu0 = 0d0, mu_r = 0d0, Cd = 0d0, Cv=0d0 
+    double precision, pointer, dimension(:, :)  :: Cd => null()
+    double precision :: mu0 = 0d0, mu_r = 0d0, Cv=0d0 
     double precision :: C1 = 0d0, C2 = 0d0, Th = 0d0, Rp = 0d0
     double precision :: R  = 0d0, da_max=0d0, dtmax=1d10
     character(5) :: healLaw = 'EXP'
@@ -90,6 +91,13 @@ module mat_dmg3
 
   integer, save :: isDmg3 = 0
   character(10), save :: healLaw = 'EXP'
+  logical :: update_in=.true.
+  logical :: fix_cd=.true.
+  double precision :: edot0=1.d-4, Cd0=1.d1, Cdm=0.d0
+  double precision :: Cdmin = 0.1d0, Cdmax = 1.0d4 
+  integer :: EqStart = 1
+  ! implement strain rate dependent Cd
+  !log10(Cd/Cd0) = 1 + Cdm * log(edot/edot0)
 
   ! for memory report
   integer, save :: MAT_DMG3_mempro = 0
@@ -99,7 +107,7 @@ module mat_dmg3
           , MAT_isDmg3, MAT_anyDmg3, MAT_DMG3_read, MAT_DMG3_init_elem_prop &
           , MAT_DMG3_init_elem_work, MAT_DMG3_stress, MAT_DMG3_export &
           , MAT_DMG3_mempro, MAT_DMG3_memwrk, MAT_DMG3_dtmax,MAT_DMG3_Cijkl &
-          , MAT_DMG3_stress_ep
+          , MAT_DMG3_stress_ep,MAT_isUpdateDmg3, MAT_DMG3_Set_Cd
   
 contains
 
@@ -113,6 +121,10 @@ contains
   logical function MAT_anyDmg3()
   MAT_anyDmg3 = (isDmg3>0)
   end function MAT_anyDmg3
+  
+  logical function MAT_isUpdateDmg3()
+  MAT_isUpdateDmg3 = update_in
+  end function MAT_isUpdateDmg3
 
 !=======================================================================
 ! BEGIN INPUT BLOCK
@@ -142,12 +154,23 @@ contains
 ! ARG: da_max   [dble] 1d-2, max damage per step 
 ! ARG: healLaw  [character(10)] 'EXP','LOG','NONE'
 ! ARG: dtmax    [dble] maximum time step limit for controlling time step
+! ARG: update   [logic] update damage or not
+! 
+! Strain rate dependent Cd
+! ARG: fix_cd  [logic] use fixe value cd
+! ARG: edot0   [dble] reference strain rate
+! ARG: Cdm     [dble] exponent
+! ARG: Cdmin   [dble] 0.1
+! ARG: Cdmax   [dble] 1d4
+!
+! log10(Cd/Cd0) = 1 + Cdm * log10(edot/edot0)
 !
 ! END INPUT BLOCK
 !
 ! SYNTAX : &MAT_DMG3 alpha|alphaH, Sm0|Sm0H, e0, ep 
 !                    cp, cs, rho, mu_r, f0, c0, Cd, 
-!                    C1, C2, Rp, Th, R , da_max /
+!                    C1, C2, Rp, Th, R , da_max, update
+!                    edot0, Cd0, Cdm /
 !
 ! Note that: alphaH, Sm0H can be spatial distributions
 !
@@ -161,10 +184,12 @@ contains
   double precision :: rho, cp, cs, f0, c0, alpha, Cd, C1, C2, dtmax
   double precision :: mu_r, Rp, Th, R, ep(2), e0(2), sm0,da_max
   character(20):: alphaH, sm0H
+  logical :: update
 
   NAMELIST / MAT_DMG3 / alpha, sm0, e0, ep, alphaH, sm0H, mu_r, & 
                           cp, cs, rho, f0, c0, Cd, C1, C2, R, Rp, Th, &
-                          da_max, healLaw, dtmax
+                          da_max, healLaw, dtmax, update, edot0, Cdm, &
+                          fix_cd, Cdmin, Cdmax, EqStart
   
   ! undamaged elastic property
   cp    = 0d0
@@ -195,9 +220,11 @@ contains
   Th    = 0d0
   da_max= 1d-2
   dtmax = 1d10
+  update = .true.
 
   ! read parameters
   read(iin, MAT_DMG3, END=100)
+  Cd0   = Cd
 
   call MAT_setKind(input,isDmg3)
 
@@ -232,6 +259,7 @@ contains
   ! exponential healing parameters
   call MAT_setProp(input,'Rp', Rp)
   call MAT_setProp(input,'Th', Th)
+  update_in = update
 
   write(iout,200) cp, cs, rho, f0, c0, &
                   sm0H, alphaH, Cd, mu_r, R, da_max, &
@@ -319,6 +347,7 @@ contains
     allocate(m%ep(ngll,ngll,2))
     allocate(m%i2_cr(ngll,ngll))
     allocate(m%alpha0(ngll, ngll))
+    allocate(m%Cd(ngll, ngll))
    
     ! elastic coefficients for intact material (zero damage)
     call MAT_getProp(mu0,p,'mu')
@@ -425,7 +454,7 @@ end subroutine MAT_DMG3_Cijkl
 ! compute stress and update or not the damage variable
 !
 
-subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
+subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
   use echo, only : iout
   use utils, only: positive_part
   integer, intent(in) :: ngll
@@ -434,11 +463,11 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
   type (matwrk_dmg3_type), intent(inout) :: m
   logical, intent(in) :: update
   double precision, optional, intent(in) :: dt
-  double precision, optional, intent(in) :: t
   double precision :: e(ngll,ngll,2), mu(ngll, ngll)
   double precision, dimension(ngll,ngll) :: i2
   double precision, dimension(2) :: dep
-  double precision :: ap, da, t0, an
+  double precision :: ap, da, t0, an,cd
+  double precision :: edot_eff(ngll,ngll)
   integer :: i,j
   ! TESTING ONLY!!
   double precision :: e_cr, s_cr
@@ -463,21 +492,22 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
   end do
 
 !!------- Update damage variables and plastic strain --------------- 
-  if (update) then
+  if (update .and. update_in) then
 
     if (.not.present(dt)) &
       call IO_abort('MAT_DMG3_stress: update requested but argument dt is absent')
-    if (.not.present(t)) &
-      call IO_abort('MAT_DMG3_stress: update requested but argument t is absent')
 
     ! determine the maximum allowed time step 
     do i =1, ngll
     do j =1, ngll
       da = 0d0
+      cd = m%Cd(i,j)
+      ! make cd strain rate dependent
+
       !-- damage evolution
       if (i2(i,j)>m%i2_cr(i,j)) then
         ! damage increase
-        da           = dt*m%Cd*(i2(i,j) - m%i2_cr(i,j))
+        da           = dt*cd*(i2(i,j) - m%i2_cr(i,j))
         m%alpha(i,j) = m%alpha(i,j) + da
 
         ! increase the permenent damage
@@ -485,7 +515,11 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt, t)
             m%alpha0(i,j) = m%alpha0(i,j) + da*m%Rp
         end if
 
-        if (m%alpha(i, j) > 1d0) call IO_abort('Damage exceeds 1, simulation Stop!!')
+        if (m%alpha(i, j) > 1d0) then 
+!            write(*, *) "Cd = ", cd, "da = ", da  
+!            call IO_abort('Damage exceeds 1, simulation Stop!!')
+            m%alpha(i,j) = 1d0
+        end if
         !-- plasticity update
         ! Damage-related viscosity, if alpha_dot > 0
         ! Plastic strain rate = deij/dt = tij * Cv *dalpha/dt
@@ -543,6 +577,50 @@ subroutine MAT_DMG3_stress_ep(s, m, ngll)
 
 end subroutine MAT_DMG3_stress_ep
 
+subroutine MAT_DMG3_Set_Cd(edot, m, ngll, ndof, isdynamic)
+  use echo, only : iout
+  integer, intent(in) :: ngll, ndof
+  double precision, intent(in) :: edot(ngll, ngll, ndof + 1)
+  type (matwrk_dmg3_type), intent(inout) :: m
+  double precision:: edot_eff(ngll, ngll)
+  logical, optional::isdynamic
+  integer :: i, j
+
+  ! hard coded to only damage in the dynamic steping
+  if (.not. present(isdynamic)) then 
+      isdynamic= .true.
+  end if
+
+  if (.not. isdynamic) then
+      m%Cd = 0.d0 
+      return 
+  end if
+
+  if (fix_cd) then
+     m%Cd = Cd0 
+     return
+  end if
+
+ !!-- elastic strain
+  edot_eff = sqrt(0.5d0*(edot(:,:,1)**2d0 + edot(:,:,2)**2d0))
+
+  do i = 1, ngll
+      do j=1, ngll
+          m%Cd(i,j) = compute_cd(edot_eff(i,j))
+      end do
+  end do
+
+end subroutine MAT_DMG3_Set_Cd
+
+function compute_cd(edot) result(cd_out)
+    double precision::edot, cd_out
+    ! Cd0, Cdm, edot0 are saved constants for the module
+    if (abs(edot)<1.0d-12) edot= 1.0d-12
+    cd_out = Cd0 * 10.0**(1d0 + Cdm * log10(edot/edot0))
+    cd_out = max(cd_out, Cdmin)
+    cd_out = min(cd_out, Cdmax)
+end function compute_cd
+
 subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
   integer, intent(in) :: ngll
   double precision, intent(in)  :: etot(ngll,ngll,2)
@@ -553,6 +631,10 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
   double precision, dimension(ngll,ngll) :: i2 
   double precision :: dtmax_ij, di2, an, tcr, ap, da
   integer :: i,j
+
+  dtmax=huge(0d0)
+
+  if (.not. update_in) return
 
  !!-- total strain
   e(:,:,1) = etot(:,:,1) + m%e0(1)
@@ -570,7 +652,6 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
     s(:,:,i)  = 2d0*mu*e(:,:,i)
   end do
   
-  dtmax=huge(0d0)
   dtmax_ij = 0d0
 
   do i =1, ngll
@@ -579,7 +660,7 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
    di2 = i2(i,j) - m%i2_cr(i,j)
     if (di2>0) then
       ! damage increase
-      dtmax_ij    = min(m%da_max/(m%Cd*di2), m%da_max/(m%Cd*di2)/m%R)
+      dtmax_ij    = min(m%da_max/(m%Cd(i,j)*di2), m%da_max/(m%Cd(i,j)*di2)/m%R)
     else
       ! maximum time step allowed from healing 
       select case(m%healLaw)
@@ -603,7 +684,6 @@ subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
       dtmax       = min(dtmax, dtmax_ij)
     end do !j
   end do !i
-
 
   dtmax = min(dtmax, m%dtmax)
 

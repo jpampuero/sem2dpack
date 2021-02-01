@@ -324,11 +324,11 @@ contains
   integer :: it, iter
 
   ! Cutoff small amplitude of slip rate
-  do it=1,size(v)
-    if(abs(v(it))<1.0d-16) then
-        v(it)=SIGN(1.0d-16,v(it))
-    endif 
-  enddo
+!  do it=1,size(v)
+!    if(abs(v(it))<1.0d-16) then
+!        v(it)=SIGN(1.0d-16,v(it))
+!    endif 
+!  enddo
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
@@ -707,20 +707,21 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
 
-  time%EQStart = .false.
-  time%EQEnd   = .false.
-
   if (vmax>f%vEQ) then
-      if ((.not. time%isEQ) .and. ((time%time-f%tEqPrev)>f%minGap)) then
+      if ((.not. time%isEQ) .and. &
+          (time%time-f%tEqPrev)>f%minGap .and. (.not. time%EQStart)) then
           time%EQStart = .true.
           write(*,*) "Start another earthquake ... "
+          write(*,*) "max sliprate:", vmax
+          ! this is a new earthquake
+          time%isEQ = .true.
       end if
-      time%isEQ = .true.
   else
-      if (time%isEQ .and. time%isDynamic) then
-          time%EQEnd  = .true.
+      if (time%isEQ .and. time%isDynamic .and. time%EQStart) then
           time%EQNum  = time%EQNum + 1
+          time%EQStart= .false.
           write(*,*) "Finish EQNum: ", time%EQNum
+          write(*,*) "max sliprate:", vmax
           f%tEqPrev   = time%time
       end if
       time%isEQ = .false.
@@ -731,6 +732,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
 
       if (time%isDynamic) then
           time%switch = .true.
+          write(*,*) "max sliprate:", vmax
           write(*, *) "Switching from dynamic to static, EQNum = ", time%EQNum
       else
           time%switch = .false.
@@ -774,6 +776,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.
           write(*, *) "Switching from static to dynamic, EQNum = ", time%EQNum
+          write(*,*) "max sliprate:", vmax
       else
           time%switch    = .false.
       end if

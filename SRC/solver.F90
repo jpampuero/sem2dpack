@@ -13,6 +13,7 @@ module solver
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
                       bc_has_dynflt, bc_update_bcdv, bc_reset
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
+  use mat_gen, only : MAT_isUpdateDMG
 
   implicit none
   private
@@ -246,7 +247,6 @@ subroutine solve_symplectic(pb)
   enddo
   d = d + dt*coa(pb%time%nstages+1) * v
   
-  
 end subroutine solve_symplectic
 
 !=====================================================================
@@ -411,17 +411,19 @@ subroutine solve_quasi_static_petsc(pb)
   ! vplate is built into the rate-state b.c.
   double precision :: dt, dtmax, tn 
   integer :: i, ndof, npoin,j
-  logical :: has_dynflt = .false., update=.false.
+  logical :: has_dynflt = .false.
 
   integer :: IS_DIRNEU = 1, & 
              IS_KINFLT = 2, & 
              IS_DYNFLT = 6, &
              IS_DIRABS = 7
          
-  integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
+  integer :: IS_DIR    = 2, IS_NEU = 1
   PetscErrorCode :: ierr
   PetscScalar, pointer :: xx_d(:)
   PetscScalar, pointer :: xx_b(:)
+  logical :: isUpdateDMG
+  isUpdateDMG = MAT_isUpdateDMG(pb%matwrk(1))
   
   ndof  = pb%fields%ndof
   npoin = pb%fields%npoin
@@ -533,6 +535,8 @@ subroutine solve_quasi_static_petsc(pb)
     ! update rate-state fault
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
   enddo !i 
+
+  if (.not. isUpdateDMG) exit
   
   ! now compute the maximum time step to update the damage variable
   call compute_dtmax(d, pb, dtmax)
@@ -612,7 +616,7 @@ subroutine Update_DMG(d, pb)
     ! compute the maximum time step allowed 
     ! to update state variable in the bulk material
     call MAT_Update_DMG(dloc, pb%matwrk(e), pb%grid%ngll, & 
-                        pb%fields%ndof, pb%time%dt, pb%time%time)
+                        pb%fields%ndof, pb%time%dt)
   end do
 
 end subroutine
@@ -657,8 +661,8 @@ subroutine compute_Fint(f,d,v,pb,update)
     !if (all(abs(dloc)<TINY_XABS) .and. all(abs(vloc)<TINY_XABS)) cycle
 
     call MAT_Fint(floc,dloc,vloc,pb%matwrk(e), & 
-                   pb%grid%ngll,pb%fields%ndof,pb%time%dt, pb%time%dt, &
-                   pb%grid, update_in, E_ep,E_el,sg,sgp)
+                   pb%grid%ngll,pb%fields%ndof,pb%time%dt, &
+                   pb%grid, update_in, E_ep,E_el,sg,sgp, pb%time%isdynamic)
     call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
 
    ! total elastic energy change

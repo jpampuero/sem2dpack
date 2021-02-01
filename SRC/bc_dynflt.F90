@@ -351,6 +351,7 @@ contains
     endif
   else
     bc%node1 => bc%bc1%node
+    bc%MuStar => tmp_mustar
   endif
   bc%npoin = npoin
 
@@ -441,6 +442,7 @@ contains
   bc%D = 0d0
   bc%V = 0d0  ! initialize 
   call DIST_CD_Init(bc%input%V, bc%coord, V)
+
   bc%V(:,1) = V
   deallocate(V)
 
@@ -945,6 +947,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
 
 ! add initial stress
+! T is the stress from perturbation, must add background stress
+! in addition to T0
   T = T + bc%T0
 
 ! apply backslip
@@ -1019,6 +1023,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
   dA(:, 1:ndof) = dA(:, 1:ndof) - bc%T(:,1:ndof)/(bc%Z*bc%CoefA2V)
   
+  ! note bc%V and bc%D store the total slip velocity and slip
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
 
