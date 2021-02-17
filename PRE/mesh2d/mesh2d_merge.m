@@ -135,7 +135,16 @@ for ie=1:nel,
 end
 inod = unique(inod(1:numel(inod)));
 % lexicographic sort in cartesian coordinates :
-[coor,isor] = sortrows(domain.coor(:,inod)');
+%[coor,isor] = sortrows(domain.coor(:,inod)');
+dmax1 = max(domain.coor(1,inod)) - min(domain.coor(1,inod));
+dmax2 = max(domain.coor(2,inod)) - min(domain.coor(2,inod));
+
+if dmax1>dmax2
+    [~, isor] = sort(domain.coor(1,inod));
+else
+    [~, isor] = sort(domain.coor(2,inod));
+end
+
 %coor = coor';
 % lexicographic sort in polar coordinates (r,theta) :
 %coor = domain.coor(1,inod) +1i*domain.coor(2,inod);
