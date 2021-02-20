@@ -77,6 +77,8 @@ module mat_dmg3
   type matwrk_dmg3_type
     private
     double precision, pointer, dimension(:,:,:) :: ep      => null()
+    double precision, pointer, dimension(:,:,:) :: en      => null()
+    double precision, pointer, dimension(:,:,:) :: sn      => null()
     double precision, pointer, dimension(:)     :: e0      => null()
     double precision, pointer, dimension(:)     :: s0      => null()
     double precision, pointer, dimension(:, :)  :: alpha   => null()
@@ -345,6 +347,8 @@ contains
     allocate(m%e0(2))
     allocate(m%s0(2))
     allocate(m%ep(ngll,ngll,2))
+    allocate(m%en(ngll,ngll,2))
+    allocate(m%sn(ngll,ngll,2))
     allocate(m%i2_cr(ngll,ngll))
     allocate(m%alpha0(ngll, ngll))
     allocate(m%Cd(ngll, ngll))
@@ -394,6 +398,12 @@ contains
     ! initial antiplane shear stress, uniform
     mu = m%mu0 - m%mu0 * m%mu_r * m%alpha(1,1)
     m%s0 = 2d0 * mu * (m%e0 - m%ep(1,1,:)) 
+
+    ! previous quasi-static total stress and strain
+    m%en(:,:,1)=m%e0(1)
+    m%en(:,:,2)=m%e0(2)
+    m%sn(:,:,1)=m%s0(1)
+    m%sn(:,:,2)=m%s0(2)
     
     ! track memory usage
     MAT_DMG3_memwrk = MAT_DMG3_memwrk &
@@ -454,7 +464,7 @@ end subroutine MAT_DMG3_Cijkl
 ! compute stress and update or not the damage variable
 !
 
-subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
+subroutine MAT_DMG3_stress(s, etot, m, ngll, update, isdynamic, dt)
   use echo, only : iout
   use utils, only: positive_part
   integer, intent(in) :: ngll
@@ -462,6 +472,7 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
   double precision, intent(out) :: s(ngll,ngll,2)
   type (matwrk_dmg3_type), intent(inout) :: m
   logical, intent(in) :: update
+  logical, optional :: isdynamic
   double precision, optional, intent(in) :: dt
   double precision :: e(ngll,ngll,2), mu(ngll, ngll)
   double precision, dimension(ngll,ngll) :: i2
@@ -476,10 +487,20 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
 
   e_cr = sqrt(maxval(m%i2_cr))
   s_cr = 2*m%mu0*e_cr 
+  if (.not. present(isdynamic)) isdynamic=.false.
 
  !!-- total strain
+ if (isdynamic) then
+  e(:,:,1) = etot(:,:,1) + m%en(:,:,1)
+  e(:,:,2) = etot(:,:,2) + m%en(:,:,2)
+ else
   e(:,:,1) = etot(:,:,1) + m%e0(1)
   e(:,:,2) = etot(:,:,2) + m%e0(2)
+ end if
+
+  ! update quasi-static background strain
+  if (.not. isdynamic) m%en = e
+
  !!-- elastic strain
   e  = e - m%ep
 
@@ -490,6 +511,9 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
   do i = 1, 2
     s(:, :, i)  = 2d0*mu*e(:,:,i)
   end do
+
+  ! update quasi-static background stress
+  if (.not. isdynamic) m%sn = s
 
 !!------- Update damage variables and plastic strain --------------- 
   if (update .and. update_in) then
@@ -551,8 +575,13 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
   end if !update
 
  !-- relative stresses
+  if (isdynamic) then
+  s(:,:,1) = s(:,:,1) - m%sn(:,:,1)
+  s(:,:,2) = s(:,:,2) - m%sn(:,:,2)
+  else
   s(:,:,1) = s(:,:,1) - m%s0(1)
   s(:,:,2) = s(:,:,2) - m%s0(2)
+  end if
 
   end subroutine MAT_DMG3_stress
 
@@ -561,18 +590,22 @@ subroutine MAT_DMG3_stress(s, etot, m, ngll, update, dt)
 ! sij = 2*mu*e_ij + s_ij_ep
 !
 
-subroutine MAT_DMG3_stress_ep(s, m, ngll)
+subroutine MAT_DMG3_stress_ep(s, m, ngll, isdynamic)
   use echo, only : iout
   integer, intent(in) :: ngll
   double precision, intent(out) :: s(ngll,ngll,2)
   type (matwrk_dmg3_type), intent(inout) :: m
+  logical :: isdynamic
   double precision :: e(ngll,ngll,2), mu(ngll, ngll)
   integer :: i,j
 
   mu = m%mu0 - m%mu0*m%mu_r*m%alpha 
- !!-- elastic strain
   do i = 1, 2
+  if (isdynamic) then
+    s(:,:,i)  = 2d0*mu*(m%en(:,:,i) - m%ep(:,:,i)) - m%sn(:,:,i)
+  else
     s(:,:,i)  = 2d0*mu*(m%e0(i) - m%ep(:,:,i)) - m%s0(i)
+  endif 
   end do
 
 end subroutine MAT_DMG3_stress_ep
@@ -597,7 +630,7 @@ subroutine MAT_DMG3_Set_Cd(edot, m, ngll, ndof, isdynamic)
   end if
 
   if (fix_cd) then
-     m%Cd = Cd0 
+     !m%Cd = Cd0 
      return
   end if
 
@@ -621,6 +654,7 @@ function compute_cd(edot) result(cd_out)
     cd_out = min(cd_out, Cdmax)
 end function compute_cd
 
+! dtmax only used in quasi-static stepping
 subroutine MAT_DMG3_dtmax(s, etot, m, ngll, dtmax)
   integer, intent(in) :: ngll
   double precision, intent(in)  :: etot(ngll,ngll,2)

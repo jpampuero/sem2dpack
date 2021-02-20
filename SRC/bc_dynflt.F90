@@ -21,7 +21,7 @@ module bc_dynflt
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
-      D=>null(),coord=>null()
+      D=>null(),coord=>null(), Tp=>null(), Dp=>null()
     double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
     double precision, dimension(:), pointer:: hnode=>null(), MuStar=>null() 
     type(swf_type), pointer :: swf => null()
@@ -436,10 +436,12 @@ contains
 
   allocate(bc%T(npoin,2))
   allocate(bc%D(npoin,ndof))
+  allocate(bc%Dp(npoin,ndof))
   allocate(bc%V(npoin,ndof))
 
   bc%T = 0d0
   bc%D = 0d0
+  bc%Dp = 0d0
   bc%V = 0d0  ! initialize 
   call DIST_CD_Init(bc%input%V, bc%coord, V)
 
@@ -448,6 +450,7 @@ contains
 
 ! Initial stress
   allocate(bc%T0(npoin,2))
+  allocate(bc%Tp(npoin,2))
   call DIST_CD_Init(bc%input%T,bc%coord,Tt0)
   call DIST_CD_Init(bc%input%N,bc%coord,Tn0)
   call DIST_CD_Init(bc%input%Sxx,bc%coord,Sxx)
@@ -471,6 +474,8 @@ contains
   endif 
   bc%T0(:,2) = Tn0 + Tx*nx + Tz*nz
   deallocate(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz)
+  
+  bc%Tp = bc%T0
 
   dt =  time%dt 
 
@@ -856,6 +861,9 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
 
+! save total stress as Tn
+  bc%Tp = T
+
 ! Subtract initial stress
   T = T - bc%T0
 
@@ -867,6 +875,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   end if
   
 ! Save tractions in fault local frame
+! This traction is relative to T0
   bc%T = T
 
 ! Rotate tractions back to (x,z) frame 
@@ -895,8 +904,9 @@ subroutine BC_DYNFLT_update_BCDV(bc, D, time)
   double precision, intent(in) :: D(:,:)
   double precision :: time 
 
-  bc%D = get_jump(bc,D);
-  bc%D = rotate(bc,bc%D, 1)
+  bc%D  = get_jump(bc,D);
+  bc%D  = rotate(bc,bc%D, 1)
+  bc%Dp = bc%D
   if (associated(bc%rsf)) bc%D(:,1)=bc%D(:,1) + rsf_vplate(bc%rsf)*time 
 
 end subroutine BC_DYNFLT_update_BCDV
@@ -948,8 +958,9 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
 ! add initial stress
 ! T is the stress from perturbation, must add background stress
-! in addition to T0
-  T = T + bc%T0
+! in dynamic stepping, background stress is relative to previous quasi-static
+! solution Tn
+  T = T + bc%Tp
 
 ! apply backslip
 !  if (associated(bc%rsf)) dV(:,1) = dV(:,1) + rsf_vplate(bc%rsf)
@@ -1009,7 +1020,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   endif
 
 ! Subtract initial stress
-  T = T - bc%T0
+  T = T - bc%Tp
 
 ! Save tractions
   bc%T = T
@@ -1024,13 +1035,17 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   dA(:, 1:ndof) = dA(:, 1:ndof) - bc%T(:,1:ndof)/(bc%Z*bc%CoefA2V)
   
   ! note bc%V and bc%D store the total slip velocity and slip
+  ! dD is perturbation
   bc%D = dD + bc%CoefA2D*dA
   bc%V = dV + bc%CoefA2V*dA
 
   if (associated(bc%rsf)) then
       bc%V(:,1)=bc%V(:,1) + rsf_vplate(bc%rsf)
-      bc%D(:,1)=bc%D(:,1) + rsf_vplate(bc%rsf)*time%time
+      bc%D(:,1)=bc%D(:,1) + bc%Dp(:,1) + rsf_vplate(bc%rsf)*time%time
   end if
+
+  ! eventually still save relative stress to T0
+  bc%T = bc%T + bc%Tp - bc%T0 
 
   end subroutine BC_DYNFLT_apply_dynamic
 
@@ -1125,7 +1140,7 @@ end subroutine BC_DYNFLT_AppendDofFix
   write(bc%ou_pot,'(6D24.16)') BC_DYNFLT_potency(bc,d), BC_DYNFLT_potency(bc,v)
 
   ! reset ot for each step that a switch in time scheme takes place
-  if (time%EQStart) bc%ot = time%time
+  if (time%switch) bc%ot = time%time
 
   if ( time%time < bc%ot ) return
 
@@ -1152,7 +1167,7 @@ end subroutine BC_DYNFLT_AppendDofFix
       bc%ot = bc%ot + bc%odt
   else
       ! adaptive time stepping 
-      if (time%isEQ) then
+      if (time%isdynamic) then
           bc%ot = bc%ot + bc%odtD 
       else
           bc%ot = bc%ot + bc%odtS 

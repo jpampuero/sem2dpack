@@ -48,20 +48,40 @@ end subroutine solve
 !
 subroutine solve_adaptive(pb)
   type(problem_type), intent(inout) :: pb
-
+  logical::id1, id2, isw
+  integer,parameter::IS_DYNFLT=6
+  double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
+  
+  id1 = pb%time%isdynamic
   if (pb%time%isDynamic) then
-      ! dynamic
+      ! dynamic, obtain perturbation
+      pb%fields%displ = pb%fields%displ - pb%fields%dn
       call solve_dynamic(pb)
+      ! add perturbation back to the background displacement
+      pb%fields%displ = pb%fields%displ + pb%fields%dn
   else
       ! quasi-static
+      ! work with total displacement (relative to d0) 
       if (pb%time%isUsePetsc) then
           call solve_quasi_static_petsc(pb)
       else
           call solve_quasi_static(pb)
       end if
+      ! update background values for dynamic step
+      pb%fields%dn = pb%fields%displ
   end if
 
   if (.not. pb%time%fixdt) call update_adaptive_step(pb)
+  id2 = pb%time%isdynamic
+  isw = id2 .and. (.not. id1)
+  if (isw) then
+     ! keep only velocity on the boundaries as zero
+  !   tmp=0d0
+!     write(*, *)"HERE, switching!"
+   !  call bc_select_kind(pb%bc, pb%fields%veloc,tmp, IS_DYNFLT)
+     pb%fields%veloc = 0d0
+ !    write(*, *)"Done setting velocity!"
+  end if
   
 end subroutine solve_adaptive
 
@@ -540,7 +560,7 @@ subroutine solve_quasi_static_petsc(pb)
   
   ! now compute the maximum time step to update the damage variable
   call compute_dtmax(d, pb, dtmax)
-   
+  
   if (dt<=dtmax .or. j==2) then
       ! update fault state variable
       call Update_DMG(d, pb)
@@ -554,7 +574,7 @@ subroutine solve_quasi_static_petsc(pb)
       exit
   else
       if (pb%time%fixdt) then
-          call IO_Abort('Solver: fixed time step too small!!')
+          call IO_Abort('Solver: fixed time step too large!!')
       end if
 
       ! change dt, t
@@ -616,7 +636,7 @@ subroutine Update_DMG(d, pb)
     ! compute the maximum time step allowed 
     ! to update state variable in the bulk material
     call MAT_Update_DMG(dloc, pb%matwrk(e), pb%grid%ngll, & 
-                        pb%fields%ndof, pb%time%dt)
+                        pb%fields%ndof, pb%time%dt, pb%time%isdynamic)
   end do
 
 end subroutine
@@ -699,7 +719,7 @@ subroutine compute_Fint_EP(f, pb)
 
   f = 0d0
   do e = 1,pb%grid%nelem
-    call MAT_Fint_EP(floc, pb%matwrk(e), pb%grid%ngll,pb%fields%ndof)
+    call MAT_Fint_EP(floc, pb%matwrk(e), pb%grid%ngll,pb%fields%ndof,pb%time%isdynamic)
     call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
   enddo
 

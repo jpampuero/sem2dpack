@@ -140,7 +140,7 @@ subroutine init_main(pb, ierr, InitFile)
 
  call CPU_TIME(cputime0)
  call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%K, viewer, ierr);CHKERRA(ierr)
+! call MatView(pb%K, viewer, ierr);CHKERRA(ierr)
  call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
  call CPU_TIME(cputime1)
  cputime0 = cputime1-cputime0
@@ -193,7 +193,7 @@ subroutine init_main(pb, ierr, InitFile)
  
  write(*, *) "Write MatA:"
  call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
+! call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
  call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
 
  write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
@@ -321,11 +321,12 @@ subroutine UpdateKsp(pb)
 
   call MatZeroEntries(pb%K, ierr)
   call MAT_AssembleK(pb%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
+
   call MatMatMatMult(pb%Xinv, pb%K, pb%Xinv, MAT_REUSE_MATRIX, &
                     PETSC_DEFAULT_REAL, pb%MatA, ierr)
 
-  call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%d, ierr)
-  call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
+  call MatZeroRows(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
+ ! call KSPCreate(PETSC_COMM_WORLD, pb%ksp, ierr)
   call KSPSetOperators(pb%ksp, pb%MatA, pb%MatA, ierr)
 
 end

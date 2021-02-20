@@ -462,16 +462,17 @@ end subroutine MAT_dtmax
 
 ! Update internal variables for damage 3 model 
 ! implement only for DMG3
-subroutine MAT_Update_DMG(d, matwrk, ngll, ndof, dt)
+subroutine MAT_Update_DMG(d, matwrk, ngll, ndof, dt, isdynamic)
   integer, intent(in) :: ngll,ndof
   double precision, dimension(ngll,ngll,ndof), intent(in) :: d
   type(matwrk_elem_type), intent(in) :: matwrk
   double precision :: dt
+  logical::isdynamic
   double precision, dimension(ngll,ngll,ndof+1) :: e,s
   
   if (matwrk%kind==IS_DMG3) then
     e  = MAT_strain(d,matwrk,ngll,ndof)
-    call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll, .true., dt)
+    call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll, .true., isdynamic, dt)
   endif
 end subroutine MAT_Update_DMG
 
@@ -525,7 +526,7 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp
     end if
     
     ! update is always set .true.
-    call MAT_stress(s,e,matwrk,ngll,ndof, update, dt, E_ep,E_el,sg,sgp)
+    call MAT_stress(s,e,matwrk,ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
@@ -533,15 +534,16 @@ end subroutine MAT_Fint
 
 ! compute internal force from plastic strain for dmg3
 !
-subroutine MAT_Fint_EP(f, matwrk, ngll, ndof)
+subroutine MAT_Fint_EP(f, matwrk, ngll, ndof, isdynamic)
   integer, intent(in) :: ngll,ndof
   double precision, dimension(ngll,ngll,ndof), intent(out) :: f
   type(matwrk_elem_type), intent(inout) :: matwrk
+  logical :: isdynamic
   double precision, dimension(ngll,ngll,ndof+1) :: s
 
   f=0d0
   if (matwrk%kind==IS_DMG3) then
-    call MAT_DMG3_stress_ep(s,matwrk%dmg3, ngll)
+    call MAT_DMG3_stress_ep(s,matwrk%dmg3, ngll, isdynamic)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
@@ -551,7 +553,7 @@ end subroutine MAT_Fint_EP
 !
 ! compute stress and update (or not) the internal state variable
 !
- subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, dt, E_ep,E_el,sg,sgp)
+ subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
@@ -559,6 +561,7 @@ end subroutine MAT_Fint_EP
   type (matwrk_elem_type) :: matwrk
   logical, optional, intent(in) :: update
   double precision, optional, intent(in) :: dt
+  logical, optional :: isdynamic
   double precision, optional, intent(out) :: E_ep, E_el, sg(ndof+1),sgp(ndof+1)
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
@@ -581,7 +584,8 @@ end subroutine MAT_Fint_EP
     case (IS_VISCO)
       call MAT_VISCO_stress(s,e,matwrk%visco,ngll,dt)
     case (IS_DMG3)
-      call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, dt)
+      if (.not. present(isdynamic)) isdynamic = .false.
+      call MAT_DMG3_stress(s,e,matwrk%dmg3,ngll,update, isdynamic, dt)
 !!  case (IS_USER)
 !!      call MAT_USER_stress(...)
   end select 
@@ -987,6 +991,7 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   call MatAssemblyend(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
 end subroutine
 
+! MAT_stress_dv computes stresses for output purposes
 !=======================================================================
 subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
 
@@ -1001,7 +1006,7 @@ subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
   
   if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   call MAT_stress(s, MAT_strain(d,matwrk,grid,e,ngll,ndof) &
-                 ,matwrk,ngll,ndof,update=.false.)
+                 ,matwrk,ngll,ndof, update=.false., isdynamic=.false.)
   
 end subroutine MAT_stress_dv
 
@@ -1282,7 +1287,7 @@ subroutine MAT_Ke_Fint(Ke, matwrk, ndof, ngll)
           call MAT_ELAST_f(floc,dloc,matwrk%elast,matwrk%derint%H,matwrk%derint%Ht,ngll,ndof)
       case (IS_DMG3)
         ee  = MAT_strain(dloc,matwrk,ngll,ndof)
-        call MAT_DMG3_stress(ss, ee, matwrk%dmg3, ngll, .false.) 
+        call MAT_DMG3_stress(ss, ee, matwrk%dmg3, ngll, .false., .false.) 
         floc = MAT_forces(ss,matwrk%derint,ngll,ndof)
       end select
       do r=1, ngll

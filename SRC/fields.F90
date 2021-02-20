@@ -8,8 +8,8 @@ module fields_class
 
   type fields_type
     integer :: ndof, npoin
-    double precision, dimension(:, :), pointer ::  displ, veloc, accel, &
-                                                  displ_alpha, veloc_alpha
+    double precision, dimension(:, :), pointer ::  displ, veloc, accel, dn, &
+                                                   displ_alpha, veloc_alpha
   end type fields_type
 
   interface FIELD_get_elem
@@ -62,6 +62,7 @@ subroutine FIELDS_init(fields,npoin,alpha)
   call FIELD_init(fields%displ,'displ')
   call FIELD_init(fields%veloc,'veloc')
   call FIELD_init(fields%accel,'accel')
+  call FIELD_init(fields%dn,'dn')
   if (alpha) then
     call FIELD_init(fields%displ_alpha,'displ_alpha')
     call FIELD_init(fields%veloc_alpha,'veloc_alpha')

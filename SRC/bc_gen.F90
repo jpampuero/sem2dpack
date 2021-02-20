@@ -643,7 +643,10 @@ subroutine bc_select_kind(bc, field_in, field_out, bc_kind, dirneu_kind_in)
   
   if (.not. associated(bc)) return
   
-  if (bc_kind /= IS_DYNFLT .or. bc_kind /= IS_DIRNEU) then
+  if (bc_kind /= IS_DYNFLT .and. bc_kind /= IS_DIRNEU) then
+!      write(*, *)"bc_kind=", bc_kind
+!      write(*, *)"bc_dynflt=", IS_DYNFLT
+!      write(*, *)"bc_kind=bc_dynflt?:", bc_kind==IS_DYNFLT
       call IO_abort('bc_select_kind: bc_kind must be IS_DYNFLT or IS_DIRNEU')
       return
   end if
