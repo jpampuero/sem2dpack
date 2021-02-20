@@ -68,10 +68,16 @@ if ~isempty(strfind(fname_pre,'dmg_'))
  % WARNING : should read dmg_elems.tab 
   ftmp = reshape( field, ngll,ngll,[],nelem );
   field = [];
-  field.alpha = squeeze(ftmp(:,:,1,:)); % damage variable
-  field.ep11 = squeeze(ftmp(:,:,2,:));  % plastic strain
-  field.ep22 = squeeze(ftmp(:,:,3,:));
-  field.ep12 = squeeze(ftmp(:,:,4,:));
+  if size(ftmp,3)==4
+      field.alpha = squeeze(ftmp(:,:,1,:)); % damage variable
+      field.ep11 = squeeze(ftmp(:,:,2,:));  % plastic strain
+      field.ep22 = squeeze(ftmp(:,:,3,:));
+      field.ep12 = squeeze(ftmp(:,:,4,:));
+  else
+      field.alpha = squeeze(ftmp(:,:,1,:)); % damage variable
+      field.ep31 = squeeze(ftmp(:,:,2,:));  % plastic strain
+      field.ep32 = squeeze(ftmp(:,:,3,:));
+  end
 
 elseif ~isempty(strfind(fname_pre,'pla_'))
  % WARNING : should read pla_elems.tab 
