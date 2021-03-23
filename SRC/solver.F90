@@ -1,12 +1,12 @@
 module solver
 #include <petsc/finclude/petscksp.h>
   use petscksp
-  use init, only : UpdateKsp
 
 ! SOLVER: solver for elasto-dynamic equation
 !         M.a = - K.d + F
 
   use problem_class
+  use petsc_objects 
   use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
@@ -24,20 +24,21 @@ contains
 
 !=====================================================================
 
-subroutine solve(pb)
+subroutine solve(pb, petobj)
 
-  type(problem_type), intent(inout) :: pb
+  type(problem_type), intent(inout) :: pb  
+  type(petsc_objects_type), intent(inout) :: petobj
   select case (pb%time%kind)
     case ('adaptive')
-      call solve_adaptive(pb)
+      call solve_adaptive(pb, petobj)
     case ('leapfrog')
-      call solve_leapfrog(pb)
+      call solve_leapfrog(pb, petobj)
     case ('newmark')
-      call solve_Newmark(pb)
+      call solve_Newmark(pb, petobj)
     case ('HHT-alpha')
-      call solve_HHT_alpha(pb)
+      call solve_HHT_alpha(pb, petobj)
     case default
-      call solve_symplectic(pb)
+      call solve_symplectic(pb, petobj)
   end select
 
 end subroutine solve
@@ -46,8 +47,9 @@ end subroutine solve
 ! adaptive solver, a wrapper for dynamic and quasi-static solver
 ! depending on the 'isDynamic' flag
 !
-subroutine solve_adaptive(pb)
+subroutine solve_adaptive(pb, petobj)
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   logical::id1, id2, isw
   integer,parameter::IS_DYNFLT=6
   double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
@@ -56,14 +58,14 @@ subroutine solve_adaptive(pb)
   if (pb%time%isDynamic) then
       ! dynamic, obtain perturbation
       pb%fields%displ = pb%fields%displ - pb%fields%dn
-      call solve_dynamic(pb)
+      call solve_dynamic(pb, petobj)
       ! add perturbation back to the background displacement
       pb%fields%displ = pb%fields%displ + pb%fields%dn
   else
       ! quasi-static
       ! work with total displacement (relative to d0) 
       if (pb%time%isUsePetsc) then
-          call solve_quasi_static_petsc(pb)
+          call solve_quasi_static_petsc(pb, petobj)
       else
           call solve_quasi_static(pb)
       end if
@@ -96,26 +98,28 @@ end subroutine update_adaptive_step
 
 !=====================================================================
 ! a wrapper over all dynamic solver
-subroutine solve_dynamic(pb)
+subroutine solve_dynamic(pb, petobj)
     type(problem_type), intent(inout) :: pb
+    type(petsc_objects_type), intent(inout) :: petobj
     select case (pb%time%kind_dyn)
       case ('leapfrog')
-        call solve_leapfrog(pb)
+        call solve_leapfrog(pb, petobj)
       case ('newmark')
-        call solve_Newmark(pb)
+        call solve_Newmark(pb, petobj)
       case ('HHT-alpha')
-        call solve_HHT_alpha(pb)
+        call solve_HHT_alpha(pb, petobj)
       case default
-        call solve_symplectic(pb)
+        call solve_symplectic(pb, petobj)
     end select
 end subroutine solve_dynamic
 
 ! SOLVE: advance ONE time step
 !        using single predictor-corrector Newmark (explicit)
 !        in acceleration form
-subroutine solve_Newmark(pb)
+subroutine solve_Newmark(pb,petobj)
 
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   
   double precision, dimension(:,:), pointer :: d,v,a,f
   double precision :: dt,beta,gamma
@@ -160,9 +164,10 @@ end subroutine solve_Newmark
 !=====================================================================
 ! Hilber-Hughes-Taylor alpha scheme
 !
-subroutine solve_HHT_alpha(pb)
+subroutine solve_HHT_alpha(pb,petobj)
 
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   
   double precision, dimension(:,:), pointer :: d,v,a,f,d_alpha,v_alpha
   double precision :: t_alpha,tmp,dt,alpha,beta,gamma
@@ -210,9 +215,10 @@ end subroutine solve_HHT_alpha
 !
 ! also: a[n] = (v[n+1/2] - v[n-1/2])/dt
 
-subroutine solve_leapfrog(pb)
+subroutine solve_leapfrog(pb,petobj)
 
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   
   double precision, dimension(:,:), pointer :: d,v_mid,a,f
 
@@ -238,9 +244,10 @@ end subroutine solve_leapfrog
 ! WARNING: no boundary conditions implemented yet
 ! WARNING: use this only for pure elasticity
 !
-subroutine solve_symplectic(pb)
+subroutine solve_symplectic(pb,petobj)
 
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   
   double precision, dimension(:,:), pointer :: d,v,a,f
   double precision, dimension(:), pointer :: coa,cob
@@ -421,10 +428,11 @@ end subroutine solve_quasi_static
 !    dt = dtmax
 !    resolve the mechanical balance, 2 passes
 !
-subroutine solve_quasi_static_petsc(pb)
+subroutine solve_quasi_static_petsc(pb, petobj)
 #include <petsc/finclude/petscksp.h>
   use petscksp
   type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
   double precision, dimension(:,:), pointer :: d, v, a, f
   double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, v_pre, fp
   
@@ -471,7 +479,7 @@ subroutine solve_quasi_static_petsc(pb)
   call compute_Fint_EP(fp, pb)
   
   ! reassemble the stiffness matrix and configure Ksp
-  if (pb%time%isUpdateKsp) call UpdateKsp(pb)
+  if (pb%time%isUpdateKsp) call UpdateKsp(pb, petobj)
 
   do j = 1, 2
    
@@ -510,26 +518,26 @@ subroutine solve_quasi_static_petsc(pb)
     call BC_trans(pb%bc, d,  1)
     call BC_trans(pb%bc, f, -1)
 
-    call FIELD_SetVecFromField(pb%d, d, ierr)
-    call FIELD_SetVecFromField(pb%b, f, ierr)
-    call VecGetArrayReadF90(pb%d, xx_d, ierr)
-    call VecGetArrayF90(pb%b, xx_b, ierr)
+    call FIELD_SetVecFromField(petobj%d, d, ierr)
+    call FIELD_SetVecFromField(petobj%b, f, ierr)
+    call VecGetArrayReadF90(petobj%d, xx_d, ierr)
+    call VecGetArrayF90(petobj%b, xx_b, ierr)
 
     ! set the RHS to be the same value as d at dirichlet dofs
     xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
     
-    call VecRestoreArrayReadF90(pb%d,xx_d,ierr)
-    call VecRestoreArrayF90(pb%b,xx_b,ierr)
+    call VecRestoreArrayReadF90(petobj%d,xx_d,ierr)
+    call VecRestoreArrayF90(petobj%b,xx_b,ierr)
    
     ! solve the linear system for d
-    call KSPSolve(pb%ksp, pb%b, pb%d, ierr)  
+    call KSPSolve(petobj%ksp, petobj%b, petobj%d, ierr)  
     CHKERRQ(ierr) 
 
     ! return the number of iterations
-    call KSPGetIterationNumber(pb%ksp, pb%time%pcg_iters(i), ierr)
+    call KSPGetIterationNumber(petobj%ksp, pb%time%pcg_iters(i), ierr)
 
     ! copy the displacement from converged solution in petsc to d
-    call FIELD_SetFieldFromVec(d, pb%d, ierr)  
+    call FIELD_SetFieldFromVec(d, petobj%d, ierr)  
 
     ! transfer the d' to d
     call BC_trans(pb%bc, d,  -1)

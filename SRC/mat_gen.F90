@@ -961,34 +961,47 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   type(matwrk_elem_type), intent(in) :: matwrk(:)
   integer, intent(in) :: ibool(:,:,:)
   Mat :: KG ! petsc object, global stiffness matrix
-  integer:: ndof, ngll, ndim, p, q, i, k, e 
+  integer:: ndof, ngll, ndim, p, q, i, k, e, rank 
   double precision, dimension(ndof*ngll*ngll, ndof*ngll*ngll) :: Ke
   PetscInt:: rows(ndof*ngll*ngll)
   PetscErrorCode  :: ierr
+  integer :: nproc, ip, ne, e_start, e_end, batch_size
 
-  do e = 1, size(matwrk)
-      !call MAT_Ke_Fint(Ke, matwrk(e), ndof, ngll)
-      call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
-      do p = 1, ngll
-      do q = 1, ngll
-      do i = 1, ndof
-          k = ((p - 1) * ngll + q - 1)*ndof + i
-          ! note that row indices are 0 based
-          rows(k) = (ibool(p, q, e) - 1) * ndof + i - 1
-      end do
-      end do
-      end do ! end do p,q,i 
+  call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
+  call MPI_Comm_size(PETSC_COMM_WORLD, nproc, ierr)
 
-      ! set matrix values
-      ! add the values of Ke to KG
-      ! obtain the global rows and columns
-      call MatSetValues(KG, ndof*ngll*ngll, rows, ndof*ngll*ngll, rows, Ke, ADD_VALUES, ierr)
-      CHKERRA(ierr)
-  end do !e
+  do ip = 1, nproc 
+      if (rank==0) then
+          ne   = size(matwrk) 
+          batch_size = ceiling(dble(ne)/dble(nproc)) 
+          e_start = (ip-1)*batch_size + 1 
+          e_end   = min(ip*batch_size, ne)  
 
-  ! assemble the global stiffness matrix
-  call MatAssemblyBegin(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
-  call MatAssemblyend(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+          do e = e_start, e_end
+              !call MAT_Ke_Fint(Ke, matwrk(e), ndof, ngll)
+              call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
+              do p = 1, ngll
+              do q = 1, ngll
+              do i = 1, ndof
+                  k = ((p - 1) * ngll + q - 1)*ndof + i
+                  ! note that row indices are 0 based
+                  rows(k) = (ibool(p, q, e) - 1) * ndof + i - 1
+              end do
+              end do
+              end do ! end do p,q,i 
+
+              ! set matrix values
+              ! add the values of Ke to KG
+              ! obtain the global rows and columns
+              call MatSetValues(KG, ndof*ngll*ngll, rows, ndof*ngll*ngll, rows, Ke, ADD_VALUES, ierr)
+              CHKERRA(ierr)
+          end do !e
+      end if
+      ! assemble the global stiffness matrix
+      call MatAssemblyBegin(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+      call MatAssemblyend(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
+  end do ! ip
+
 end subroutine
 
 ! MAT_stress_dv computes stresses for output purposes

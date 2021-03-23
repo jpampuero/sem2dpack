@@ -47,20 +47,7 @@ module problem_class
    ! note this index is 1-based in fortran
    integer, pointer :: indexDofFix(:)=>null()
 
-   ! petsc ksp linear solver
-    KSP  :: ksp
-
-   ! global stiffness matrix, [npoin*ndof, npoin*ndof]
-   ! initialize subroutine in mat_gen 
-    Mat :: K, MatA
-
-   ! global transformation matrix, [npoin*ndof, npoin*ndof]
-   ! initialize subroutine in bc_gen
-    Mat :: X, Xinv
-
-   ! global displacement, velocity, acceleration, [npoin*ndof, 1]
-   ! initialize subroutine in fields
-    Vec :: d, b 
+   integer :: ndof, ndim=2, ngll, npoin
 
    ! time integration coefficients
     type(timescheme_type) :: time
@@ -70,21 +57,9 @@ module problem_class
     type(rec_type), pointer :: rec => null()
   end type problem_type
 
-  public :: problem_type, destroyPetscStruct
+  public :: problem_type
 
   contains
 
-  subroutine destroyPetscStruct(pb, ierr)
-#include <petsc/finclude/petscksp.h>
-     use petscksp
-     implicit none
-     type(problem_type)::pb
-     PetscErrorCode :: ierr
-     call MatDestroy(pb%K, ierr)
-     call MatDestroy(pb%MatA, ierr)
-     call VecDestroy(pb%d, ierr)
-     call VecDestroy(pb%b, ierr)
-     call KSPDestroy(pb%ksp, ierr)
-   end subroutine destroyPetscStruct
 
 end module problem_class

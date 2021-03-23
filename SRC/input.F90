@@ -1,4 +1,6 @@
 module input
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   implicit none
   private
@@ -10,6 +12,8 @@ contains
 !=========================================================================
 !
   subroutine read_main(pb,iexec,input_file)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   use problem_class, only : problem_type
   use stdio, only : IO_new_unit,IO_abort
@@ -24,25 +28,28 @@ contains
 
   type(problem_type), intent(out) :: pb
   character(*), intent(in) :: input_file
+  PetscErrorCode :: ierr
   integer, intent(out) :: iexec
 
-  integer :: iin
+  integer :: iin, rank
 
 !-----------------------------------------------------------------------
-
+  call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
   iin  = IO_new_unit()
   open (iin,file=input_file,status='old',action='read')
-  
   call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,pb%grid%W,iin)
+ 
+ ! mesh is only stored on rank 0
+ if (rank==0) then
+     !---- mesh generation parameters     
+      call MESH_read(pb%mesh,iin)
+     !---- material properties
+      call MAT_read(pb%matinp,iin)
+ end if
 
- !---- mesh generation parameters     
-  call MESH_read(pb%mesh,iin)
-
+ ! other types are stored on each processor
  !---- timescheme settings
   call TIME_read(pb%time,iin)
-
- !---- material properties
-  call MAT_read(pb%matinp,iin)
 
  !---- boundary conditions properties     
   call BC_read(pb%bc,iin) 
@@ -97,6 +104,8 @@ contains
 ! END INPUT BLOCK
 
   subroutine read_gen(iexec,ndof,ngll,fmax,W,iin)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   use echo
   use stdio, only : IO_abort,abort_on_warnings
@@ -106,9 +115,12 @@ contains
   double precision :: fmax, W
   character(10) :: iexecname
   character(4) :: verbose
+  integer :: rank, ierr
 
   NAMELIST / GENERAL / iexec,ngll,ndof,fmax,W,title,verbose,itInfo, &
                        abort_on_warnings
+  
+  call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
 
   iexec = 0
   ndof = 2
@@ -134,8 +146,7 @@ contains
     iexecname = 'solve'
   endif
   
-  call ECHO_set(verbose)
-
+  call ECHO_set(verbose, rank)
   if (echo_input) then
     write(iout,*)
     write(iout,'(a)') '***********************************************'

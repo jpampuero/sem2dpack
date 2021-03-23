@@ -13,14 +13,21 @@ module echo
 
 contains
 
-  subroutine ECHO_set(verbose)
+  subroutine ECHO_set(verbose, rank)
 
   character(4), intent(in) :: verbose
+  integer , intent(in), optional :: rank
+  integer :: rank_in
+  if (present(rank)) then
+      rank_in = rank
+  else
+      rank_in = 0
+  end if
 
-  echo_input     = verbose(1:1)=='1'
-  echo_init      = verbose(2:2)=='1'
-  echo_check     = verbose(3:3)=='1'
-  echo_run       = verbose(4:4)=='1'
+  echo_input     = verbose(1:1)=='1' .and. rank_in==0
+  echo_init      = verbose(2:2)=='1' .and. rank_in==0
+  echo_check     = verbose(3:3)=='1' .and. rank_in==0
+  echo_run       = verbose(4:4)=='1' .and. rank_in==0
 
   end subroutine ECHO_set
 

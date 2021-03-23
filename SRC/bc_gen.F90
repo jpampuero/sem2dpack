@@ -515,12 +515,10 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   integer, dimension(:), allocatable:: rows, cols
   double precision, dimension(:,:), allocatable:: vals, valsinv
   PetscErrorCode  :: ierr
+  integer :: rank
+  integer :: start, fini
 
-  ! obtain all the fault nodes
-  nnode = BC_nfaultnode(bc)
-  allocate(node1(nnode), node2(nnode))
-  call BC_faultnode(bc, node1, node2, nnode)
-
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
   call MatCreate(PETSC_COMM_WORLD, X, ierr) 
   CHKERRQ(ierr)
 ! set matrix option at runtime
@@ -541,13 +539,20 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   call MatSetBlockSize(X, ndof, ierr)
   call MatSetUp(Xinv, ierr)
   
+  ! obtain all the fault nodes
+
+  call MatGetOwnershipRangeColumn(X, start, fini, ierr) 
+
   ! set diagonals, index is 0-based
-  do i = 0, npoin*ndof - 1
+  do i = start, fini - 1
       call MatSetValue(X, i, i, 1d0, INSERT_VALUES, ierr)
       call MatSetValue(Xinv, i, i, 1d0, INSERT_VALUES, ierr)
   end do
-
-!  call MatDuplicate(X, MAT_COPY_VALUES, Xinv, ierr)
+  
+  if (rank==0) then
+  nnode = BC_nfaultnode(bc)
+  allocate(node1(nnode), node2(nnode))
+  call BC_faultnode(bc, node1, node2, nnode)
 
   ! create X and Xinv for each fault split node pair and each ndof
   do i = 1, nnode
@@ -583,6 +588,7 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   end do !i
 
   deallocate(node1, node2)
+  end if ! rank == 0
 
   ! assemble matrix X and Xinv
   call MatAssemblyBegin(X, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)

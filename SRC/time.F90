@@ -150,7 +150,7 @@ contains
 !         ranges from approx. 1.84 at r=0.5 to 2.00 at r=1
 !
 
-  subroutine TIME_read(t,iin)
+  subroutine TIME_read(t, iin)
 
   use echo, only : echo_input,iout
   use stdio, only : IO_abort

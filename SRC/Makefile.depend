@@ -75,12 +75,12 @@ fem_grid.o: bnd_grid.o constants.o elem_q4.o elem_q8h.o elem_q9.o \
 fields.o: echo.o memory_info.o mxmlib.o spec_grid.o stdio.o
 gll.o: stdio.o
 init.o: bc_gen.o constants.o echo.o energy.o fields.o mat_gen.o mat_mass.o \
-	memory_info.o mesh_gen.o plot_gen.o plot_postscript.o problem_class.o \
+	memory_info.o mesh_gen.o plot_gen.o plot_postscript.o problem_class.o petsc_objects.o \
 	prop_mat.o receivers.o spec_grid.o src_gen.o stdio.o time.o
 input.o: bc_gen.o echo.o mat_gen.o mesh_gen.o plot_gen.o problem_class.o \
 	receivers.o src_gen.o stdio.o time.o
 main.o: bc_gen.o constants.o echo.o energy.o init.o input.o plot_gen.o \
-	problem_class.o receivers.o solver.o
+	problem_class.o receivers.o petsc_objects.o solver.o 
 mat_damage.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o utils.o
 mat_dmg3.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o utils.o
 mat_elastic.o: constants.o echo.o mxmlib.o prop_mat.o spec_grid.o stdio.o
@@ -102,6 +102,7 @@ mesh_layers.o: constants.o distribution_cd.o echo.o fem_grid.o memory_info.o \
 	mesh_structured.o rcm.o stdio.o utils.o
 mesh_mesh2d.o: constants.o echo.o fem_grid.o memory_info.o stdio.o
 mesh_structured.o: bnd_grid.o fem_grid.o rcm.o stdio.o utils.o
+petsc_objects.o: problem_class.o echo.o mat_gen.o bc_gen.o
 plot_avs.o: echo.o spec_grid.o stdio.o
 plot_gen.o: echo.o fields.o mat_gen.o plot_avs.o plot_gmt.o plot_postscript.o \
 	plot_visual3.o problem_class.o spec_grid.o stdio.o time.o
@@ -115,7 +116,7 @@ prop_elem.o: distribution_cd.o
 prop_mat.o: distribution_cd.o echo.o prop_elem.o stdio.o
 receivers.o: constants.o echo.o fields.o memory_info.o spec_grid.o stdio.o \
 	time.o
-solver.o: bc_gen.o fields.o mat_gen.o problem_class.o src_gen.o init.o
+solver.o: bc_gen.o fields.o mat_gen.o problem_class.o src_gen.o init.o petsc_objects.o
 spec_grid.o: bnd_grid.o constants.o echo.o fem_grid.o generic_list.o gll.o \
 	memory_info.o stdio.o utils.o
 src_force.o: constants.o echo.o stdio.o

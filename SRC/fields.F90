@@ -138,9 +138,11 @@ subroutine FIELD_SetVecFromField(v, field, ierr)
   Vec :: v
   double precision, dimension(:,:), intent(in)::field
   integer, dimension(size(field,1)) :: index1
-  integer:: i, ndof, npoin
+  integer:: i, ndof, npoin, rank
   PetscErrorCode :: ierr
 
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
+  if (rank==0) then
   ndof  = size(field, 2)
   npoin = size(field, 1)
 
@@ -153,6 +155,8 @@ subroutine FIELD_SetVecFromField(v, field, ierr)
       if (i == 2) index1 = index1 + 1
       call VecSetValues(v, npoin, index1, field(:, i), INSERT_VALUES, ierr)
   end do
+
+  end if 
   call VecAssemblyBegin(v, ierr)
   call VecAssemblyEnd(v,ierr)
 end subroutine
@@ -163,10 +167,13 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
   Vec :: v
   double precision, dimension(:,:), intent(inout)::field
   integer, dimension(size(field,1)) :: index1
-  integer:: i, ndof, npoin
+  integer:: i, ndof, npoin, rank
   PetscScalar, pointer :: xx_v(:)
   PetscErrorCode :: ierr
 
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
+
+  if (rank==0) then
   ndof  = size(field, 2)
   npoin = size(field, 1)
 
@@ -186,7 +193,7 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
 
   ! restore array
   call VecRestoreArrayReadF90(v,xx_v,ierr)
-
+  end if
 end subroutine
 
 
