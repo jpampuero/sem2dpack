@@ -81,7 +81,8 @@ OPT      = -O3 -Wall
 #SOURCESF = *.F90
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
-include ${PETSC_DIR}/lib/petsc/conf/rules
+include rules
+#include ${PETSC_DIR}/lib/petsc/conf/rules
 include ${PETSC_DIR}/lib/petsc/conf/test
 
 #== END USER SETTINGS =============================================

@@ -7,7 +7,7 @@ program main
   use echo, only : iout,ECHO_banner,ItInfo,title
   use input, only : read_main
   use init, only : init_main
-!  use solver, only : solve
+  use solver, only : solve
   use plot_gen, only : PLOT_FIELD
   use receivers, only : REC_store,REC_write
   use bc_gen, only : BC_write
@@ -82,63 +82,65 @@ program main
 
     ! save the time step number
     pb%time%it = it
- !   
- !   call solve(pb, petobj)
+    
+!    call solve(pb, petobj)
 
- ! !-- CPU time info -----------------------------------------------------
+  !-- CPU time info -----------------------------------------------------
+  if (rank==0) then
+    if (it == NT_CHECK) then
+      call CPU_TIME(cputime2)
+      cputime2=(cputime2-cputime1)/dble(NT_CHECK)
+      write(iout,'(/A,5(/2X,A,EN12.3),/)')   &
+        '---  CPU TIME ESTIMATES (in seconds) :', &
+        'CPU time for initialization . .', cputime0 ,&
+        'CPU time per timestep . . . . .', cputime2,&
+        'Total solver CPU time . . . . .', cputime2*pb%time%nt ,&
+        '                 (mins) . . . .', cputime2*pb%time%nt/60. ,&
+        '                 (hours). . . .', cputime2*pb%time%nt/3600.
+      if (iexec==0) exit
+    endif
 
- !   if (it == NT_CHECK) then
- !     call CPU_TIME(cputime2)
- !     cputime2=(cputime2-cputime1)/dble(NT_CHECK)
- !     write(iout,'(/A,5(/2X,A,EN12.3),/)')   &
- !       '---  CPU TIME ESTIMATES (in seconds) :', &
- !       'CPU time for initialization . .', cputime0 ,&
- !       'CPU time per timestep . . . . .', cputime2,&
- !       'Total solver CPU time . . . . .', cputime2*pb%time%nt ,&
- !       '                 (mins) . . . .', cputime2*pb%time%nt/60. ,&
- !       '                 (hours). . . .', cputime2*pb%time%nt/3600.
- !     if (iexec==0) exit
- !   endif
+ !--- Intermediate OUTPUTS -------------------------------------------
 
- !!--- Intermediate OUTPUTS -------------------------------------------
+    if (mod(it,ItInfo) == 0) then
+      write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
+      if (pb%time%kind == 'adaptive') write(iout,*) 'dt = ', pb%time%dt
+      if (.not. pb%time%isdynamic) then 
+          write(iout,*) & 
+          'PCG iteration numbers (first/second passes) = ', pb%time%pcg_iters
+          else
+          write(iout,*) & 
+          'Max NR iteration numbers (first/second passes) = ', pb%time%nr_iters
+      end if
+    endif
 
- !   if (mod(it,ItInfo) == 0) then
- !     write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
- !     if (pb%time%kind == 'adaptive') write(iout,*) 'dt = ', pb%time%dt
- !     if (.not. pb%time%isdynamic) then 
- !         write(iout,*) & 
- !         'PCG iteration numbers (first/second passes) = ', pb%time%pcg_iters
- !         else
- !         write(iout,*) & 
- !         'Max NR iteration numbers (first/second passes) = ', pb%time%nr_iters
- !     end if
- !   endif
+    if (iexec>0) then
 
- !   if (iexec>0) then
+      !-- snapshot outputs
+      call PLOT_FIELD(pb,it,title,iout)
 
- !     !-- snapshot outputs
- !     call PLOT_FIELD(pb,it,title,iout)
+      !-- store seismograms
+!      if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
+      if(associated(pb%rec)) call REC_store(pb%rec,it,pb%grid)
 
- !     !-- store seismograms
-!!      if(associated(pb%rec) .and. pb%time%kind .ne. 'quasi-static') call REC_store(pb%rec,it,pb%grid)
- !     if(associated(pb%rec)) call REC_store(pb%rec,it,pb%grid)
+      !-- write data for faults, and possibly other BCs
+      call BC_write(pb%bc,pb%time,pb%fields%displ,pb%fields%veloc)
+    
+      !-- export energies
+      if (COMPUTE_ENERGIES) then
+        call energy_compute(pb%energy,pb%matpro,pb%matwrk,pb%grid,pb%fields)
+        call energy_write(pb%energy,pb%time%time)
+      endif
 
- !     !-- write data for faults, and possibly other BCs
- !     call BC_write(pb%bc,pb%time,pb%fields%displ,pb%fields%veloc)
- !   
- !     !-- export energies
- !     if (COMPUTE_ENERGIES) then
- !       call energy_compute(pb%energy,pb%matpro,pb%matwrk,pb%grid,pb%fields)
- !       call energy_write(pb%energy,pb%time%time)
- !     endif
+      if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
 
- !     if (COMPUTE_STRESS_GLUT) call stress_glut_write(pb%energy,pb%time%time)
+     endif
+  !------------------------------------------------------------------------
+     if (pb%time%kind=='adaptive') then
+       write(pb%time%ou_time, *) pb%time%it, pb%time%dt, pb%time%time
+     end if
 
- !   endif
- ! !------------------------------------------------------------------------
- !   if (pb%time%kind=='adaptive') then
- !     write(pb%time%ou_time, *) pb%time%it, pb%time%dt, pb%time%time
- !   end if
+    end if ! rank==0
 
     it = it + 1
     pb%time%time = pb%time%time + pb%time%dt
