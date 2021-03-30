@@ -48,6 +48,7 @@ module problem_class
    integer, pointer :: indexDofFix(:)=>null()
 
    integer :: ndof, ndim=2, ngll, npoin
+   logical :: isUpdateDMG, has_dynflt
 
    ! time integration coefficients
     type(timescheme_type) :: time

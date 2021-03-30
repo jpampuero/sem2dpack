@@ -161,10 +161,10 @@ subroutine FIELD_SetVecFromField(v, field, ierr)
   call VecAssemblyEnd(v,ierr)
 end subroutine
 
-subroutine FIELD_SetFieldFromVec(field, v, ierr)
+subroutine FIELD_SetFieldFromVec(field, v0, ierr)
 #include <petsc/finclude/petscksp.h>
   use petscksp
-  Vec :: v
+  Vec :: v0
   double precision, dimension(:,:), intent(inout)::field
   integer, dimension(size(field,1)) :: index1
   integer:: i, ndof, npoin, rank
@@ -172,8 +172,7 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
   PetscErrorCode :: ierr
 
   call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
-
-  if (rank==0) then
+  !scatter v to v0
   ndof  = size(field, 2)
   npoin = size(field, 1)
 
@@ -181,9 +180,9 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
   do i = 1, npoin
       index1(i) = (i - 1)*ndof + 1 
   end do
-
+  
   ! get the data from petsc vector (just for read)
-  call VecGetArrayReadF90(v, xx_v, ierr)
+  call VecGetArrayReadF90(v0, xx_v, ierr)
 
   ! set values for fortran fields
   do i = 1, ndof
@@ -192,8 +191,7 @@ subroutine FIELD_SetFieldFromVec(field, v, ierr)
   end do
 
   ! restore array
-  call VecRestoreArrayReadF90(v,xx_v,ierr)
-  end if
+  call VecRestoreArrayReadF90(v0,xx_v,ierr)
 end subroutine
 
 

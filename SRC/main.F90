@@ -18,7 +18,7 @@ program main
 
   type(problem_type) :: pb
   type(petsc_objects_type) :: petobj
-  real :: cputime0, cputime1, cputime2,cputime3
+  double precision :: cputime0=0, cputime1=0, cputime2=0,cputime3=0
   integer :: it, iexec, rank
   integer, parameter :: NT_CHECK=10
   PetscErrorCode :: ierr
@@ -38,7 +38,7 @@ program main
       inputfile='Par.inp'
   endif
 
-  call CPU_TIME(cputime0)
+  cputime0 = MPI_Wtime()
 
   if (rank==0) call ECHO_banner('Program  S E M 2 D P A C K : start', iout)
 !*************  i n p u t   p h a s e  **************
@@ -71,7 +71,8 @@ program main
       write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
   end if
 
-  call CPU_TIME( cputime1 )
+  cputime1 = MPI_Wtime()
+  cputime2 = MPI_Wtime()
   cputime0 = cputime1-cputime0
 
   it = 1
@@ -83,12 +84,19 @@ program main
     ! save the time step number
     pb%time%it = it
     
-!    call solve(pb, petobj)
+    call solve(pb, petobj)
+
+    if (it==NT_CHECK) cputime2 = MPI_Wtime()
+
+    if (mod(it,ItInfo) == 0) then 
+        cputime3 = MPI_Wtime()
+        cputime3 = cputime3 - cputime2
+        cputime2 = MPI_Wtime()
+    endif
 
   !-- CPU time info -----------------------------------------------------
   if (rank==0) then
     if (it == NT_CHECK) then
-      call CPU_TIME(cputime2)
       cputime2=(cputime2-cputime1)/dble(NT_CHECK)
       write(iout,'(/A,5(/2X,A,EN12.3),/)')   &
         '---  CPU TIME ESTIMATES (in seconds) :', &
@@ -101,7 +109,6 @@ program main
     endif
 
  !--- Intermediate OUTPUTS -------------------------------------------
-
     if (mod(it,ItInfo) == 0) then
       write(iout,200) it,pb%time%time,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
       if (pb%time%kind == 'adaptive') write(iout,*) 'dt = ', pb%time%dt
@@ -112,6 +119,7 @@ program main
           write(iout,*) & 
           'Max NR iteration numbers (first/second passes) = ', pb%time%nr_iters
       end if
+      write(iout, *) "Average time per step (s) = ", cputime3/dble(ItInfo)
     endif
 
     if (iexec>0) then
@@ -159,15 +167,15 @@ program main
     write(iout,*) 
 
   else
+    cputime3 = MPI_Wtime()      
    if (rank==0) then
    !-- CPU TIME INFO
-    call CPU_TIME(cputime3)      
     cputime3 = cputime3-cputime1
     write(iout,'(//A,5(/2X,A,EN12.3),/)')   &
-        '---  CPU TIME INFORMATION (in seconds) :', &
-        'CPU time for initialization . .', cputime0 ,&
-        'CPU time per timestep . . . . .', cputime3/dble(pb%time%nt) ,&
-        'Total solver CPU time . . . . .', cputime3,&
+        '---  MPI TIME INFORMATION (in seconds) :', &
+        'MPI time for initialization . .', cputime0 ,&
+        'MPI time per timestep . . . . .', cputime3/dble(pb%time%nt) ,&
+        'Total solver MPI time . . . . .', cputime3,&
         '                 (mins) . . . .', cputime3/60. ,&
         '                 (hours). . . .', cputime3/3600.
   
@@ -188,7 +196,6 @@ program main
   CHKERRQ(ierr)
   call PetscFinalize(ierr)
   !------------------- Petsc session End-------------------------
-
   !stop
 200 format("Timestep #",I8,"  t = ",EN12.3,"  vmax = ",EN12.3,"  dmax = ",EN12.3)
   end program main

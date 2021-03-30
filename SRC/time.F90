@@ -1,4 +1,6 @@
 module time_evol
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   implicit none
 
@@ -518,6 +520,19 @@ contains
   104 format(A,I0)
 
   end subroutine TIME_init
+
+  subroutine TIME_broadcast(t)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  type(timescheme_type), intent(in) :: t
+  integer :: rank, ierr
+  call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
+  call MPI_Bcast(t%time, 1, MPI_DOUBLE_PRECISION, 0, PETSC_COMM_WORLD, ierr)
+  call MPI_Bcast(t%dt, 1, MPI_DOUBLE_PRECISION, 0, PETSC_COMM_WORLD, ierr)
+  call MPI_Bcast(t%EQNum, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
+  call MPI_Bcast(t%isDynamic, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr)
+  call MPI_Bcast(t%isEQ, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr)
+  end subroutine
 
 !=======================================================================
   logical function TIME_needsAlphaField(t) 

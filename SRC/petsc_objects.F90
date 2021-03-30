@@ -21,9 +21,12 @@ module petsc_objects
 
    ! global displacement, velocity, acceleration, [npoin*ndof, 1]
    ! initialize subroutine in fields
-    Vec :: d, b 
+    Vec :: d, b, d0, b0 
+    VecScatter :: d_ctx, b_ctx, bd_fix_ctx 
+    IS :: isIndexDofFix
 
   end type petsc_objects_type
+  double precision :: FillRatio = 1.01
 
   public :: petsc_objects_type, init_petsc_objects, destroyPetscStruct, UpdateKsp
 
@@ -43,7 +46,7 @@ module petsc_objects
   type (problem_type), intent(in) :: pb
   type(petsc_objects_type), intent(inout) :: petobj
   integer :: ndof, ndim, ngll, npoin, rank
-!  PetscViewer :: viewer
+  PetscViewer :: viewer
   character(160)::ksptype
   character(160)::pctype
   PC            ::ksp_pc
@@ -62,11 +65,24 @@ module petsc_objects
  ! initialize Petsc Vec objects
   call VecCreate(PETSC_COMM_WORLD, petobj%d, ierr)
   call VecSetSizes(petobj%d, PETSC_DECIDE, ndof * npoin,ierr)
+  call VecSetBlockSize(petobj%d, ndof, ierr)
   call VecSetFromOptions(petobj%d, ierr)
   
   ! set initial values to 0
   call VecSet(petobj%d, 0d0, ierr)
   call VecDuplicate(petobj%d, petobj%b, ierr) ! right hand side
+  
+  ! Create scatter context and local sequential vectors
+  call VecScatterCreateToZero(petobj%d, petobj%d_ctx, petobj%d0, ierr)
+  call VecScatterCreateToZero(petobj%b, petobj%b_ctx, petobj%b0, ierr)
+
+  ! Create IS
+  call ISCreateGeneral(PETSC_COMM_WORLD, size(pb%IndexDofFix), &
+             pb%IndexDofFix - 1, PETSC_COPY_VALUES, petobj%isIndexDofFix, ierr)
+
+  ! Create scatter context from b to d in indexDofFix
+  call VecScatterCreate(petobj%d, petobj%isIndexDofFix, petobj%b, &
+             petobj%isIndexDofFix, petobj%bd_fix_ctx, ierr)
 
   if (rank==0) then
       if (info) then
@@ -109,9 +125,9 @@ module petsc_objects
   end if
 
  call CPU_TIME(cputime0)
-! call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
-! call MatView(petobj%K, viewer, ierr);CHKERRA(ierr)
-! call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(petobj%K, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
  call CPU_TIME(cputime1)
  cputime0 = cputime1-cputime0
 
@@ -148,13 +164,13 @@ module petsc_objects
  ! compute the A matrix: A = Xinv * K * Xinv
  ! the linear system is Xinv * K * Xinv * (X*d) = Xinv * f
  call CPU_TIME(cputime0)
- call MatMatMatMult(petobj%Xinv, petobj%K, petobj%Xinv, MAT_INITIAL_MATRIX, PETSC_DEFAULT_REAL, petobj%MatA, ierr)
+ call MatMatMatMult(petobj%Xinv, petobj%K, petobj%Xinv, MAT_INITIAL_MATRIX, FillRatio, petobj%MatA, ierr)
  call CPU_TIME(cputime1)
  cputime0 = cputime1-cputime0
  
-! call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
-! call MatView(pb%MatA, viewer, ierr);CHKERRA(ierr)
-! call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
+ call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
+ call MatView(petobj%MatA, viewer, ierr);CHKERRA(ierr)
+ call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
 
 ! write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
 !        '---  CPU TIME ESTIMATES (in seconds) :', &
@@ -164,8 +180,6 @@ module petsc_objects
  ! right hand side vector is modified in the solver using fortran subroutines
 
  call MatZeroRows(petobj%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, petobj%d, petobj%b, ierr)
-
- call MPI_Barrier(PETSC_COMM_WORLD, ierr)
 
  !call MatZeroRowsColumns(pb%MatA, size(pb%indexDofFix), pb%indexDofFix - 1, 1d0, pb%d, pb%b, ierr)
 
@@ -213,9 +227,9 @@ subroutine UpdateKsp(pb,petobj)
   integer::ndof, ngll, ndim
   PetscErrorCode :: ierr
 
-  ndof  = pb%fields%ndof
+  ndof  = pb%ndof
   ndim  = 2
-  ngll  = pb%grid%ngll
+  ngll  = pb%ngll
 
   call MatZeroEntries(petobj%K, ierr)
   call MAT_AssembleK(petobj%K, pb%matwrk, ndof, ngll, ndim, pb%grid%ibool, ierr)
@@ -237,9 +251,17 @@ end subroutine UpdateKsp
      PetscErrorCode :: ierr
      call MatDestroy(po%K, ierr)
      call MatDestroy(po%MatA, ierr)
+     call MatDestroy(po%X, ierr)
+     call MatDestroy(po%Xinv, ierr)
+     call KSPDestroy(po%ksp, ierr)
      call VecDestroy(po%d, ierr)
      call VecDestroy(po%b, ierr)
-     call KSPDestroy(po%ksp, ierr)
+     call VecDestroy(po%d0, ierr)
+     call VecDestroy(po%b0, ierr)
+     call VecScatterDestroy(po%b_ctx, ierr)
+     call VecScatterDestroy(po%d_ctx, ierr)
+     call VecScatterDestroy(po%bd_fix_ctx, ierr)
+     call ISDestroy(po%isIndexDofFix, ierr)
    end subroutine destroyPetscStruct
 
 end module petsc_objects

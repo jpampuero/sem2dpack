@@ -983,7 +983,7 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
 
   call MPI_Bcast(ne, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
 
-  batch_size = floor(dble(ne)/dble(nproc*2)) 
+  batch_size = 50000 
 
   do e = 1, ne
 
@@ -1009,56 +1009,6 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
 
   end do !e
 
-!  ! receive chunk_size and allocate array 
-!  if (rank/=0) then
-!      call MPI_Recv(batch_size,1,MPI_INTEGER, src, 0, PETSC_COMM_WORLD,stat,ierr)
-!      allocate(rows_chunk(batch_size*ndof*ngll*ngll))
-!      allocate(Ke_chunk(batch_size*ndof**2*ngll**4))
-!      rows_chunk = 0
-!      Ke_chunk   = 0 
-!
-!      ! receive data from src 
-!      call MPI_Recv(rows_chunk, batch_size*ndof*ngll**2 , &
-!                MPI_DOUBLE_PRECISION, src, 0, PETSC_COMM_WORLD, stat, ierr)
-!      call MPI_Recv(Ke_chunk, batch_size*ndof**2*ngll**4 ,&
-!                MPI_DOUBLE_PRECISION, src, 0, PETSC_COMM_WORLD, stat, ierr)
-!
-!      write(*, *) "Done receiving values rank=", rank, "batch_size", batch_size
-!      write(*, *) "rank, max_row",rank, maxval(rows_chunk) 
-!      ! set values at local processors
-!      do ie = 1, 1
-!          rows   = 0
-!          Ke     = 0
-!          ! store rows and Ke into chunk data.
-!          offset = ndof * ngll * ngll
-!          istart = (ie - 1) * offset + 1
-!          iend   = ie * offset
-!          rows(:)= rows_chunk(istart:iend)
-!          write(*, *) istart , iend
-!          write(*, *) rows
-!          
-!          offset = ndof**2 * ngll**4
-!          istart = (ie - 1) * offset + 1
-!          iend   = ie * offset
-!          write(*, *) istart , iend
-!          write(*, *) Ke_chunk(istart:iend)
-!          Ke     = reshape(Ke_chunk(istart:iend),(/ndof*ngll**2, ndof*ngll**2/))
-!          write(*, *) Ke
-!
-!          call MatSetValues(KG, ndof*ngll*ngll, rows, ndof*ngll*ngll, rows, Ke, ADD_VALUES, ierr)
-!          call MatGetSize(KG, nrow, ncol, ierr)
-!          write(*, *) "Size of KG:", nrow, ncol
-!          write(*, *) "Done setting values rank=, ie", rank, ie
-!          CHKERRA(ierr)
-!      end do !ie
-!      write(*, *) "Done setting values rank=", rank
-!      ! deallocate buffer
-!      deallocate(rows_chunk, Ke_chunk)
-!  end if ! rank/=0
-!
-!  call MPI_Barrier(PETSC_COMM_WORLD, ierr)
-!  write(*, *) "Done setting all values rank=", rank
-  ! assemble the global stiffness matrix
   call MatAssemblyBegin(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
   call MatAssemblyend(KG, MAT_FINAL_ASSEMBLY,ierr);CHKERRA(ierr)
 

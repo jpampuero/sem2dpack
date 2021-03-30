@@ -27,10 +27,10 @@ subroutine init_main(pb, petobj, ierr, InitFile)
   use petsc_objects, only : petsc_objects_type, init_petsc_objects
   use mesh_gen, only : MESH_build
   use spec_grid, only : SE_init
-  use bc_gen, only : BC_init, BC_build_transform_mat, bc_GetIndexDofFix, bc_nDofFix
+  use bc_gen, only : BC_init, BC_build_transform_mat, bc_GetIndexDofFix, bc_nDofFix, bc_has_dynflt
   use mat_mass, only : MAT_MASS_init
   use mat_gen, only : MAT_init_prop, MAT_init_work, MAT_diag_stiffness_init, &
-                      MAT_init_KG, MAT_AssembleK, MAT_testKe
+                      MAT_init_KG, MAT_AssembleK, MAT_testKe, MAT_isUpdateDMG
   use mat_elastic, only : MAT_IsElastic
   use time_evol, only : TIME_init, TIME_needsAlphaField, TIME_getTimeStep, TIME_getNbTimeSteps
   use plot_gen, only : PLOT_init
@@ -101,14 +101,10 @@ subroutine init_main(pb, petobj, ierr, InitFile)
 
   ! init Time for all processors
   call TIME_init(pb%time, grid_cfl) ! define time evolution coefficients
-
- if (rank==0) then
- ! define work arrays and data
-  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,ndof,TIME_getTimeStep(pb%time))
-
+  
  ! initialise fields
-  if (info) write(iout,fmt1,advance='no') 'Initializing kinematic fields'
   call FIELDS_init(pb%fields,npoin, TIME_needsAlphaField(pb%time))
+  if (info) write(iout,fmt1,advance='no') 'Initializing kinematic fields'
   if(init_cond) call FIELDS_read(pb%fields,InitFile) ! read from a file
   if (info) then
     write(iout,fmtok)
@@ -117,6 +113,11 @@ subroutine init_main(pb, petobj, ierr, InitFile)
     write(iout,*)
   endif
 
+ if (rank==0) then
+ ! define work arrays and data
+  call MAT_init_work(pb%matwrk,pb%matpro,pb%grid,ndof,TIME_getTimeStep(pb%time))
+  pb%isUpdateDMG = MAT_isUpdateDMG(pb%matwrk(1)) 
+
  ! build the mass matrix
   call MAT_MASS_init(pb%rmass,pb%matpro,pb%grid,pb%fields%ndof)
 
@@ -124,10 +125,13 @@ subroutine init_main(pb, petobj, ierr, InitFile)
   if (info) write(iout,fmt1,advance='no') 'Defining boundary conditions'
   call BC_init(pb%bc,pb%grid,pb%matpro,pb%rmass,pb%time,pb%src,pb%fields%displ,pb%fields%veloc)
   if (info) write(iout,fmtok)
+  pb%has_dynflt = bc_has_dynflt(pb%bc)
 
  ndoffix = bc_nDofFix(pb%bc, ndof)
  end if
  
+ call MPI_Bcast(pb%has_dynflt, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr_mpi)
+ call MPI_Bcast(pb%isUpdateDMG, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr_mpi)
  call MPI_Bcast(ndoffix, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr_mpi)
  allocate(pb%indexDofFix(ndoffix))
  ! fortran index

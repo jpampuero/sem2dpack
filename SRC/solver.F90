@@ -7,13 +7,13 @@ module solver
 
   use problem_class
   use petsc_objects 
+  use echo, only : ItInfo
   use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
-                      bc_has_dynflt, bc_update_bcdv, bc_reset
+                      bc_update_bcdv, bc_reset, bc_has_dynflt
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
-  use mat_gen, only : MAT_isUpdateDMG
 
   implicit none
   private
@@ -25,9 +25,15 @@ contains
 !=====================================================================
 
 subroutine solve(pb, petobj)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
 
   type(problem_type), intent(inout) :: pb  
   type(petsc_objects_type), intent(inout) :: petobj
+  integer:: rank
+  PetscErrorCode :: ierr
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
+
   select case (pb%time%kind)
     case ('adaptive')
       call solve_adaptive(pb, petobj)
@@ -48,17 +54,28 @@ end subroutine solve
 ! depending on the 'isDynamic' flag
 !
 subroutine solve_adaptive(pb, petobj)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  use time_evol, only : TIME_broadcast
   type(problem_type), intent(inout) :: pb
   type(petsc_objects_type), intent(inout) :: petobj
   logical::id1, id2, isw
   integer,parameter::IS_DYNFLT=6
+  PetscErrorCode :: ierr
   double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
+  integer :: rank
+  
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
   
   id1 = pb%time%isdynamic
   if (pb%time%isDynamic) then
       ! dynamic, obtain perturbation
       pb%fields%displ = pb%fields%displ - pb%fields%dn
-      call solve_dynamic(pb, petobj)
+
+      if (rank==0) then
+          call solve_dynamic(pb, petobj)
+      end if
+      
       ! add perturbation back to the background displacement
       pb%fields%displ = pb%fields%displ + pb%fields%dn
   else
@@ -73,7 +90,13 @@ subroutine solve_adaptive(pb, petobj)
       pb%fields%dn = pb%fields%displ
   end if
 
-  if (.not. pb%time%fixdt) call update_adaptive_step(pb)
+  if (rank==0) then
+      if (.not. pb%time%fixdt) call update_adaptive_step(pb)
+  end if
+
+  ! broad cast constants in t
+  call TIME_broadcast(pb%time)
+
   id2 = pb%time%isdynamic
   isw = id2 .and. (.not. id1)
   if (isw) then
@@ -451,39 +474,47 @@ subroutine solve_quasi_static_petsc(pb, petobj)
   PetscScalar, pointer :: xx_d(:)
   PetscScalar, pointer :: xx_b(:)
   logical :: isUpdateDMG
-  isUpdateDMG = MAT_isUpdateDMG(pb%matwrk(1))
+  logical :: print_time
+  integer :: rank
+  double precision :: start_time, end_time, elapse_time
+  character(160):: outputString
   
-  ndof  = pb%fields%ndof
-  npoin = pb%fields%npoin
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
+  print_time = rank==0 .and. mod(pb%time%it, ItInfo) == 0
 
-  ! points to displacement
-  ! save some memory by modifying in place
-  d => pb%fields%displ
-  v => pb%fields%veloc
-  ! use acceleration and f to work with force
-  a => pb%fields%accel
-  f => pb%fields%accel
+  ndof  = pb%ndof
+  npoin = pb%npoin
 
-  dt = pb%time%dt
-  tn = pb%time%time - dt! previous time step 
+  isUpdateDMG = pb%isUpdateDMG
+  has_dynflt  = pb%has_dynflt
+
+  if (rank==0) then
+      ! points to displacement
+      ! save some memory by modifying in place
+      d => pb%fields%displ
+      v => pb%fields%veloc
+      ! use acceleration and f to work with force
+      a => pb%fields%accel
+      f => pb%fields%accel
+
+      dt = pb%time%dt
+      tn = pb%time%time - dt! previous time step 
+      
+      ! use additional memory to keep the previous displacement
+      ! use to update predictor for rsf faults
+      d_pre = pb%fields%displ
+      v_pre = pb%fields%veloc
+      
+      ! compute fp, which does not change over time step
+      call compute_Fint_EP(fp, pb)
+      
+  end if
+      ! reassemble the stiffness matrix and configure Ksp
+      if (pb%time%isUpdateKsp) call UpdateKsp(pb, petobj)
   
-  ! use additional memory to keep the previous displacement
-  ! use to update predictor for rsf faults
-  d_pre = pb%fields%displ
-  v_pre = pb%fields%veloc
-  
-  ! check if there's dynflt boundary
-  has_dynflt = bc_has_dynflt(pb%bc)
-
-  ! compute fp, which does not change over time step
-  call compute_Fint_EP(fp, pb)
-  
-  ! reassemble the stiffness matrix and configure Ksp
-  if (pb%time%isUpdateKsp) call UpdateKsp(pb, petobj)
-
   do j = 1, 2
-   
     pb%time%pcg_iters = 0
+    if (rank==0) then 
     ! update displacement to obtain a better initial guess for pcg solver
     ! update both d and pb%fields%disp
     
@@ -497,6 +528,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     ! transform fields, apply half slip rate on side -1 and then transform back
     ! different from dynamic, update displacement as well.
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
+    end if
    
     !mechanical balance without update damage variable
     ! start 2 passes
@@ -505,6 +537,8 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     ! d(fault) = d_pre(fault) + dt * v(fault)
     ! v  = 0.5 * (vpre + v)
     !d = d_pre + (v + v_pre)/2d0 *dt
+
+    if (rank==0) then
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
     f=0d0
 
@@ -517,28 +551,58 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     ! transform d to X*d, f to Xinv*f
     call BC_trans(pb%bc, d,  1)
     call BC_trans(pb%bc, f, -1)
+    end if
 
+    start_time = MPI_Wtime()
     call FIELD_SetVecFromField(petobj%d, d, ierr)
     call FIELD_SetVecFromField(petobj%b, f, ierr)
-    call VecGetArrayReadF90(petobj%d, xx_d, ierr)
-    call VecGetArrayF90(petobj%b, xx_b, ierr)
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
 
-    ! set the RHS to be the same value as d at dirichlet dofs
-    xx_b(pb%indexDofFix) = xx_d(pb%indexDofFix)
-    
-    call VecRestoreArrayReadF90(petobj%d,xx_d,ierr)
-    call VecRestoreArrayF90(petobj%b,xx_b,ierr)
-   
+    if (print_time) then 
+    write(*, *) 'Elapse Time for setting d b from local vectors =', elapse_time, 's'
+    end if
+
+    ! scatter d to b
+    start_time = MPI_Wtime()
+    call VecScatterBegin(petobj%bd_fix_ctx,petobj%d,petobj%b,INSERT_VALUES,SCATTER_FORWARD,ierr)
+    call VecScatterEnd(petobj%bd_fix_ctx,petobj%d,petobj%b,INSERT_VALUES,SCATTER_FORWARD,ierr)
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+
+!    if (print_time) then 
+!    write(*, *) 'Elapse Time for VecScatter fix dof =', elapse_time, 's'
+!    end if
+
     ! solve the linear system for d
+    start_time = MPI_Wtime()
     call KSPSolve(petobj%ksp, petobj%b, petobj%d, ierr)  
     CHKERRQ(ierr) 
-
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then 
+    write(*, *) 'Elapse Time for KspSolve =', elapse_time, 's'
+    end if
+    
     ! return the number of iterations
     call KSPGetIterationNumber(petobj%ksp, pb%time%pcg_iters(i), ierr)
 
     ! copy the displacement from converged solution in petsc to d
-    call FIELD_SetFieldFromVec(d, petobj%d, ierr)  
+    start_time = MPI_Wtime()
+    call VecScatterBegin(petobj%d_ctx,petobj%d,petobj%d0,INSERT_VALUES,SCATTER_FORWARD,ierr);
+    call VecScatterEnd(petobj%d_ctx,petobj%d,petobj%d0,INSERT_VALUES,SCATTER_FORWARD,ierr);
 
+    if (rank==0) then
+        call FIELD_SetFieldFromVec(d, petobj%d0, ierr)  
+    end if 
+    
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then
+    write(*, *) 'Elapse Time for copy petsc vec d to local d0 =', elapse_time, 's'
+    end if
+
+    if (rank==0) then
     ! transfer the d' to d
     call BC_trans(pb%bc, d,  -1)
 
@@ -547,6 +611,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
 
     ! detect if there's dynflt fault boundary
     ! if not, break the loop and exit after the pcg solver
+    end if
 
     if (.not. has_dynflt) exit
     ! apply boundary conditions including following: 
@@ -558,14 +623,23 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     ! recompute the force use the updated total disp
     ! do not update damage state variable
 
+    start_time = MPI_Wtime()
+    if (rank==0) then
     call compute_Fint(f, d, pb%fields%veloc, pb, .false.)
-
     ! update rate-state fault
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+    end if
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then
+    write(*, *) 'Elapse Time for compute_Fint=', elapse_time, 's'
+    end if
+
   enddo !i 
 
   if (.not. isUpdateDMG) exit
-  
+!
+  if (rank==0) then
   ! now compute the maximum time step to update the damage variable
   call compute_dtmax(d, pb, dtmax)
   
@@ -593,11 +667,14 @@ subroutine solve_quasi_static_petsc(pb, petobj)
       call bc_reset(pb%bc, dt)
       ! redo the mechanical balance
   end if
+  end if ! rank==0
   enddo !j
 
+  if (rank==0) then
   ! declare final slip values on the fault
   call bc_update_bcdv(pb%bc, d, pb%time%time)
   a   = 0d0
+  end if
   !a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static_petsc
@@ -652,17 +729,19 @@ end subroutine
 !=====================================================================
 ! f = - K * d 
 ! update: update the internal variables
-subroutine compute_Fint(f,d,v,pb,update)
-
+subroutine compute_Fint(f, d, v, pb, update, petobj)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
   use fields_class, only : FIELD_get_elem, FIELD_add_elem
   use mat_gen, only : MAT_Fint
   use constants, only : TINY_XABS
-
+  
   double precision, dimension(:,:), intent(out) :: f
   double precision, dimension(:,:), intent(in) :: d,v
   type(problem_type), intent(inout) :: pb
   logical, optional :: update
-  logical :: update_in
+  type(petsc_objects_type), optional :: petobj
+  logical :: update_in, f_use_matrix
 
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc,vloc,floc
   double precision :: E_ep, E_el, sg(pb%fields%ndof+1), sgp(pb%fields%ndof+1)
