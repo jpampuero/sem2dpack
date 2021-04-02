@@ -203,13 +203,11 @@ contains
       type(rsf_type), intent(inout) :: f
       double precision, intent(in) :: mu(:), v(:)
       double precision, dimension(size(f%theta)) :: psi
-
-      ! compute psi as the matlab code
-      psi     = (mu - f%mus - f%a*log(v/f%Vstar))/f%b 
-
-      f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
-               * f%Dc / f%Vstar
-
+      
+      ! initialize
+!      f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
+!               * f%Dc / f%Vstar
+      f%theta = f%Dc/f%Vstar * exp(f%a/f%b * log(2*f%Vstar/v * sinh(mu/f%a)) - f%mus/f%b)
   end subroutine rsf_init_theta
 
 ! reset the state variable and update to new dt
@@ -323,13 +321,6 @@ contains
   double precision, dimension(size(v)) :: v_new,theta_new
   integer :: it, iter
 
-  ! Cutoff small amplitude of slip rate
-!  do it=1,size(v)
-!    if(abs(v(it))<1.0d-16) then
-!        v(it)=SIGN(1.0d-16,v(it))
-!    endif 
-!  enddo
-
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1))
@@ -352,9 +343,8 @@ contains
 ! Note: most often sigma is negative (compressive) 
 !
   subroutine rsf_qs_solver(v,tau,sigma,f)
-
-  double precision, dimension(:), intent(inout) :: v
   double precision, dimension(:), intent(in) :: sigma,tau
+  double precision, dimension(:), intent(inout) :: v
   double precision, dimension(size(v)) :: theta
   type(rsf_type), intent(inout) :: f
  
@@ -692,8 +682,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   use constants, only: PI
 
   type(rsf_type), intent(inout) :: f
-  double precision, intent(inout) :: hnode(:) 
-  double precision, intent(inout) :: mu_star(:) 
+  double precision, intent(in) :: hnode(:) 
+  double precision, intent(in) :: mu_star(:) 
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
 
