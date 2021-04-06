@@ -7,7 +7,7 @@ INSTALL INSTRUCTIONS
 3. Edit the Makefile according to your FORTRAN 90 compiler.
 4. Compile: 
 	make
-5. Go to the SEM2DPACK/PRE directory, edit the Makefile, then compile.
+5. Go to the SEM2DPACK/POST directory, edit the Makefile, then compile.
 
 On normal compilation you end up with executable files,
 among which sem2dsolve, in your /home/myhome/bin/.
