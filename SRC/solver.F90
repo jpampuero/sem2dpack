@@ -251,8 +251,8 @@ subroutine solve_leapfrog(pb,petobj)
   f => a
                        
   d = d + pb%time%dt * v_mid
-   
-  call compute_Fint(f,d,v_mid,pb)
+  ! Maybe replace by K * d
+  call compute_Fint(f,d,v_mid,pb) 
   call SO_add(pb%src, pb%time%time, f)
   call BC_apply(pb%bc,pb%time,pb%fields,f)
 
@@ -599,7 +599,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     end_time   = MPI_Wtime()
     elapse_time = end_time - start_time
     if (print_time) then
-    write(*, *) 'Elapse Time for copy petsc vec d to local d0 =', elapse_time, 's'
+!    write(*, *) 'Elapse Time for copy petsc vec d to local d0 =', elapse_time, 's'
     end if
 
     if (rank==0) then

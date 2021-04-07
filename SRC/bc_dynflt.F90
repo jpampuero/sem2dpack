@@ -10,14 +10,19 @@ module bc_dynflt
   private
 
   type bc_dynflt_input_type
-    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion,V
+    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion,V,vlock
   end type bc_dynflt_input_type
 
   type bc_dynflt_type
     private
     integer :: npoin
+    integer :: ndof
     double precision:: hnodeFix
     integer, dimension(:), pointer :: node1=>null(), node2=>null()
+    integer, dimension(:), pointer :: ilock=>null()
+    integer, dimension(:), pointer :: iactive=>null()
+    logical, dimension(:), pointer :: isactive=>null()
+
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
@@ -35,6 +40,7 @@ module bc_dynflt
    ! for outputs:
     double precision :: ot1, odt, odtD, odtS, ot
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
+    integer, pointer, dimension(:) :: oix_export => null()
     logical :: osides
   end type bc_dynflt_type
 
@@ -74,6 +80,7 @@ contains
 !                normal stress. It must be positive or zero.
 ! ARG: hnodeFix [dble] [0d0] user defined fixed hnode (adaptive time stepping)
 ! ARG: opening  [log] [T] Allow fault opening instead of tensile normal stress
+! ARG: vlock    [dble] [0d0] Locked fault region has vlock>0.
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
 ! ARG: Tt       [dble] [0d0] Initial tangent traction 
 !                (positive antiplane: y>0; positive inplane: right-lateral slip)
@@ -124,17 +131,17 @@ contains
 
   type(bc_dynflt_type), intent(out) :: bc
   integer, intent(in) :: iin
-  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V
+  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V,vlock
   double precision :: otdD, otdS
   character(20) :: TtH,TnH, SxxH,SxyH,SxzH,SyzH,SzzH &
-                  ,dt_txt,oxi2_txt, cohesionH, VH
+                  ,dt_txt,oxi2_txt, cohesionH, VH, vlockH
   character(3) :: friction(2)
   integer :: i,oxi(3) 
   logical :: opening, osides
   double precision:: hnodeFix
 
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
-                         ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH &
+                         ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH, vlock, vlockH &
                          ,ot1,otd,oxi,osides, friction, opening &
                          ,cohesion, cohesionH, V, VH, &
                          otdD, otdS,hnodeFix
@@ -146,6 +153,8 @@ contains
   Sxz = 0d0
   Syz = 0d0
   Szz = 0d0
+  vlock= 0d0
+  vlockH = ''
 
   TtH = ''
   TnH = ''
@@ -200,6 +209,7 @@ contains
   call DIST_CD_Read(bc%input%Syz,Syz,SyzH,iin,SyzH)
   call DIST_CD_Read(bc%input%Szz,Szz,SzzH,iin,SzzH)
   call DIST_CD_Read(bc%input%V,V,VH,iin,VH)
+  call DIST_CD_Read(bc%input%vlock,vlock,vlockH,iin,vlockH)
 
   bc%allow_opening = opening
 
@@ -287,10 +297,12 @@ contains
   type(timescheme_type), intent(in) :: time
   type(bc_periodic_type), pointer :: perio
 
-  double precision, dimension(:), pointer :: Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V
+  double precision, dimension(:), pointer :: & 
+               Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V,vlock
+
   double precision, pointer :: tmp_n1(:,:), tmp_B(:), tmp_mustar(:)
   double precision :: dt
-  integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit
+  integer :: i,j,k,hunit,npoin,NSAMP,NDAT,ndof,onx,ounit, nlock
   character(25) :: oname,hname
   logical :: two_sides, adapt_time
   double precision :: hnode_left, hnode_right
@@ -298,9 +310,10 @@ contains
   double precision, allocatable:: rsf_a(:) ! rsf a parameter
   double precision, allocatable:: rsf_b(:) ! rsf b parameter
   
-  nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V)
+  nullify(Tt0,Tn0,Sxx,Sxy,Sxz,Syz,Szz,Tx,Ty,Tz,nx,nz,V, vlock)
 
   ndof = size(M,2)
+  bc%ndof = ndof
 
 ! if fault is on a domain boundary and symmetry is required, 
 ! bc2 and invM2 are not defined
@@ -442,12 +455,14 @@ contains
   bc%T = 0d0
   bc%D = 0d0
   bc%Dp = 0d0
-  bc%V = 0d0  ! initialize 
+  bc%V  = 0d0  ! initialize 
+
   call DIST_CD_Init(bc%input%V, bc%coord, V)
 
   bc%V(:,1) = V
-  deallocate(V)
 
+  deallocate(V)
+  
 ! Initial stress
   allocate(bc%T0(npoin,2))
   allocate(bc%Tp(npoin,2))
@@ -458,6 +473,37 @@ contains
   call DIST_CD_Init(bc%input%Sxz,bc%coord,Sxz)
   call DIST_CD_Init(bc%input%Syz,bc%coord,Syz)
   call DIST_CD_Init(bc%input%Szz,bc%coord,Szz)
+  call DIST_CD_Init(bc%input%vlock, bc%coord, vlock)
+
+  ! set the ilock values
+  allocate(bc%isactive(npoin))
+  bc%isactive  = (.not. vlock > 0d0)
+  vlock = 0d0
+  where (.not. bc%isactive)
+     vlock = 1d0
+  end where
+  nlock  = int(sum(vlock))
+  allocate(bc%ilock(nlock))
+  allocate(bc%iactive(npoin-nlock))
+
+  ! save the index of active nodes and locked nodes
+  j = 0
+  k = 0
+  do i = 1, npoin
+      if (.not. bc%isactive(i)) then
+          j = j + 1
+          bc%ilock(j) = i
+      end if
+      if (bc%isactive(i)) then
+          k = k + 1
+          bc%iactive(k) = i
+      end if
+  end do
+
+  deallocate(vlock)
+
+  ! Set the initial slip rate for locked region to 0
+  bc%V(bc%ilock,:) = 0d0
 
   nx => bc%n1(:,1)
   nz => bc%n1(:,2)
@@ -480,14 +526,15 @@ contains
   dt =  time%dt 
 
   ! Normal stress response
-  call normal_init(bc%normal, dt, bc%T0(:,2))
+  call normal_init(bc%normal, dt, bc%T0(bc%iactive,2))
 
-! Initial friction
+! Initial friction only on the active nodes
   allocate(bc%MU(npoin))
+  bc%MU = 0d0
 
   if (associated(bc%swf)) then
-    call swf_init(bc%swf,bc%coord,dt)
-    bc%MU = swf_mu(bc%swf)
+    call swf_init(bc%swf,bc%coord(:, bc%iactive),dt)
+    bc%MU(bc%iactive) = swf_mu(bc%swf)
     if (associated(bc%twf)) then 
         bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
     end if
@@ -498,7 +545,8 @@ contains
     if (associated(bc%twf)) then
         bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
     end if
-    call rsf_init(bc%rsf,bc%coord, dt, bc%Mu, abs(bc%V(:, 1)))
+    
+    call rsf_init(bc%rsf,bc%coord(:, bc%iactive), dt, bc%Mu(bc%iactive), abs(bc%V(bc%iactive, 1)))
 
   elseif (associated(bc%twf)) then
     bc%MU = twf_mu(bc%twf,bc%coord,0d0)
@@ -508,23 +556,25 @@ contains
   call DIST_CD_Init(bc%input%cohesion,bc%coord,bc%cohesion)
   if (any(bc%cohesion < 0d0)) call IO_abort('bc_dynflt_init: cohesion must be positive')
 
-
   ! update global velocity at the fault nodes
   ! rotate bc%V to x,z frame 
-  bc%V  = rotate(bc, bc%V, -1)
+  if (ndof==2) bc%V  = rotate(bc, bc%V, -1)
   
+  ! maximum slip velocity before 
+  vg = 0d0
+
   ! transform global velocity
   call BC_DYNFLT_trans(bc, vg, 1) 
 
-  ! update fault slip velocity
-  vg(bc%node1, :) = bc%V/2d0
-  
+  ! update fault slip velocity only on active region
+  vg(bc%node1(bc%iactive), :) = bc%V(bc%iactive,:)/2d0
+
   ! rotate back 
-  bc%V  = rotate(bc, bc%V, 1)
+  if (ndof==2) bc%V  = rotate(bc, bc%V, 1)
   
   ! if rsf fault, subtract plate rate 
   if (associated(bc%rsf)) then
-      vg(bc%node1, 1) = vg(bc%node1, 1) - rsf_vplate(bc%rsf)/2d0 
+      vg(bc%node1(bc%iactive), 1) = vg(bc%node1(bc%iactive), 1) - rsf_vplate(bc%rsf)/2d0 
   end if
   
   call BC_DYNFLT_trans(bc, vg, -1) 
@@ -564,25 +614,46 @@ contains
 
   ! output initial parameters including state variable
   open(ounit,file=oname,status='replace')
-  allocate(theta(bc%npoin))
-  allocate(rsf_a(bc%npoin))
-  allocate(rsf_b(bc%npoin))
-  
+  allocate(theta(npoin))
+  allocate(rsf_a(npoin))
+  allocate(rsf_b(npoin))
+
+  theta = 0d0
+  rsf_a = 0d0
+  rsf_b = 0d0
+  onx   = 0 
   if (associated(bc%rsf)) then
       ! get state
-      theta = rsf_get_theta(bc%rsf)
-      rsf_a = rsf_get_a(bc%rsf)
-      rsf_b = rsf_get_b(bc%rsf)
+      theta(bc%iactive) = rsf_get_theta(bc%rsf)
+      rsf_a(bc%iactive) = rsf_get_a(bc%rsf)
+      rsf_b(bc%iactive) = rsf_get_b(bc%rsf)
       do i=bc%oix1,bc%oixn,bc%oixd
-        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i), bc%V(i, 1), &
-                       rsf_a(i), rsf_b(i)                     
+        if (bc%isactive(i)) then
+            onx = onx + 1
+            write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i), bc%V(i, 1), &
+                           rsf_a(i), rsf_b(i)                     
+        end if
       enddo
   else
       do i=bc%oix1,bc%oixn,bc%oixd
-        write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i)
+        if (bc%isactive(i)) then
+            onx = onx + 1
+            write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i)
+        end if
       enddo
   end if
   close(ounit)
+  
+  ! save the export x index
+  allocate(bc%oix_export(onx))
+
+  j = 0
+  do i=bc%oix1,bc%oixn,bc%oixd
+      if (bc%isactive(i)) then
+          j  = j + 1
+          bc%oix_export(j) = i
+      end if
+  end do
 
   deallocate(theta, rsf_a, rsf_b)
 
@@ -637,7 +708,7 @@ contains
   ! output state variable if rsf is associated
   if (associated(bc%rsf)) NDAT = NDAT + 1
 
-  onx = (bc%oixn-bc%oix1)/bc%oixd +1
+!  onx = (bc%oixn-bc%oix1)/bc%oixd +1
 
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
   hunit = IO_new_unit()
@@ -679,7 +750,9 @@ contains
 
   write(hunit,*) 'XPTS ZPTS'
   do i=bc%oix1,bc%oixn,bc%oixd
-    write(hunit,*) bc%coord(:,i)
+    if (bc%isactive(i)) then
+        write(hunit,*) bc%coord(:,i)
+    end if
   enddo
   close(hunit)
 
@@ -808,6 +881,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
   double precision, dimension(bc%npoin, 2) :: T
   double precision, dimension(bc%npoin, size(V, 2)) :: dV, dF 
+  double precision, dimension(:), allocatable::dV_tmp
   integer :: ndof, i
 
   ndof = size(MxA,2)
@@ -817,7 +891,6 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   dF = -dF                   ! correct sign, dF = [Kd]
 
   dV     = get_jump(bc, V)   ! slip velocity  
-
 ! compute fault traction
   do i =1,ndof
       ! Conforming mesh is assumed here
@@ -833,7 +906,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   
   ! add plate rate to the fault slip
   if (associated(bc%rsf)) then
-      dV(:, 1) = dV(:, 1) + rsf_vplate(bc%rsf)
+      dV(bc%iactive, 1) = dV(bc%iactive, 1) + rsf_vplate(bc%rsf)
   else
       call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!')
   end if
@@ -846,20 +919,28 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
-  if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
+  if (bc%allow_opening) T(bc%iactive,2) = min(T(bc%iactive,2),0.d0) 
 
   ! Update normal stress variables
   ! Note this regularization is negligible in quasi-static
-  call normal_update(bc%normal, T(:,2), dV(:,1)) 
+  call normal_update(bc%normal, T(bc%iactive,2), dV(bc%iactive,1)) 
 
  !-- velocity and state dependent friction 
  ! compute new slip velocity
 
   if (associated(bc%rsf)) then
-    call rsf_qs_solver(dV(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf)
+    allocate(dV_tmp(size(bc%iactive)))
+    dV_tmp = dV(bc%iactive,1)
+!    T_tmp  = 0d0
+    call rsf_qs_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf)
+
+    dV(bc%iactive,1) = dV_tmp 
+    deallocate(dV_tmp)
   else
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
+
+  dV(bc%ilock, :) = 0d0 
 
 ! save total stress as Tn
   bc%Tp = T
@@ -869,7 +950,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
 ! Subtract plate rate
   if (associated(bc%rsf)) then
-    dV(:, 1) = dV(:, 1) - rsf_vplate(bc%rsf)
+    dV(bc%iactive, 1) = dV(bc%iactive, 1) - rsf_vplate(bc%rsf)
   else
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!')
   end if
@@ -894,7 +975,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   call BC_DYNFLT_trans(bc, V, -1)
 
   bc%V = dV
-  if (associated(bc%rsf)) bc%V(:,1) = bc%V(:,1) + rsf_vplate(bc%rsf)
+  if (associated(bc%rsf)) bc%V(bc%iactive,1) = bc%V(bc%iactive,1) + rsf_vplate(bc%rsf)
   !bc%D = bc%D + bc%V * time%dt
 
 end subroutine BC_DYNFLT_apply_quasi_static
@@ -905,9 +986,13 @@ subroutine BC_DYNFLT_update_BCDV(bc, D, time)
   double precision :: time 
 
   bc%D  = get_jump(bc,D);
-  bc%D  = rotate(bc,bc%D, 1)
+  
+  if (bc%ndof==2) bc%D  = rotate(bc,bc%D, 1)
+
+  bc%D(bc%ilock,:) = 0d0
+
   bc%Dp = bc%D
-  if (associated(bc%rsf)) bc%D(:,1)=bc%D(:,1) + rsf_vplate(bc%rsf)*time 
+  if (associated(bc%rsf)) bc%D(bc%iactive,1)=bc%D(bc%iactive,1) + rsf_vplate(bc%rsf)*time 
 
 end subroutine BC_DYNFLT_update_BCDV
 
@@ -926,9 +1011,10 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   double precision, intent(inout) :: MxA(:,:)
 
   double precision, dimension(bc%npoin) :: strength
-  double precision, dimension(bc%npoin,2) :: T
+  double precision, dimension(bc%npoin,2) :: T, T_stick
   double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA,dF
   integer :: ndof, i
+  double precision, dimension(:), allocatable :: dV_tmp
 
   ndof = size(MxA,2)
   
@@ -944,6 +1030,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
 ! T_stick
   T(:,1:ndof) = bc%Z * ( dV + bc%CoefA2V*dA )
+  T_stick(:, 1:ndof)     = T(:, 1:ndof)
 
 ! rotate to fault frame (tangent,normal) if P-SV
   if (ndof==2) then
@@ -955,6 +1042,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
 ! apply symmetry to normal stress when needed
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
+  if (.not.associated(bc%bc2) .or. ndof==1) T_stick(:,2)=0d0 
 
 ! add initial stress
 ! T is the stress from perturbation, must add background stress
@@ -967,18 +1055,23 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
-  if (bc%allow_opening) T(:,2) = min(T(:,2),0.d0) 
+  if (bc%allow_opening) T(bc%iactive,2) = min(T(bc%iactive,2),0.d0) 
   ! Update normal stress variables
-  call normal_update(bc%normal,T(:,2),dV(:,1)) 
+  call normal_update(bc%normal,T(bc%iactive,2),dV(bc%iactive,1)) 
  !DEVEL: maybe need here a second loop to obtain second order
 
  ! Update friction and shear stress
  !WARNING: during opening the friction state variable should not evolve
 
+ allocate(dV_tmp(size(bc%iactive)))
+
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
-    call rsf_solver(bc%V(:,1), T(:,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(:,1), time)
-    bc%MU = rsf_mu(bc%V(:,1), bc%rsf)
+    dV_tmp = bc%V(bc%iactive,1)
+    call rsf_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(bc%iactive,1), time)
+    bc%V(bc%iactive,1) = dV_tmp
+
+    bc%MU(bc%iactive) = rsf_mu(bc%V(bc%iactive,1), bc%rsf)
 
    !DEVEL combined with time-weakening
    !DEVEL WARNING: slip rate is updated later, but theta is not
@@ -986,8 +1079,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
    ! superimposed time-weakening
     if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
 
-    strength = - bc%MU * normal_getSigma(bc%normal)
-    T(:,1) = sign( strength, T(:,1))
+    strength(bc%iactive)= - bc%MU(bc%iactive) * normal_getSigma(bc%normal)
+    T(bc%iactive,1) = sign( strength(bc%iactive), T(bc%iactive,1))
 
   else
    !-- slip weakening
@@ -997,11 +1090,11 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
      ! update the slip-dependent friction coefficient using the updated slip.
      ! Otherwise, use the slip from the previous time step (one-timestep delay)
       if (bc%CoefA2D==0d0) then
-        call swf_update_state(dD(:,1),dV(:,1),bc%swf)
+        call swf_update_state(dD(bc%iactive, 1), dV(bc%iactive, 1), bc%swf)
       else
-        call swf_set_state(bc%D(:,1), bc%swf)
+        call swf_set_state(bc%D(bc%iactive, 1), bc%swf)
       endif
-      bc%MU = swf_mu(bc%swf)
+      bc%MU(bc%iactive) = swf_mu(bc%swf)
   
      ! superimposed time-weakening
       if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
@@ -1012,7 +1105,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
     endif
 
    ! Update strength
-    strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
+    strength(bc%iactive) = bc%cohesion(bc%iactive) - bc%MU(bc%iactive) * normal_getSigma(bc%normal)
+    strength(bc%ilock)   = huge(0d0) ! set the locked strength to large value
 
    ! Solve for shear stress
     T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
@@ -1028,6 +1122,9 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 ! Rotate tractions back to (x,z) frame 
   if (ndof==2) T = rotate(bc,T,-1)
 
+! Reset the traction for locked nodes to Tstick
+  T(bc%ilock, :) = T_stick(bc%ilock,:)
+
 ! Add boundary term B*T to M*a
   MxA(bc%node1,:) = MxA(bc%node1,:) + bc%B*T(:,1:ndof)
   if (associated(bc%bc2)) MxA(bc%node2,:) = MxA(bc%node2,:) - bc%B*T(:,1:ndof)
@@ -1040,12 +1137,14 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   bc%V = dV + bc%CoefA2V*dA
 
   if (associated(bc%rsf)) then
-      bc%V(:,1)=bc%V(:,1) + rsf_vplate(bc%rsf)
-      bc%D(:,1)=bc%D(:,1) + bc%Dp(:,1) + rsf_vplate(bc%rsf)*time%time
+      bc%V(bc%iactive,1)=bc%V(bc%iactive,1) + rsf_vplate(bc%rsf)
+      bc%D(bc%iactive,1)=bc%D(bc%iactive,1) + bc%Dp(bc%iactive,1) + rsf_vplate(bc%rsf)*time%time
   end if
 
   ! eventually still save relative stress to T0
   bc%T = bc%T + bc%Tp - bc%T0 
+
+  deallocate(dV_tmp)
 
   end subroutine BC_DYNFLT_apply_dynamic
 
@@ -1145,11 +1244,11 @@ end subroutine BC_DYNFLT_AppendDofFix
   if ( time%time < bc%ot ) return
 
   !DEVEL: use direct access, and rec
-  write(bc%ounit) real( bc%D(bc%oix1:bc%oixn:bc%oixd,1) )
-  write(bc%ounit) real( bc%V(bc%oix1:bc%oixn:bc%oixd,1) )
-  write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,1) )
-  write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,2) )
-  write(bc%ounit) real( bc%MU(bc%oix1:bc%oixn:bc%oixd) )
+  write(bc%ounit) real( bc%D(bc%oix_export,1) )
+  write(bc%ounit) real( bc%V(bc%oix_export,1) )
+  write(bc%ounit) real( bc%T(bc%oix_export,1) )
+  write(bc%ounit) real( bc%T(bc%oix_export,2) )
+  write(bc%ounit) real( bc%MU(bc%oix_export) )
 
   if (bc%osides) then
     call export_side(bc,get_side(bc,d,1))
@@ -1183,8 +1282,8 @@ end subroutine BC_DYNFLT_AppendDofFix
   type(bc_dynflt_type), intent(in) :: bc
   double precision, dimension(bc%npoin) :: theta
   if (associated(bc%rsf)) then
-      theta = rsf_get_theta(bc%rsf)
-      write(bc%ounit) real( theta(bc%oix1:bc%oixn:bc%oixd) )
+      theta(bc%iactive) = rsf_get_theta(bc%rsf)
+      write(bc%ounit) real( theta(bc%oix_export) )
   end if
 
   end subroutine export_theta
@@ -1214,11 +1313,11 @@ end subroutine BC_DYNFLT_AppendDofFix
   double precision, dimension(:,:) :: delta
 
   if (size(delta,2)==1) then 
-    write(bc%ounit) real( delta(bc%oix1:bc%oixn:bc%oixd,1) )
+    write(bc%ounit) real( delta(bc%oix_export,1) )
   else
     delta = rotate(bc,delta,1)
-    write(bc%ounit) real( delta(bc%oix1:bc%oixn:bc%oixd,1) )
-    write(bc%ounit) real( delta(bc%oix1:bc%oixn:bc%oixd,2) )
+    write(bc%ounit) real( delta(bc%oix_export,1) )
+    write(bc%ounit) real( delta(bc%oix_export,2) )
   endif
 
   end subroutine export_side
@@ -1462,8 +1561,9 @@ end subroutine BC_DYNFLT_update_disp
     type(bc_dynflt_type), intent(in) :: bc
   
     if (associated(bc%rsf)) then 
-      call rsf_timestep(time, bc%rsf, bc%V(:,1), &
-  				     -normal_getSigma(bc%normal), bc%hnode, bc%MuStar)
+      call rsf_timestep(time, bc%rsf, bc%V(bc%iactive,1), &
+  				     -normal_getSigma(bc%normal), & 
+                     bc%hnode(bc%iactive), bc%MuStar(bc%iactive))
     endif 
 
   end subroutine

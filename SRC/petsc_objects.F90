@@ -126,7 +126,7 @@ module petsc_objects
 
  call CPU_TIME(cputime0)
  call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_StiffnessMat',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(petobj%K, viewer, ierr);CHKERRA(ierr)
+! call MatView(petobj%K, viewer, ierr);CHKERRA(ierr)
  call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
  call CPU_TIME(cputime1)
  cputime0 = cputime1-cputime0
@@ -169,7 +169,7 @@ module petsc_objects
  cputime0 = cputime1-cputime0
  
  call PetscViewerBinaryOpen(PETSC_COMM_WORLD,'sem2d_MatA',FILE_MODE_WRITE, viewer,ierr);CHKERRA(ierr)
- call MatView(petobj%MatA, viewer, ierr);CHKERRA(ierr)
+! call MatView(petobj%MatA, viewer, ierr);CHKERRA(ierr)
  call PetscViewerDestroy(viewer,ierr);CHKERRA(ierr)
 
 ! write(iout,'(/A,1(/2X,A,EN12.3),/)')   &
