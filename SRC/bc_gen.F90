@@ -238,6 +238,7 @@ subroutine bc_init(bc,grid,mat,M,tim,src,d,v)
     endif
   enddo
   do i = 1,size(bc)
+!      write(*, *) "bc_init, tag", bc(i)%tag(1)
     select case(bc(i)%kind)
       case(IS_EMPTY)
               ! DEVEL write warning

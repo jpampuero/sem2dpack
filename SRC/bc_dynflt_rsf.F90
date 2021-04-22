@@ -165,7 +165,7 @@ contains
 ! and initial stress (or Mu)
 !
 
-  subroutine rsf_init(rsf,coord, dt, mu, v)
+  subroutine rsf_init(rsf, coord, dt, mu, v)
 
   type(rsf_type), intent(inout) :: rsf
   double precision, intent(in) :: coord(:,:),dt
@@ -538,6 +538,21 @@ contains
         call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
         return
     end if
+    
+    if (isnan(x_est) .or. isnan(dx) .or. isnan(v) & 
+        .or. isnan(sigma) .or. isnan(x_acc) .or. isnan(func_x) .or. isnan(dfunc_dx)) then
+      print*,'tau = ',x_est
+      print*,'vel = ',v
+      print*,'delta = ',dx,' > ',x_acc
+      print*,'func_x=', func_x
+      print*,'dfunc_dx=', dfunc_dx
+      print*,'theta', theta
+      print*,'it', it
+      print*,'tau_stick', tau_stick
+      print*,'sigma', sigma
+      call IO_abort('NR_Solver has NAN result')
+    end if
+    
     ! Evaluate function with new estimate of x
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
 

@@ -19,6 +19,9 @@
      + Kelvin-Voigt for inhomogeneous materials (gradient, etc) is not consistent 
      + Kelvin-Voigt for plastic materials is not consistent 
      + "Segmentation fault" error if using Intel 12 compiler
+     + (Chao Liang) Analytical stiffness matrix for in-plane is incorrect, off by a sign for
+       certain entries compare to the numerical one. The current code uses numerical stiffness matrix
+       but the non-zero pattern of analytical stiffness matrix
 
    POSSIBLE ISSUES (need further verification, including beta features):
      + plastic solver is first order?
