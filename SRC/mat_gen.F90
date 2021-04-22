@@ -966,7 +966,7 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   integer, intent(in) :: ibool(:,:,:)
   Mat :: KG ! petsc object, global stiffness matrix
   integer:: ndof, ngll, ndim, p, q, i, k, e, rank 
-  double precision, dimension(ndof*ngll*ngll, ndof*ngll*ngll) :: Ke
+  double precision, dimension(ndof*ngll*ngll, ndof*ngll*ngll) :: Ke, KeFint
   PetscInt:: rows(ndof*ngll*ngll)
   PetscErrorCode  :: ierr
   Integer :: nproc, ip, ne, e_start, e_end, batch_size, ie
@@ -974,6 +974,8 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
   double precision, dimension(:), allocatable :: Ke_chunk
   integer :: src, des,istart, iend, offset,stat(MPI_STATUS_SIZE)
   integer :: ncol, nrow
+  double precision::small
+  small = 1e-6
 
   call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
   call MPI_Comm_size(PETSC_COMM_WORLD, nproc, ierr)
@@ -989,6 +991,12 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
 
       if (rank==0) then
           call MAT_Ke(Ke, matwrk(e), ndof, ngll, ndim)
+          call MAT_Ke_Fint(KeFint, matwrk(e), ndof, ngll)
+
+          where (abs(Ke-KeFint)>small*maxval(Ke))
+              Ke = KeFint
+          end where
+
           do p = 1, ngll
           do q = 1, ngll
           do i = 1, ndof
