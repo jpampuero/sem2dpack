@@ -556,6 +556,11 @@ contains
   call DIST_CD_Init(bc%input%cohesion,bc%coord,bc%cohesion)
   if (any(bc%cohesion < 0d0)) call IO_abort('bc_dynflt_init: cohesion must be positive')
 
+  ! subtract vplate
+  if (associated(bc%rsf)) then
+      bc%V(bc%iactive, 1) = bc%V(bc%iactive, 1) - rsf_vplate(bc%rsf)
+  end if
+
   ! update global velocity at the fault nodes
   ! rotate bc%V to x,z frame 
   if (ndof==2) bc%V  = rotate(bc, bc%V, -1)
@@ -565,20 +570,18 @@ contains
 
   ! transform global velocity
   call BC_DYNFLT_trans(bc, vg, 1) 
-
   ! update fault slip velocity only on active region
   vg(bc%node1(bc%iactive), :) = bc%V(bc%iactive,:)/2d0
+  call BC_DYNFLT_trans(bc, vg, -1) 
 
   ! rotate back 
   if (ndof==2) bc%V  = rotate(bc, bc%V, 1)
-  
-  ! if rsf fault, subtract plate rate 
+
+  ! add the vplate back
   if (associated(bc%rsf)) then
-      vg(bc%node1(bc%iactive), 1) = vg(bc%node1(bc%iactive), 1) - rsf_vplate(bc%rsf)/2d0 
+      bc%V(bc%iactive, 1) = bc%V(bc%iactive, 1) + rsf_vplate(bc%rsf)
   end if
   
-  call BC_DYNFLT_trans(bc, vg, -1) 
-
 !-- Open output files -----
 ! Set output parameters
 
@@ -942,7 +945,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 
   dV(bc%ilock, :) = 0d0 
 
-! save total stress as Tn
+! save total stress as Tn in fault frame
   bc%Tp = T
 
 ! Subtract initial stress
@@ -960,7 +963,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   bc%T = T
 
 ! Rotate tractions back to (x,z) frame 
-  if (ndof==2) T  = rotate(bc, T , -1)
+  ! if (ndof==2) T  = rotate(bc, T , -1)
   if (ndof==2) dV = rotate(bc, dV, -1)
 
 ! Update fault velocity following Junpei Seki, 2017
@@ -974,6 +977,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
 ! transform back, global velocity 
   call BC_DYNFLT_trans(bc, V, -1)
 
+  if (ndof==2) dV = rotate(bc, dV, 1)
   bc%V = dV
   if (associated(bc%rsf)) bc%V(bc%iactive,1) = bc%V(bc%iactive,1) + rsf_vplate(bc%rsf)
   !bc%D = bc%D + bc%V * time%dt
