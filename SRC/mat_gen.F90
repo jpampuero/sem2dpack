@@ -498,7 +498,10 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp
   double precision, dimension(ngll,ngll,ndof+1) :: e,s,edot
   logical, optional :: isdynamic
 
-  if (matwrk%IS_KV) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
+  if (present(isdynamic) .and. isdynamic) then
+      ! only apply KV when it is dynamic
+      if (matwrk%IS_KV) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
+  end if
   
   if (matwrk%kind==IS_ELAST) then
    ! elastic material has a specialized scheme
@@ -1338,6 +1341,7 @@ end subroutine
 
   logical function MAT_isUpdateDMG(m)
   type(matwrk_elem_type), intent(in) :: m
+  MAT_isUpdateDMG = .false.
   if (m%kind==IS_DMG3) then
        MAT_isUpdateDMG = MAT_isUpdateDmg3()
   end if
