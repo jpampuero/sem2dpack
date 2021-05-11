@@ -46,9 +46,16 @@ module stf_gen
                        ,IS_USER     = 9
   !! add here a unique tag number for your new source time function
 
-  public :: stf_type, STF_read, STF_get
+  public :: stf_type, STF_read, STF_get, STF_isempty
 
 contains
+
+!=====================================================================
+!
+logical function STF_ISEMPTY(stf)
+  type(stf_type), intent(in) :: stf
+  STF_ISEMPTY = stf%kind==IS_EMPTY
+end function STF_ISEMPTY
 
 !=====================================================================
 !

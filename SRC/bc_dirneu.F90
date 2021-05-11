@@ -84,7 +84,6 @@ subroutine bc_DIRNEU_read(bc,iin)
   endif
   if (echo_input) write(iout,200) htype,hstf
 
-  ! Only allocate bc%hstf when hstf is not none
   allocate(bc%hstf)
   call STF_read(hstf,bc%hstf,iin)
 
@@ -100,7 +99,6 @@ subroutine bc_DIRNEU_read(bc,iin)
   endif
   if (echo_input) write(iout,300) vtype,vstf
 
-  ! Only allocate bc%vstf when vstf is not none
   allocate(bc%vstf)
   call STF_read(vstf,bc%vstf,iin)
 
@@ -122,6 +120,7 @@ subroutine bc_DIRNEU_init(bc,tag,grid,perio)
   use bc_periodic, only : bc_periodic_type,BC_PERIO_intersects
   use constants, only : TINY_XABS
   use stdio, only: IO_abort
+  use stf_gen, only: STF_isempty
 
   type(bc_DIRNEU_type) , intent(inout) :: bc
   type(sem_grid_type), intent(in) :: grid
@@ -135,12 +134,18 @@ subroutine bc_DIRNEU_init(bc,tag,grid,perio)
   allocate( bc%B(bc%topo%npoin), n(bc%topo%npoin,2) )
   call BC_get_normal_and_weights(bc%topo, grid, n, bc%B, &
                                  BC_PERIO_intersects(bc%topo,perio) ) 
-  if (.not. (associated(bc%hstf).or.associated(bc%vstf) )) deallocate(bc%B)
+  if (.not. (associated(bc%hstf) .or. associated(bc%vstf) )) deallocate(bc%B)
 
- ! check that the boundary is flat, vertical or horizontal:
-  if ( .not. (all(abs(n(:,1))<TINY_XABS).or.all(abs(n(:,2))<TINY_XABS) )) &
-    call IO_abort('BC_DIRNEU_init: boundary is not vertical or horizontal')
-  deallocate(n)
+  if (stf_isempty(bc%hstf) .and. stf_isempty(bc%vstf)) then
+      ! along non-vertical/horizontal boundaries if both source time functions
+      ! are empty.
+      deallocate(n)
+  else
+     ! check that the boundary is flat, vertical or horizontal:
+      if ( .not. (all(abs(n(:,1))<TINY_XABS).or.all(abs(n(:,2))<TINY_XABS) )) &
+        call IO_abort('BC_DIRNEU_init: boundary is not vertical or horizontal')
+      deallocate(n)
+  end if
 
 end subroutine bc_DIRNEU_init
 
