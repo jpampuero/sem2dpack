@@ -58,7 +58,7 @@ module mat_gen
  ! working arrays for each element
   type matwrk_elem_type
     integer :: kind
-    logical :: IS_KV
+    logical :: IS_KV=.false.
     type(derint_type)      , pointer :: derint =>null()
     type(matwrk_elast_type), pointer :: elast=>null() 
     type(matwrk_kv_type)   , pointer :: kv=>null() 
@@ -506,8 +506,10 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp
   if (matwrk%kind==IS_ELAST) then
    ! elastic material has a specialized scheme
    ! that does not require intermediate computation of strain and stress
+
+   ! lump the calculation of 25D contribution into MAT_ELAST_f
     call MAT_ELAST_f(f,d,matwrk%elast,grid%hprime,grid%hTprime,ngll,ndof)
-    if (grid%W < huge(1d0)) call MAT_ELAST_add_25D_f(f,d,matwrk%elast,ngll,ndof)
+!    if (grid%W < huge(1d0)) call MAT_ELAST_add_25D_f(f,d,matwrk%elast,ngll,ndof)
 
     E_ep = 0d0
     E_el = 0d0
@@ -937,9 +939,9 @@ subroutine MAT_init_KG(KG, ndof, npoin, ngll, ierr)
   call MatSetBlockSize(KG, ndof, ierr)
 
 ! Multiple ways of allocating memory
-  call MatMPIAIJSetPreallocation(KG, 4*ndof*ngll*ngll, &
-       PETSC_NULL_INTEGER, 4*ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
-  call MatSeqAIJSetPreallocation(KG, 4*ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
+  call MatMPIAIJSetPreallocation(KG, int(5*ndof*ngll*ngll), &
+       PETSC_NULL_INTEGER, int(5*ndof*ngll*ngll), PETSC_NULL_INTEGER,ierr);
+  call MatSeqAIJSetPreallocation(KG, int(5*ndof*ngll*ngll), PETSC_NULL_INTEGER,ierr);
 !  call MatSeqSBAIJSetPreallocation(KG, 2, ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
 !  call MatMPISBAIJSetPreallocation(KG, 1, ndof*ngll*ngll, &
 !       PETSC_NULL_INTEGER, ndof*ngll*ngll, PETSC_NULL_INTEGER,ierr);
@@ -999,6 +1001,11 @@ subroutine MAT_AssembleK(KG, matwrk, ndof, ngll, ndim, ibool, ierr)
           where (abs(Ke-KeFint)>small*maxval(Ke))
               Ke = KeFint
           end where
+
+          ! reset the diagonal values from KeFint for 25D
+          do p = 1, ndof*ngll*ngll
+              Ke(p,p)= KeFint(p,p)
+          end do
 
           do p = 1, ngll
           do q = 1, ngll

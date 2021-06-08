@@ -11,7 +11,7 @@ contains
 
 !=========================================================================
 !
-  subroutine read_main(pb,iexec,input_file)
+  subroutine read_main(pb, iexec, input_file, InitFile)
 #include <petsc/finclude/petscksp.h>
   use petscksp
 
@@ -28,6 +28,7 @@ contains
 
   type(problem_type), intent(out) :: pb
   character(*), intent(in) :: input_file
+  character(300), intent(out)::InitFile
   PetscErrorCode :: ierr
   integer, intent(out) :: iexec
 
@@ -37,7 +38,7 @@ contains
   call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
   iin  = IO_new_unit()
   open (iin,file=input_file,status='old',action='read')
-  call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,pb%grid%W,iin)
+  call read_gen(iexec,pb%fields%ndof,pb%grid%ngll,pb%grid%fmax,pb%grid%W,pb%grid%gamma25D,InitFile, iin)
  
  ! mesh is only stored on rank 0
  if (rank==0) then
@@ -87,10 +88,14 @@ contains
 !                To improve the resolution for a given fmax you must increase ngll 
 !                (but you will have to use shorter timesteps) or refine the mesh.
 ! ARG: W       [dble] [huge] The seismogenic width. Infinity means 2D problem and finite W means 2.5D problem (use for elastic material)
+! ARG: gamma25D [dble][2d0] gamma coefficient for 25D model 
+!               gamma25D = 1d0 for buried 2.5D faults
+!               gamma25D = 2d0 for shallow 2.5D faults
 ! ARG: ndof     [int] [2] Number of degrees of freedom per node
 !                       1 = SH waves, anti-plane
 !                       2 = P-SV waves, in-plane
 ! ARG: title    [word] [none] Title of the simulation
+! ARG: Init
 ! ARG: verbose  [char(4)] ['1101'] Print progress information during each phase:
 !                       verbose(1) = input phase
 !                       verbose(2) = initialization phase
@@ -103,7 +108,7 @@ contains
 !
 ! END INPUT BLOCK
 
-  subroutine read_gen(iexec,ndof,ngll,fmax,W,iin)
+  subroutine read_gen(iexec,ndof,ngll,fmax,W,gamma25D,InitFile,iin)
 #include <petsc/finclude/petscksp.h>
   use petscksp
 
@@ -112,13 +117,14 @@ contains
 
   integer, intent(in) :: iin
   integer  :: iexec,ndof,ngll
-  double precision :: fmax, W
+  double precision :: fmax, W, gamma25D
   character(10) :: iexecname
   character(4) :: verbose
+  character(300)::InitFile
   integer :: rank, ierr
 
-  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,W,title,verbose,itInfo, &
-                       abort_on_warnings
+  NAMELIST / GENERAL / iexec,ngll,ndof,fmax,W,gamma25D,title,verbose,itInfo, &
+                       abort_on_warnings,InitFile
   
   call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
 
@@ -127,12 +133,15 @@ contains
   ngll = 9
   fmax = 1d0
   W    = huge(1d0)
+  gamma25D=2d0
   title   = ''
+  InitFile= ''
   verbose = '1101'
   itInfo  = 100
 
   rewind(iin)
   read(iin,GENERAL,END=100)
+  InitFile = trim(InitFile)
 
   if (ndof>2 .or. ndof<1) call IO_abort('GENERAL input block: ndof must be 1 or 2 (SH or P-SV)')
   if (ngll <= 0) call IO_abort('GENERAL input block: ngll must be positive')

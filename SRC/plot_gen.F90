@@ -166,9 +166,20 @@ contains
   integer :: comp_indx(nb_comps)
 
   if (.not.plot_snap) return
-  if (mod(it-IT1,ITD) > 0 .or. it<IT1) return
 
+  ! debug mode writeStep is true, this step is written
+  if (.not. pb%time%writeStep) then
+      if (mod(it-IT1,ITD) > 0 .or. it<IT1) return
+  end if
+   
   write(tag,'(i3.3)') (it-IT1)/ITD
+
+!-----------------------------------------
+! debug mode write a different name
+  if (pb%time%writeStep) then
+      write(tag,'(i8.8)') it
+  end if
+!----------------------------------
 
   comp_indx = (/ 1,1,2,0 /)
 

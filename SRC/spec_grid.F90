@@ -34,6 +34,9 @@ module spec_grid
 !     fmax         = Highest frequency to be resolved by the grid
 !     W            = The seismogenic width. Infinity means 2D problem 
 !                    and finite W means 2.5D problem (use for elastic material)
+!     gamma25D [dble][2d0] gamma coefficient for 25D model 
+!               gamma25D = 1d0 for buried 2.5D faults
+!               gamma25D = 2d0 for shallow 2.5D faults
 
 !
 !
@@ -49,7 +52,7 @@ module spec_grid
   type sem_grid_type
     integer :: ngll=0,nelem=0,npoin=0
     type(fem_grid_type) :: fem
-    double precision :: fmax=0d0, W = huge(1d0)
+    double precision :: fmax=0d0, W = huge(1d0), gamma25D = 2d0
     double precision, pointer :: coord(:,:)      =>null(), &
                                  hprime(:,:)     =>null(), &
                                  hTprime(:,:)    =>null(), &

@@ -34,7 +34,6 @@ contains
 
     integer :: i 
     logical :: not_available 
-
     i = 100
     not_available = .true.
     do while (not_available)

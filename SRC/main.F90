@@ -22,7 +22,8 @@ program main
   integer :: it, iexec, rank
   integer, parameter :: NT_CHECK=10
   PetscErrorCode :: ierr
-  CHARACTER(len=32) :: inputfile
+  CHARACTER(len=300) :: inputfile
+  Character(len=300):: InitFile
 
 !------------- Start Petsc session ---------------
   call PetscInitialize(PETSC_NULL_CHARACTER,ierr)
@@ -43,10 +44,10 @@ program main
   if (rank==0) call ECHO_banner('Program  S E M 2 D P A C K : start', iout)
 !*************  i n p u t   p h a s e  **************
 
-  call read_main(pb,iexec,input_file=inputfile)
+  call read_main(pb,iexec, inputfile, InitFile)
 
 !*************  i n i t i a l i z a t i o n   p h a s e  ***************
-  call init_main(pb, petobj, ierr)
+  call init_main(pb, petobj, ierr, InitFile)
 
   CHKERRQ(ierr)
 !----------------------------------------------------

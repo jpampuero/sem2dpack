@@ -44,7 +44,7 @@ subroutine init_main(pb, petobj, ierr, InitFile)
 
   type(problem_type), intent(inout) :: pb
   type(petsc_objects_type), intent(inout) :: petobj
-  character(50), intent(in), optional :: InitFile
+  character(300), intent(in), optional :: InitFile
   PetscErrorCode :: ierr
   double precision :: grid_cfl
   real :: cputime0, cputime1
@@ -60,7 +60,7 @@ subroutine init_main(pb, petobj, ierr, InitFile)
   call MPI_Comm_rank(PETSC_COMM_WORLD, rank, ierr)
   call MPI_Comm_size(PETSC_COMM_WORLD, nproc, ierr)
 
-  init_cond = present(InitFile)
+  init_cond = (present(InitFile) .and. len(trim(InitFile))>0)
   info = info .and. rank==0
   
   if (info) then

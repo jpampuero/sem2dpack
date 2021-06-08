@@ -56,7 +56,7 @@ module bc_gen
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
             bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
-            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset
+            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset, BC_D2S_ReInit
 
 contains
 
@@ -279,6 +279,19 @@ subroutine bc_reset(bc, dt)
     if ( bc(i)%kind == IS_DYNFLT) call bc_dynflt_reset(bc(i)%dynflt, dt)
   enddo
 end subroutine bc_reset
+
+
+  subroutine BC_D2S_ReInit(bc, v)
+  type(bc_type), pointer :: bc(:)
+  double precision, intent(inout) :: v(:,:)
+  integer::i
+
+  do i = 1,size(bc)
+    if ( bc(i)%kind == IS_DYNFLT) then
+      call BC_DYNFLT_D2S_ReInit(bc(i)%dynflt, v)
+    end if
+  enddo
+  end subroutine
 
 !=======================================================================
 !! Applies the boundary condition
@@ -603,7 +616,7 @@ end subroutine
 subroutine BC_write(bc,time,d,v)
   use time_evol, only : timescheme_type
   use echo, only : iout,echo_init, fmt1,fmtok
-  type(timescheme_type), intent(in) :: time
+  type(timescheme_type) :: time
   type(bc_type), pointer :: bc(:)
   double precision, dimension(:,:), intent(in) :: d,v
 

@@ -12,7 +12,7 @@ module solver
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
-                      bc_update_bcdv, bc_reset, bc_has_dynflt
+                      bc_update_bcdv, bc_reset, bc_has_dynflt, BC_D2S_ReInit
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
 
   implicit none
@@ -80,7 +80,7 @@ subroutine solve_adaptive(pb, petobj)
       pb%fields%displ = pb%fields%displ + pb%fields%dn
   else
       ! quasi-static
-      ! work with total displacement (relative to d0) 
+      ! work with total displacement (relative to di) 
       if (pb%time%isUsePetsc) then
           call solve_quasi_static_petsc(pb, petobj)
       else
@@ -104,8 +104,21 @@ subroutine solve_adaptive(pb, petobj)
   !   tmp=0d0
 !     write(*, *)"HERE, switching!"
    !  call bc_select_kind(pb%bc, pb%fields%veloc,tmp, IS_DYNFLT)
+   ! switch from static to dynamic
      pb%fields%veloc = 0d0
  !    write(*, *)"Done setting velocity!"
+  end if
+
+! switch from dynamic to static
+  isw = id1 .and. (.not. id2)
+  if (isw) then
+      ! switch from dynamic to static
+      pb%fields%displ = 0d0 
+      pb%fields%accel = 0d0
+      if (rank==0) then
+          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
+      end if
+      ! reinitialize the fields
   end if
   
 end subroutine solve_adaptive

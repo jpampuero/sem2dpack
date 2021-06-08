@@ -14,6 +14,7 @@ module time_evol
     Logical :: EQEnd            ! a flag to indicate if an earthquake is occuring at this step 
     Logical :: fixdt       ! if fix the time step by force 
     Logical :: switch          ! a flag to indicate if there's change in time scheme 
+    Logical :: writeStep   ! if to write this time step 
     Logical :: isUsePetsc
     Logical :: isUpdateKsp 
     ! dt_min: minimum time step in adaptive time stepping 
@@ -62,6 +63,7 @@ contains
 ! ARG: TotalTime [dbl] [none] Total duration (in seconds)
 ! ARG: EQNumMax  [int] [5] maximum earthquake number 
 ! ARG: fixdt     [log] [T] if dt is fixed, deactivate adapative time stepping by force. 
+! ARG: FirstDyn  [log] [T] force first time step to dynamic 
 !
 ! ARG: kind_dyn  [char*12] [kind] Type of the dynamic scheme 
 !                when kind='adaptive', default 'leapfog'
@@ -166,11 +168,12 @@ contains
   integer :: NbSteps,n, MaxIterLin, EQNumMax, ntflush
   character(12) :: kind
   character(12) :: kind_dyn
-  Logical :: fixdt, isUsePetsc,isUpdateKsp 
+  Logical :: fixdt, isUsePetsc,isUpdateKsp,firstDyn 
   
   NAMELIST / TIME / kind,NbSteps,dt,courant,TotalTime,&
                     kind_dyn, TolLin, MaxIterLin, dtev_max,&
-                    dt_incf, fixdt, EQNumMax, ntflush, isUsePetsc,isUpdateKsp 
+                    dt_incf, fixdt, EQNumMax, ntflush, isUsePetsc,isUpdateKsp,&
+                    firstDyn
   NAMELIST / TIME_NEWMARK / beta,gamma
   NAMELIST / TIME_HHTA / alpha,rho
     
@@ -185,6 +188,7 @@ contains
   TolLin       = 1.0d-6
   MaxIterLin   = 4000
   fixdt        = .false.
+  firstDyn     = .false.
   isUsePetsc   = .true.
   isUpdateKsp  = .false.
   EQNumMax     = 5
@@ -233,6 +237,7 @@ contains
   t%ntflush   = ntflush
   t%isUsePetsc = isUsePetsc
   t%isUpdateKsp = isUpdateKsp
+  t%writeStep = .false.
 
   select case (kind)
     case ('adaptive')
@@ -247,6 +252,7 @@ contains
   end select 
 
   if (fixdt) t%fixdt = fixdt
+  if (firstDyn) t%isDynamic=.true.
 
   if (echo_input) then
     write(iout,200) 
@@ -274,13 +280,14 @@ contains
     endif
     endif
      
-    if (.not. t%isDynamic) then
+  select case (kind)
+    case ('adaptive')
         write(iout,211) TolLin
         write(iout,212) MaxIterLin
         write(iout,213) dtev_max*sec2day
         write(iout,214) dt_incf
-    end if
-  endif
+  end select
+  end if
 
 !-------------------------------------------------------------------------------
 
