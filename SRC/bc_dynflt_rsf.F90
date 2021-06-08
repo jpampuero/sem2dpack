@@ -30,7 +30,7 @@ module bc_dynflt_rsf
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
             rsf_vplate, rsf_get_theta, rsf_get_a, &
-            rsf_get_b, rsf_get_NRTol, rsf_reset 
+            rsf_get_b, rsf_get_NRTol, rsf_reset,rsf_vmaxD2S,rsf_vmaxS2D 
 
 contains
 
@@ -267,6 +267,18 @@ contains
       end select
 
   end function rsf_mu
+  
+  function rsf_vmaxD2S(f) result(vmaxd2s)
+      double precision :: vmaxd2s
+      type(rsf_type), intent(in) :: f
+      vmaxd2s = f%vmaxd2s
+  end function
+  
+  function rsf_vmaxS2D(f) result(vmaxs2d)
+      double precision :: vmaxs2d
+      type(rsf_type), intent(in) :: f
+      vmaxs2d = f%vmaxs2d
+  end function
 
 !---------------------------------------------------------------------
 ! friction coefficient without the direct effect 
@@ -293,12 +305,19 @@ contains
   type(rsf_type), intent(in) :: f
   double precision, dimension(:), intent(in) :: tau, sigma, theta
   double precision, dimension(size(f%theta)) :: tmp, v
+!  integer::i
 
   !  Kaneko et al (2011) Eq. 14
   tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
   tmp = 2d0*f%Vstar*exp(-tmp/f%a)
   v = sinh(tau/(-sigma*f%a))*tmp
-
+!  do i = 1, size(f%theta)
+!      if (v(i)<0 .or. abs(v(i))<1d-40) then
+!          write(*, *) "error in rsf_v, v<0 or abs(v)<1d-40"
+!          write(*, *) "it, v, tau", i, v(i), tau(i)
+!      end if
+!  end do
+!
   end function rsf_v
 
 !=====================================================================
@@ -323,10 +342,23 @@ contains
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
+!  write(*,*) "Done first update theta, max, min of theta_new",maxval(theta_new),minval(theta_new) 
+!  write(*,*) "log10(theta_new)  max, min", log10(maxval(theta_new)), log10(minval(theta_new))
+!  write(*,*) "log10(v)  max, min", log10(maxval(v)), log10(minval(v))
+!  write(*,*) "v  max, min", maxval(v), minval(v)
+!
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1))
+!  write(*,*) "Done first update velocity, max, min of v_new",maxval(v_new),minval(v_new) 
+!  write(*,*) "log10(vnew)  max, min", log10(maxval(v_new)), log10(minval(v_new))
+!
+!  write(*,*) "Done First Pass"
   ! Second pass:
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
+!  write(*,*) "Done second update theta, max, min of theta_new",maxval(theta_new),minval(theta_new) 
+!  write(*,*) "log10(theta_new)  max, min", log10(maxval(theta_new)), log10(minval(theta_new))
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2))
+!  write(*,*) "Done second update velocity, max, min of v_new",maxval(v_new),minval(v_new) 
+!  write(*,*) "log10(vnew)  max, min", log10(maxval(v_new)), log10(minval(v_new))
   
   ! store new velocity and state variable estimate in friction law 
   f%theta = theta_new 
@@ -372,6 +404,7 @@ contains
   double precision, dimension(:), intent(in) :: v,theta
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(v)) :: theta_new
+!  integer::i
 
   select case(f%kind)
     case(1) 
@@ -381,15 +414,29 @@ contains
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
     case(2) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
-     ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
-      theta_new = f%Dc/abs(v)
-      theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
+     where (abs(v)*f%dt/f%Dc < 1d-8)
+         !using results from taylor series expansion when abs(v)*f%dt/f%Dc too small
+         theta_new  = theta*exp(-abs(v)*f%dt/f%Dc) + f%dt*(1-0.5d0*abs(v)*f%dt/f%Dc)
+     elsewhere
+         theta_new = theta*exp(-abs(v)*f%dt/f%Dc)
+         theta_new = theta_new + exp(log(f%Dc/abs(v)) + log(1-exp(-abs(v)*f%dt/f%Dc))) 
+     end where
+
     case(3) 
      ! Kaneko et al (2008) eq 20 - "Slip Law"
      ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
       theta_new = f%Dc/abs(v)
       theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
   end select
+  
+!  do i = 1, size(theta)
+!      if (theta_new(i)<1d-20 .or. theta(i)<1d-20) then
+!          write(*, *) "rsf_update_theta, it", i
+!          write(*, *) "theta_new<1d-20, theta, theta_new, v", theta(i), theta_new(i),v(i)
+!          write(*, *) "theta_new<1d-20, log10(theta, theta_new, v)", &
+!          log10(theta(i)), log10(theta_new(i)),log10(v(i))
+!      end if
+!  end do
 
   end function rsf_update_theta
 
@@ -414,10 +461,27 @@ contains
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
-  integer :: it, iter, iter_i
+  double precision :: maxvel(size(tau_stick)), maxtau(size(tau_stick))
+  double precision :: minvel(size(tau_stick)), mintau(size(tau_stick))
+  integer :: it, iter, iter_i!,i
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
+  maxvel = 1d3 ! maximum possible slip velocity
+  minvel = 1d-25 ! minimum possible slip velocity
+  maxtau = rsf_mu(maxvel, f)
+  maxtau = sign(maxtau, tau_stick)
+  mintau = rsf_mu(minvel, f)
+  mintau = sign(mintau, tau_stick)
+
+! for debugging purposes
+!  do i = 1, size(theta)
+!      if (theta(i)<1d-18) then
+!          write(*, *) "rsf_update_V, it", i
+!          write(*, *) "theta<1d-18, theta=", theta(i)
+!          write(*, *) "theta>1d-18, log10(theta)=", log10(theta(i))
+!      end if
+!  end do
 
   select case(f%kind)
     case(1) 
@@ -434,14 +498,20 @@ contains
        tolerance=f%NRTol*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
        !estimateLow = -10.0 
        !estimateHigh = 10.0
-       estimateLow  = min(0d0, 2d0*tau_stick(it))
-       estimateHigh = max(0d0, 2d0*tau_stick(it))
+       estimateLow  = min(mintau(it), maxtau(it))
+       estimateHigh = max(mintau(it), maxtau(it))
        !estimateLow = 1e-9 
        !estimateHigh = tau_stick(it)*2.0
        !the initial guess assume zero increment of slip velocity
        call nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
            tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i)
        iter = max(iter, iter_i)
+
+!      if (abs(v(it))<1d-25 .or. abs(v(it))>1d10 .or. v(it)<0) then
+!          write(*, *) "rsf_update_V, it", it
+!          write(*, *) "abs(v)<1d-25 or abs(v)<1d10, v<0, v=", v(it)
+!          write(*, *) "abs(v)<1d-25 or abs(v)<1d10, v<0, log10(v)=", log10(v(it))
+!      end if
      enddo     
         
   end select
@@ -471,6 +541,13 @@ contains
   type(rsf_type), intent(in) :: f
   double precision, intent(in) :: theta, tau_stick, sigma, Z
   integer, intent(in) :: it
+
+! for debugging purposes, check input values
+!  if (theta<1d-18) then
+!      write(*, *) "nr_solver input, it", it
+!      write(*, *) "theta<1d-18, theta=", theta
+!      write(*, *) "theta<1d-18, log10(theta)=", log10(theta)
+!  end if
 
   ! Find initial function estimates (dfunc_dx not needed yet)
   call nr_fric_func_tau(xL, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
@@ -547,9 +624,13 @@ contains
       print*,'func_x=', func_x
       print*,'dfunc_dx=', dfunc_dx
       print*,'theta', theta
+      print*,'log10(theta)', log10(theta)
       print*,'it', it
       print*,'tau_stick', tau_stick
       print*,'sigma', sigma
+      print*, 'xL', xL
+      print*, 'xR', xR
+      print*, 'Z', Z
       call IO_abort('NR_Solver has NAN result')
     end if
     
@@ -617,6 +698,7 @@ contains
       call IO_abort('NR_Solver fails to converge')
     endif
     ! Evaluate function with new estimate of x
+    x_est = sign(x_est,tau_stick) !force the sign to be the same as tau_stick
     call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
   enddo
   
@@ -648,6 +730,7 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       tmp = f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it) )
       tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       v = sinh(tau/(-sigma*f%a(it)))*tmp
+      v = sign(v, tau_stick)
       func_tau = tau_stick - Z*v - tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
@@ -655,7 +738,6 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       !  solved in terms of v, derivative wrt tau
       dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1d0
-  
 end subroutine nr_fric_func_tau
 
 subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z) 
