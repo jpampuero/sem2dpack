@@ -100,7 +100,7 @@ contains
   c66H = ''
 
   read(iin,MAT_ELASTIC,END=100)
-
+  
   if (rho<=0d0 .and. rhoH=='') call IO_abort('MAT_ELAST_read: undefined density (rho)')
   call MAT_setProp(input,'rho',rho,rhoH,iin,rhoH)
 
@@ -284,7 +284,8 @@ contains
   if (grid%W < huge(1d0)) then
      allocate(matwrk%beta(grid%ngll,grid%ngll))
      call MAT_ELAST_init_25D(matwrk%beta,grid%ngll &
-                   , SE_VolumeWeights(grid,e),grid%W,matpro,ndof)
+                   , SE_VolumeWeights(grid,e),grid%W,& 
+                   grid%gamma25D,matpro,ndof)
   endif
 
   end subroutine MAT_ELAST_init_elem_work
@@ -363,12 +364,12 @@ contains
   end subroutine MAT_ELAST_init_a
 
 !==============================================
-  subroutine MAT_ELAST_init_25D(beta,ngll,dvol,W,mat,ndof)
+  subroutine MAT_ELAST_init_25D(beta,ngll,dvol,W,gamma25D,mat,ndof)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(out) :: beta(ngll,ngll)
   double precision, dimension(ngll,ngll), intent(in) :: dvol
-  double precision, intent(in) :: W
+  double precision, intent(in) :: W, gamma25D
   type(matpro_elem_type), intent(in) :: mat
 
   double precision, dimension(ngll,ngll) :: mu, lambda, nu
@@ -378,9 +379,9 @@ contains
 
   nu(:,:) = lambda(:,:) / (lambda(:,:) + mu(:,:)) / 2.0
   if(ndof == 1) then
-      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)/W)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)/W/gamma25D)**2
   else
-      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)*(1-nu(:,:))/W)**2
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)*(1-nu(:,:))/W/gamma25D)**2
   endif
 
 end subroutine MAT_ELAST_init_25D
@@ -471,6 +472,12 @@ end subroutine MAT_ELAST_Cijkl
       f = ELAST_KD1_PSV(d,m%a,nelast,ngll,H,Ht)
     endif
   endif
+
+  ! add contribution from 25D, assuming viscosity is infinite
+  ! needs reworking if finite viscosity is assumed
+  if (associated(m%beta)) then
+      call MAT_ELAST_add_25D_f(f,d,m,ngll,ndof)
+  end if
 
   end subroutine MAT_ELAST_f
 
