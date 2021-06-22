@@ -9,7 +9,8 @@ module fields_class
   type fields_type
     integer :: ndof, npoin
     double precision, dimension(:, :), pointer ::  displ, veloc, accel, dn, &
-                                                   displ_alpha, veloc_alpha
+                                                   displ_alpha, veloc_alpha,&
+                                                   displ_pre, veloc_pre, accel_pre
   end type fields_type
 
   interface FIELD_get_elem
@@ -22,7 +23,7 @@ module fields_class
 
   public :: fields_type, FIELDS_read, FIELDS_init &
           , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem, &
-          FIELD_SetVecFromField, FIELD_SetFieldFromVec
+          FIELD_SetVecFromField, FIELD_SetFieldFromVec, FIELDS_reset, FIELDS_Update_Pre
 
 contains
 
@@ -62,6 +63,9 @@ subroutine FIELDS_init(fields,npoin,alpha)
   call FIELD_init(fields%displ,'displ')
   call FIELD_init(fields%veloc,'veloc')
   call FIELD_init(fields%accel,'accel')
+  call FIELD_init(fields%displ_pre,'displ_pre')
+  call FIELD_init(fields%veloc_pre,'veloc_pre')
+  call FIELD_init(fields%accel_pre,'accel_pre')
   call FIELD_init(fields%dn,'dn')
   if (alpha) then
     call FIELD_init(fields%displ_alpha,'displ_alpha')
@@ -92,6 +96,21 @@ contains
     end subroutine FIELD_init
 
 end subroutine FIELDS_init
+
+! reset values to previous step
+subroutine FIELDS_reset(fields)
+  type(fields_type), intent(inout) :: fields
+  fields%displ = fields%displ_pre
+  fields%veloc = fields%veloc_pre
+  fields%accel = fields%accel_pre
+end subroutine
+
+subroutine FIELDS_Update_Pre(fields)
+  type(fields_type), intent(inout) :: fields
+  fields%displ_pre= fields%displ
+  fields%veloc_pre= fields%veloc
+  fields%accel_pre= fields%accel
+end subroutine
 
 !==============================================================================
 ! Assemble element contribution to global field

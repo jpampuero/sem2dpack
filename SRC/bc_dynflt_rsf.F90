@@ -22,6 +22,8 @@ module bc_dynflt_rsf
                      Vstar=>null(), theta=>null(), Tc=>null(),&
                      coeft=>null(), vplate=>null(), theta_pre=>null()
     double precision :: dt
+    double precision :: dtScale
+    double precision :: vmaxPZ ! maximum slip rate to control the process zone size
     integer :: iter, NRMaxIter
     double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ, tEqPrev, minGap
     type(rsf_input_type) :: input
@@ -76,7 +78,7 @@ contains
   integer, intent(in) :: iin
 
   double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
-  double precision :: NRTol,minGap 
+  double precision :: NRTol,minGap,dtScale,vmaxPZ 
   integer :: NRMaxIter 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
@@ -84,7 +86,8 @@ contains
 
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
-           vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap
+           vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap, &
+           dtScale, vmaxPZ
 
   kind = 1
   Dc = 0.5d0
@@ -107,6 +110,8 @@ contains
   minGap  = 10 ! 10 s
   NRMaxIter = 200 
   NRTol     = 1.0d-4
+  dtScale = 1d0
+  vmaxPZ  = 1d10 ! by default a very large value, no control on process zone size
 
   read(iin,BC_DYNFLT_RSF,END=300)
 300 continue
@@ -134,6 +139,8 @@ contains
   rsf%NRTol   = NRTol
   rsf%NRMaxIter = NRMaxIter
   rsf%teqPrev = -huge(1d0) 
+  rsf%dtScale = dtScale
+  rsf%vmaxPZ  = vmaxPZ
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
                MuSH,aH,bH,VstarH,thetaH,vplateH,& 
@@ -310,7 +317,8 @@ contains
   !  Kaneko et al (2011) Eq. 14
   tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
   tmp = 2d0*f%Vstar*exp(-tmp/f%a)
-  v = sinh(tau/(-sigma*f%a))*tmp
+  v = sinh(abs(tau)/(-sigma*f%a))*tmp
+  v = sign(v, tau)
 !  do i = 1, size(f%theta)
 !      if (v(i)<0 .or. abs(v(i))<1d-40) then
 !          write(*, *) "error in rsf_v, v<0 or abs(v)<1d-40"
@@ -330,7 +338,10 @@ contains
 !
 ! Note: most often sigma is negative (compressive) 
 !
-  subroutine rsf_solver(v,tau_stick,sigma, f, Z, time)
+! add control on slip velocity
+!
+!
+  subroutine rsf_solver(v, tau_stick, sigma, f, Z, time)
   use time_evol, only: timescheme_type
   type(timescheme_type):: time
   double precision, dimension(:), intent(inout) :: v
@@ -338,7 +349,9 @@ contains
   type(rsf_type), intent(inout) :: f
 
   double precision, dimension(size(v)) :: v_new,theta_new
-  integer :: it, iter
+  integer :: it, iter,  stat_i
+
+  time%solver_converge_stat = 1
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
@@ -347,18 +360,26 @@ contains
 !  write(*,*) "log10(v)  max, min", log10(maxval(v)), log10(minval(v))
 !  write(*,*) "v  max, min", maxval(v), minval(v)
 !
-  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1))
-!  write(*,*) "Done first update velocity, max, min of v_new",maxval(v_new),minval(v_new) 
-!  write(*,*) "log10(vnew)  max, min", log10(maxval(v_new)), log10(minval(v_new))
-!
-!  write(*,*) "Done First Pass"
-  ! Second pass:
+  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1), stat_i)
+  if (stat_i<0) then
+      write(*, *) "rsf_solver, pass 1 diverge!"
+      time%solver_converge_stat = stat_i
+  end if
+
+  ! limit the slip velocity to v_new
+  do it = 1, size(v_new)
+      if (abs(v_new(it))>f%vmaxPZ) then
+          v_new(it) = sign(f%vmaxPZ, v_new(it))
+      end if
+  end do
+
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
-!  write(*,*) "Done second update theta, max, min of theta_new",maxval(theta_new),minval(theta_new) 
-!  write(*,*) "log10(theta_new)  max, min", log10(maxval(theta_new)), log10(minval(theta_new))
-  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2))
-!  write(*,*) "Done second update velocity, max, min of v_new",maxval(v_new),minval(v_new) 
-!  write(*,*) "log10(vnew)  max, min", log10(maxval(v_new)), log10(minval(v_new))
+  call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2), stat_i)
+
+  if (stat_i<0) then
+      write(*, *) "rsf_solver, pass 2 diverge!"
+      time%solver_converge_stat = stat_i
+  end if
   
   ! store new velocity and state variable estimate in friction law 
   f%theta = theta_new 
@@ -374,12 +395,16 @@ contains
 !
 ! Note: most often sigma is negative (compressive) 
 !
-  subroutine rsf_qs_solver(v,tau,sigma,f)
+  subroutine rsf_qs_solver(v,tau,sigma,f, time)
+  use time_evol, only: timescheme_type
+  type(timescheme_type):: time
   double precision, dimension(:), intent(in) :: sigma,tau
   double precision, dimension(:), intent(inout) :: v
   double precision, dimension(size(v)) :: theta
   type(rsf_type), intent(inout) :: f
+  integer::i
  
+  time%solver_converge_stat = 1
   f%theta_pre = f%theta
   theta = rsf_update_theta(f%theta_pre,v,f)
   v = rsf_v(f, tau, sigma, theta)
@@ -392,6 +417,19 @@ contains
       f%theta = theta
       ! reset the counter to 0
       f%iter  = 0
+
+      ! second pass, check convergence
+      ! solution is higher than 1d3
+      do i = 1, size(v)
+         if (abs(v(i))>1d3) then
+             ! static solver produces unphysical slip solution
+             write(*, *) "rsf_qs_solver, unphysical static slip rate, it, v(it)", i, v(i)
+             time%solver_converge_stat = -3
+             ! if solver does not converge then do not update theta
+             f%theta = f%theta_pre
+             exit
+         end if
+      end do
   endif
 
   end subroutine rsf_qs_solver
@@ -455,33 +493,21 @@ contains
 !          We should allow here for any sign of v
 !          Exploit the fact that sign(tau)=sign(tau_stick) (because mu>0)
 
-  subroutine rsf_update_V(tau_stick,sigma,f,theta, Z, v, iter) 
+  subroutine rsf_update_V(tau_stick,sigma,f,theta, Z, v, iter, stat) 
    
   double precision, dimension(:), intent(in) :: tau_stick,sigma,theta,Z
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
-  double precision :: maxvel(size(tau_stick)), maxtau(size(tau_stick))
-  double precision :: minvel(size(tau_stick)), mintau(size(tau_stick))
-  integer :: it, iter, iter_i!,i
+  double precision :: mintau(size(tau_stick)), maxtau(size(tau_stick))
+  integer :: it, iter, iter_i, stat_i, stat!,i
 
-!  strength = -sigma*rsf_mu_no_direct(v,f) 
-!  v = (tau_stick-strength)/Z
-  maxvel = 1d3 ! maximum possible slip velocity
-  minvel = 1d-25 ! minimum possible slip velocity
-  maxtau = rsf_mu(maxvel, f)
-  maxtau = sign(maxtau, tau_stick)
-  mintau = rsf_mu(minvel, f)
-  mintau = sign(mintau, tau_stick)
+  stat   = 1 ! converge normally
+  maxtau = tau_stick
 
-! for debugging purposes
-!  do i = 1, size(theta)
-!      if (theta(i)<1d-18) then
-!          write(*, *) "rsf_update_V, it", i
-!          write(*, *) "theta<1d-18, theta=", theta(i)
-!          write(*, *) "theta>1d-18, log10(theta)=", log10(theta(i))
-!      end if
-!  end do
+  ! compute the lower bound initial guess
+  tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%mus+f%b*log(f%Vstar*f%theta/f%dc))/f%a)
+  mintau = tau_stick/(1d0 + Z*tmp)
 
   select case(f%kind)
     case(1) 
@@ -496,24 +522,30 @@ contains
      do it=1,size(tau_stick)
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
        tolerance=f%NRTol*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
-       !estimateLow = -10.0 
-       !estimateHigh = 10.0
        estimateLow  = min(mintau(it), maxtau(it))
        estimateHigh = max(mintau(it), maxtau(it))
-       !estimateLow = 1e-9 
-       !estimateHigh = tau_stick(it)*2.0
-       !the initial guess assume zero increment of slip velocity
-       call nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
-           tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i)
-       iter = max(iter, iter_i)
-
-!      if (abs(v(it))<1d-25 .or. abs(v(it))>1d10 .or. v(it)<0) then
-!          write(*, *) "rsf_update_V, it", it
-!          write(*, *) "abs(v)<1d-25 or abs(v)<1d10, v<0, v=", v(it)
-!          write(*, *) "abs(v)<1d-25 or abs(v)<1d10, v<0, log10(v)=", log10(v(it))
-!      end if
-     enddo     
         
+       if (abs(estimateLow-estimateHigh) < abs(tolerance)) then
+           ! initial guess extremely close to tau_stick, fault is almost locked
+           v(it) = (tau_stick(it) - (estimateLow + estimateHigh)/2d0)/Z(it) 
+           v(it) = sign(v(it), tau_stick(it))
+       else
+           !the initial guess assume zero increment of slip velocity
+           call nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
+               tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i, stat_i)
+           iter = max(iter, iter_i)
+       end if
+
+       if (stat_i<0) then
+           stat = stat_i
+           select case (stat_i)
+               case (-1)
+               write(*, *) "nr_solver diverge with maximum iteration number reached, it = ", it
+               case (-2)
+               write(*, *) "nr_solver diverge with NAN results, it = ", it
+           end select
+       end if
+     enddo     
   end select
 
   end subroutine rsf_update_V
@@ -527,7 +559,7 @@ contains
 ! function at a point and it finds a root to 0=nr_fric_func bounded 
 ! by [x1, x2] w/ error < x_acc
 
-  subroutine nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z, v, is)
+  subroutine nr_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z, v, is, stat)
   !WARNING: This is not a well tested portion !!!
   integer, intent(out) :: is
   double precision, intent(in) :: xL, xR, x_acc
@@ -535,6 +567,11 @@ contains
   double precision, intent(out) :: v
   double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
   double precision :: temp
+  integer :: stat ! solution status
+
+  !stat =  1 normal converge
+  !stat = -1 diverge with max iteration number reached
+  !stat = -2 diverge with NAN
   
   ! Friction parameters:
   external nr_fric_func_tau
@@ -613,6 +650,8 @@ contains
     if (abs(dx)<abs(x_acc))  then
         ! evaluate the function and update v, one last time
         call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+        ! converge as normal
+        stat = 1
         return
     end if
     
@@ -631,7 +670,8 @@ contains
       print*, 'xL', xL
       print*, 'xR', xR
       print*, 'Z', Z
-      call IO_abort('NR_Solver has NAN result')
+      stat = -2 ! diverge with NAN
+      !call IO_abort('NR_Solver has NAN result')
     end if
     
     ! Evaluate function with new estimate of x
@@ -647,7 +687,9 @@ contains
   print*,'tau = ',x_est
   print*,'delta = ',dx,' > ',x_acc
   print*,'vel = ',v
-  call IO_abort('NR_Solver has exceeded the maximum iterations')
+  stat = -1
+  ! maximum iteration number reached!
+  ! call IO_abort('NR_Solver has exceeded the maximum iterations')
   
   end subroutine nr_solver
 
@@ -791,6 +833,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   ! using the maximum slip velocity on the fault
 
   vmax  = maxval(abs(v)) 
+!  write(*, *) "rsf_timestep, vmax=", vmax
+
   dti   = 0.0d0
 
   if (vmax>f%vEQ) then
@@ -843,14 +887,18 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
           xi = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
         endif
         xi = min(xi, 0.5d0) ! Eq. 15a,b
+
+        ! use a limit the minimal slip velocity to 0.1*vplate
         dti = xi*f%Dc(it)/abs(v(it))
+        dti = dti*f%dtScale
         if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
         
       enddo
+
+!      write(*, *) "rsf_timestep, max_timestep before limiting it by a increment ratio = ", max_timestep
       
       ! ---------- Limit the time step increase by a factor ---------
       if (max_timestep>time%dt*time%dt_incf) max_timestep = time%dt*time%dt_incf
-
       time%dt = max_timestep 
       f%dt    = max_timestep
   else

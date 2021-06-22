@@ -28,6 +28,8 @@ module time_evol
     integer :: EQNum, it, EQNumMax, ntflush 
     double precision, dimension(:), pointer :: a,b 
     integer :: nt, nstages, MaxIterLin, pcg_iters(2),nr_iters(2)
+    KSPConvergedReason :: reasons(2) 
+    integer :: solver_converge_stat
     ! for output for snapshots if adaptive time step is used 
     integer :: ou_time
   end type timescheme_type
@@ -238,6 +240,8 @@ contains
   t%isUsePetsc = isUsePetsc
   t%isUpdateKsp = isUpdateKsp
   t%writeStep = .false.
+  t%reasons   = 1
+  t%solver_converge_stat = 1
 
   select case (kind)
     case ('adaptive')
@@ -539,6 +543,7 @@ contains
   call MPI_Bcast(t%EQNum, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
   call MPI_Bcast(t%isDynamic, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr)
   call MPI_Bcast(t%isEQ, 1, MPI_LOGICAL, 0, PETSC_COMM_WORLD, ierr)
+  call MPI_Bcast(t%solver_converge_stat, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
   end subroutine
 
 !=======================================================================

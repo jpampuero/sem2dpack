@@ -12,8 +12,9 @@ module solver
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
                       bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
-                      bc_update_bcdv, bc_reset, bc_has_dynflt, BC_D2S_ReInit
-  use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec 
+                      bc_update_bcdv, bc_reset, bc_has_dynflt, BC_D2S_ReInit, bc_update_pre
+  use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec, &
+                      FIELDS_reset, FIELDS_Update_Pre
 
   implicit none
   private
@@ -63,32 +64,71 @@ subroutine solve_adaptive(pb, petobj)
   integer,parameter::IS_DYNFLT=6
   PetscErrorCode :: ierr
   double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
-  integer :: rank
+  double precision :: tn, dt
+  integer :: rank, i, maxcut = 10
   
   call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
   
   id1 = pb%time%isdynamic
-  if (pb%time%isDynamic) then
-      ! dynamic, obtain perturbation
-      pb%fields%displ = pb%fields%displ - pb%fields%dn
+  tn  = pb%time%time - pb%time%dt
+
+  pb%time%solver_converge_stat = 1
+
+  do i = 1, maxcut
+
+      ! reset all the current fields to pre solution
+      call FIELDS_Reset(pb%fields)
+      ! reset the boundary fields into pre solution
+      if (rank==0) call BC_Reset(pb%bc, pb%time%dt)
+
+      if (pb%time%isDynamic) then
+          ! dynamic, obtain perturbation
+          pb%fields%displ = pb%fields%displ - pb%fields%dn
+
+          if (rank==0) then
+              call solve_dynamic(pb, petobj)
+          end if
+          
+          ! add perturbation back to the background displacement
+          pb%fields%displ = pb%fields%displ + pb%fields%dn
+      else
+          ! quasi-static
+          ! work with total displacement (relative to di) 
+          if (pb%time%isUsePetsc) then
+              call solve_quasi_static_petsc(pb, petobj)
+          else
+              call solve_quasi_static(pb)
+          end if
+          ! update background values for dynamic step
+          pb%fields%dn = pb%fields%displ
+      end if ! isdynamic
+       
+      ! broadcast pb%time%solver_converge_stat
+      call MPI_Bcast(pb%time%solver_converge_stat, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
+      
+      ! check if the solution has converged or not
+      if (pb%time%solver_converge_stat>0) then
+          ! isConverge is always true 
+          exit
+      end if
+
+      ! cut the time step by a half
+      pb%time%dt = pb%time%dt/2d0
+      pb%time%time  = tn + pb%time%dt
 
       if (rank==0) then
-          call solve_dynamic(pb, petobj)
+          write(*, *) "solver did not converge, cut timestep, dt = ", pb%time%dt
       end if
-      
-      ! add perturbation back to the background displacement
-      pb%fields%displ = pb%fields%displ + pb%fields%dn
-  else
-      ! quasi-static
-      ! work with total displacement (relative to di) 
-      if (pb%time%isUsePetsc) then
-          call solve_quasi_static_petsc(pb, petobj)
-      else
-          call solve_quasi_static(pb)
+
+      if (i==maxcut .or. (rank==0 .and. pb%time%dt<pb%time%dt_min)) then
+          call IO_abort("solver does not converge after cutting dt by 10 times or dt<dt_min")
       end if
-      ! update background values for dynamic step
-      pb%fields%dn = pb%fields%displ
-  end if
+  end do
+
+  ! At this point, the solution has converged
+  ! declare update pre solution on the fields, and bc
+  call FIELDS_Update_Pre(pb%fields)
+  if (rank==0) call BC_Update_Pre(pb%bc) 
 
   if (rank==0) then
       if (.not. pb%time%fixdt) call update_adaptive_step(pb)
@@ -99,6 +139,7 @@ subroutine solve_adaptive(pb, petobj)
 
   id2 = pb%time%isdynamic
   isw = id2 .and. (.not. id1)
+  ! switch from static to dynamic
   if (isw) then
      ! keep only velocity on the boundaries as zero
   !   tmp=0d0
@@ -486,8 +527,10 @@ subroutine solve_quasi_static_petsc(pb, petobj)
   PetscErrorCode :: ierr
   PetscScalar, pointer :: xx_d(:)
   PetscScalar, pointer :: xx_b(:)
+  KSPConvergedReason :: reason
   logical :: isUpdateDMG
   logical :: print_time
+  logical :: unstable
   integer :: rank
   double precision :: start_time, end_time, elapse_time
   character(160):: outputString
@@ -525,7 +568,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
       ! reassemble the stiffness matrix and configure Ksp
       if (pb%time%isUpdateKsp) call UpdateKsp(pb, petobj)
   
-  do j = 1, 2
+  do j = 1, 2 ! for damage time step
     pb%time%pcg_iters = 0
     if (rank==0) then 
     ! update displacement to obtain a better initial guess for pcg solver
@@ -554,7 +597,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     if (rank==0) then
     call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
     f=0d0
-
+    
     ! apply newmann if there's any, used to solve dofs in the medium
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
 
@@ -599,6 +642,14 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     
     ! return the number of iterations
     call KSPGetIterationNumber(petobj%ksp, pb%time%pcg_iters(i), ierr)
+
+    ! return converged reason 
+    call KSPGetConvergedReason(petobj%ksp, reason, ierr)
+    pb%time%reasons(i) = reason
+
+    if (reason<0 .and. rank==0) then
+        write(*, *) "KSP solver diverges, with reason = ", reason
+    end if
 
     ! copy the displacement from converged solution in petsc to d
     start_time = MPI_Wtime()
@@ -649,6 +700,12 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     end if
 
   enddo !i 
+
+  if (rank==0) then
+     if (maxval(abs(v))>1e-2) then
+         write(*, *) "Instability, max (v) = ", maxval(abs(v))
+     end if
+  end if
 
   if (.not. isUpdateDMG) exit
 !

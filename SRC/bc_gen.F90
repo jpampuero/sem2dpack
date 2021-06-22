@@ -56,7 +56,8 @@ module bc_gen
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
             bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
-            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset, BC_D2S_ReInit
+            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset, BC_D2S_ReInit,&
+            BC_Update_Pre
 
 contains
 
@@ -274,12 +275,20 @@ subroutine bc_reset(bc, dt)
   integer :: i
 
   if (.not. associated(bc)) return
-
   do i = 1,size(bc)
     if ( bc(i)%kind == IS_DYNFLT) call bc_dynflt_reset(bc(i)%dynflt, dt)
   enddo
 end subroutine bc_reset
 
+  subroutine BC_Update_Pre(bc)
+  type(bc_type), pointer :: bc(:)
+  integer::i
+      do i = 1,size(bc)
+        if ( bc(i)%kind == IS_DYNFLT) then
+          call BC_DYNFLT_Update_Pre(bc(i)%dynflt)
+        end if
+      enddo
+  end subroutine
 
   subroutine BC_D2S_ReInit(bc, v)
   type(bc_type), pointer :: bc(:)
@@ -303,7 +312,7 @@ subroutine bc_apply(bc,time,fields,force)
 
   type(bc_type), pointer :: bc(:)
   type (fields_type), intent(inout) :: fields
-  type(timescheme_type), intent(in) :: time
+  type(timescheme_type), intent(inout) :: time
   double precision, dimension(:,:), intent(inout) :: force
 
   integer :: i
@@ -375,7 +384,7 @@ subroutine bc_apply_kind(bc, time, fields, force, bc_kind, dirneu_kindin)
 
   type(bc_type), pointer :: bc(:)
   type (fields_type), intent(inout) :: fields
-  type(timescheme_type), intent(in) :: time
+  type(timescheme_type), intent(inout) :: time
   double precision, dimension(:,:), intent(inout) :: force
   integer, intent(in) :: bc_kind 
   integer, optional, intent(in)::dirneu_kindin

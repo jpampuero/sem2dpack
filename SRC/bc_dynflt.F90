@@ -27,7 +27,8 @@ module bc_dynflt
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
-      D=>null(),coord=>null(), Tp=>null(), Dp=>null(), Ti=>null(), Di=>null()
+      D=>null(),coord=>null(), Tp=>null(), Dp=>null(), Ti=>null(), Di=>null(),&
+      T_pre=>null(), V_pre=>null(), D_pre=>null()
     ! Add some explanation to the fields, T, D, V, Tp, Dp, Ti, Di
     ! T: fault traction relative to T0 
     ! Ti: fault total traction at time = time_i (latest dynamic step)
@@ -58,7 +59,7 @@ module bc_dynflt
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
             BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
             BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix,&
-            BC_DYNFLT_reset, BC_DYNFLT_D2S_ReInit
+            BC_DYNFLT_reset, BC_DYNFLT_D2S_ReInit, BC_DYNFLT_Update_Pre
 
 contains
 
@@ -465,6 +466,10 @@ contains
   allocate(bc%D(npoin,ndof))
   allocate(bc%Dp(npoin,ndof))
   allocate(bc%V(npoin,ndof))
+
+  allocate(bc%T_pre(npoin,2))
+  allocate(bc%D_pre(npoin,ndof))
+  allocate(bc%V_pre(npoin,ndof))
  
   ! relative initial conditions for quasi-static solver
   ! Di, Ti changes are total slip and fault traction at time_i 
@@ -477,6 +482,10 @@ contains
 
   bc%T = 0d0
   bc%D = 0d0
+
+  bc%T_pre = bc%T
+  bc%V_pre = bc%V
+  bc%D_pre = bc%D
 
   bc%Dp = 0d0
   bc%V  = 0d0  ! initialize 
@@ -826,9 +835,17 @@ contains
   ! transform global velocity
   call BC_DYNFLT_trans(bc, v, 1) 
   ! update global velocity, consistent with slip velocity on the fault
-  v(bc%node1(bc%iactive), :) = bc%V(bc%iactive, :)/2d0
+  v(bc%node1(bc%iactive), 1) = (bc%V(bc%iactive, 1) - rsf_vplate(bc%rsf))/2d0
   call BC_DYNFLT_trans(bc, v, -1) 
 
+  end subroutine
+  
+! update the pre fields 
+  subroutine BC_DYNFLT_Update_Pre(bc)
+  type(bc_dynflt_type), intent(inout) :: bc
+      bc%V_pre = bc%V
+      bc%D_pre = bc%D
+      bc%T_pre = bc%T
   end subroutine
 
 !=====================================================================
@@ -894,7 +911,7 @@ subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
   use constants, only : PI
   use time_evol, only : timescheme_type
 
-  type(timescheme_type), intent(in) :: time
+  type(timescheme_type), intent(inout) :: time
   type(bc_dynflt_type), intent(inout) :: bc
   double precision, intent(inout) :: V(:,:)
   double precision, intent(in) :: D(:,:)
@@ -912,6 +929,10 @@ subroutine BC_DYNFLT_reset(bc, dt)
   type(bc_dynflt_type), intent(inout) :: bc
   double precision :: dt
   call rsf_reset(bc%rsf, dt)
+  ! reset boundary fields
+  bc%V = bc%V_pre
+  bc%D = bc%D_pre
+  bc%T = bc%T_pre
 end subroutine BC_DYNFLT_reset
 
 ! ==============================================================================
@@ -933,7 +954,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   use stdio, only: IO_abort
   use time_evol, only : timescheme_type
 
-  type(timescheme_type), intent(in) :: time
+  type(timescheme_type), intent(inout) :: time
   type(bc_dynflt_type), intent(inout) :: bc
   double precision, intent(inout) :: V(:,:)
   double precision, intent(in) :: D(:,:)
@@ -991,13 +1012,13 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   if (associated(bc%rsf)) then
     allocate(dV_tmp(size(bc%iactive)))
     dV_tmp = dV(bc%iactive,1)
-    call rsf_qs_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf)
+    call rsf_qs_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf, time)
     dV(bc%iactive,1) = dV_tmp 
     deallocate(dV_tmp)
   else
     call IO_abort('BC_DYNFLT_apply_quasi_static: only rsf is implemented!!') 
   endif
-  dV(bc%ilock, :) = 0d0 
+  dV(bc%ilock, :) = 0d0
 
   bc%V = dV
 
@@ -1132,11 +1153,11 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
  !-- velocity and state dependent friction 
   if (associated(bc%rsf)) then
     dV_tmp = bc%V(bc%iactive,1)
-    do i = 1, size(dV_tmp)
-        if (dV_tmp(i)<0 .or. abs(dV_tmp(i))<1d-50) then
-            write(*, *) "dv_tmp<0 or abs(dv_tmp)<1d-50, dv_tmp=", dV_tmp(i)
-        end if
-    end do
+!    do i = 1, size(dV_tmp)
+!        if (dV_tmp(i)<0 .or. abs(dV_tmp(i))<1d-50) then
+!            write(*, *) "dv_tmp<0 or abs(dv_tmp)<1d-50, dv_tmp=", dV_tmp(i)
+!        end if
+!    end do
     call rsf_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(bc%iactive,1), time)
     bc%V(bc%iactive,1) = dV_tmp
 
