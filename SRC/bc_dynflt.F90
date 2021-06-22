@@ -846,6 +846,8 @@ contains
       bc%V_pre = bc%V
       bc%D_pre = bc%D
       bc%T_pre = bc%T
+      ! update state variable
+      if (associated(bc%rsf)) call rsf_update_theta_pre(bc%rsf)
   end subroutine
 
 !=====================================================================
@@ -986,6 +988,7 @@ subroutine BC_DYNFLT_apply_quasi_static(bc,MxA,V,D,time)
   endif
   
   ! add plate rate to the fault slip
+  ! dV is near -vplate, the following operation gives zero dV
   if (associated(bc%rsf)) then
       dV(bc%iactive, 1) = dV(bc%iactive, 1) + rsf_vplate(bc%rsf)
   else

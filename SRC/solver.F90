@@ -65,7 +65,7 @@ subroutine solve_adaptive(pb, petobj)
   PetscErrorCode :: ierr
   double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
   double precision :: tn, dt
-  integer :: rank, i, maxcut = 10
+  integer :: rank, i, maxcut = 2
   
   call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
   
@@ -121,7 +121,7 @@ subroutine solve_adaptive(pb, petobj)
       end if
 
       if (i==maxcut .or. (rank==0 .and. pb%time%dt<pb%time%dt_min)) then
-          call IO_abort("solver does not converge after cutting dt by 10 times or dt<dt_min")
+!          call IO_abort("solver does not converge after cutting dt by 10 times or dt<dt_min")
       end if
   end do
 
@@ -690,6 +690,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     start_time = MPI_Wtime()
     if (rank==0) then
     call compute_Fint(f, d, pb%fields%veloc, pb, .false.)
+
     ! update rate-state fault
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
     end if

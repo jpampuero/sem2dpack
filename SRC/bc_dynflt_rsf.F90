@@ -32,7 +32,8 @@ module bc_dynflt_rsf
   public :: rsf_type, rsf_read, rsf_init, rsf_mu, & 
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
             rsf_vplate, rsf_get_theta, rsf_get_a, &
-            rsf_get_b, rsf_get_NRTol, rsf_reset,rsf_vmaxD2S,rsf_vmaxS2D 
+            rsf_get_b, rsf_get_NRTol, rsf_reset,rsf_vmaxD2S,& 
+            rsf_vmaxS2D,rsf_update_theta_pre 
 
 contains
 
@@ -306,26 +307,37 @@ contains
   end function rsf_mu_no_direct
 
 !---------------------------------------------------------------------
-!  Slip velocity at theta, tau
+!  Slip velocity at theta, tau (only used in quasi-static simulation)
+!
+
   function rsf_v(f,tau,sigma,theta) result(v)
 
   type(rsf_type), intent(in) :: f
   double precision, dimension(:), intent(in) :: tau, sigma, theta
-  double precision, dimension(size(f%theta)) :: tmp, v
-!  integer::i
+  double precision, dimension(size(theta)) :: tmp, v
+  double precision:: tmp1, tmp2
+  integer::i
 
   !  Kaneko et al (2011) Eq. 14
   tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
   tmp = 2d0*f%Vstar*exp(-tmp/f%a)
   v = sinh(abs(tau)/(-sigma*f%a))*tmp
   v = sign(v, tau)
-!  do i = 1, size(f%theta)
-!      if (v(i)<0 .or. abs(v(i))<1d-40) then
-!          write(*, *) "error in rsf_v, v<0 or abs(v)<1d-40"
-!          write(*, *) "it, v, tau", i, v(i), tau(i)
-!      end if
-!  end do
-!
+
+  do i = 1, size(theta)
+      if (abs(v(i))>1d0) then
+          write(*, *) "error in rsf_v, abs(v)>1d0, i, v(i) = ", i, v(i)
+          write(*, *) "tau(i), theta(i), a(i), b(i), dc(i) = ", tau(i), theta(i), &
+                      f%a(i), f%b(i), f%dc(i)
+          tmp1 = f%mus(i) +f%b(i)*log(f%Vstar(i)*theta(i)/f%Dc(i)) 
+          tmp2 = 2d0*f%Vstar(i)*exp(-tmp1/f%a(i))
+          write(*, *) "tmp1=", tmp1 
+          write(*, *) "tmp2=", tmp2
+          write(*, *) "sinh(abs(tau)/(sigma*a))", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))
+          write(*, *) "v = sinh(abs(tau)/(sigma*a))*tmp2 = ", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))*tmp2
+      end if
+  end do
+
   end function rsf_v
 
 !=====================================================================
@@ -400,14 +412,26 @@ contains
   type(timescheme_type):: time
   double precision, dimension(:), intent(in) :: sigma,tau
   double precision, dimension(:), intent(inout) :: v
-  double precision, dimension(size(v)) :: theta
+  double precision, dimension(size(v)) :: theta, vnew
   type(rsf_type), intent(inout) :: f
   integer::i
  
   time%solver_converge_stat = 1
+
   f%theta_pre = f%theta
   theta = rsf_update_theta(f%theta_pre,v,f)
-  v = rsf_v(f, tau, sigma, theta)
+  vnew  = rsf_v(f, tau, sigma, theta)
+
+  do i = 1, size(v)
+     if (abs(v(i))>1d0) then
+         ! static solver produces unphysical slip solution
+         write(*, *) "rsf_qs_solver, unphysical v(it)>1, it, v(it)", i, vnew(i)
+         write(*, *) "theta_pre(i), v_in(i) = ", f%theta_pre(i), v(i)
+         exit
+     end if
+  end do
+
+  v  = vnew
 
   ! increment the counter until 2 (passes)
   f%iter = f%iter + 1
@@ -419,9 +443,9 @@ contains
       f%iter  = 0
 
       ! second pass, check convergence
-      ! solution is higher than 1d3
+      ! solution is higher than 1d-1
       do i = 1, size(v)
-         if (abs(v(i))>1d3) then
+         if (abs(v(i))>1d0) then
              ! static solver produces unphysical slip solution
              write(*, *) "rsf_qs_solver, unphysical static slip rate, it, v(it)", i, v(i)
              time%solver_converge_stat = -3
@@ -433,6 +457,11 @@ contains
   endif
 
   end subroutine rsf_qs_solver
+
+  subroutine rsf_update_theta_pre(f)
+      type(rsf_type), intent(inout) :: f
+      f%theta_pre = f%theta
+  end subroutine 
 
 !---------------------------------------------------------------------
 ! Update state variable (theta) assuming slip velocity (v) is known
