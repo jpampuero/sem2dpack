@@ -109,7 +109,7 @@ contains
   vmaxD2S = 2d-3 ! 2 mm/s
   vEQ     = 10d-3 ! 10 mm/s
   minGap  = 10 ! 10 s
-  NRMaxIter = 200 
+  NRMaxIter = 2000 
   NRTol     = 1.0d-4
   dtScale = 1d0
   vmaxPZ  = 1d10 ! by default a very large value, no control on process zone size
@@ -455,6 +455,7 @@ contains
          end if
       end do
   endif
+  if (time%solver_converge_stat<-3) call IO_Abort("rsf_qs_solver diverge! stop!")
 
   end subroutine rsf_qs_solver
 
@@ -537,6 +538,7 @@ contains
   ! compute the lower bound initial guess
   tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%mus+f%b*log(f%Vstar*f%theta/f%dc))/f%a)
   mintau = tau_stick/(1d0 + Z*tmp)
+  mintau = 0d0
 
   select case(f%kind)
     case(1) 
@@ -553,31 +555,115 @@ contains
        tolerance=f%NRTol*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
        estimateLow  = min(mintau(it), maxtau(it))
        estimateHigh = max(mintau(it), maxtau(it))
+       stat_i       = 1
         
-       if (abs(estimateLow-estimateHigh) < abs(tolerance)) then
-           ! initial guess extremely close to tau_stick, fault is almost locked
-           v(it) = (tau_stick(it) - (estimateLow + estimateHigh)/2d0)/Z(it) 
-           v(it) = sign(v(it), tau_stick(it))
-       else
+!       if (abs(estimateLow-estimateHigh) < abs(tolerance)) then
+!           ! initial guess extremely close to tau_stick, fault is almost locked
+!           v(it) = (tau_stick(it) - (estimateLow + estimateHigh)/2d0)/Z(it) 
+!           v(it) = sign(v(it), tau_stick(it))
+!       else
            !the initial guess assume zero increment of slip velocity
+           
+           ! try nr_solver first
            call nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
                tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i, stat_i)
+
+           if (stat_i <0) then
+               call bs_solver(nr_fric_func_tau,estimateLow,estimateHigh,&
+                   tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it), v(it), iter_i, stat_i)
+           end if
            iter = max(iter, iter_i)
-       end if
+
+!       end if
 
        if (stat_i<0) then
            stat = stat_i
+           write(*, *) "estimatehigh, estimatelow", estimateHigh, estimateLow
            select case (stat_i)
                case (-1)
                write(*, *) "nr_solver diverge with maximum iteration number reached, it = ", it
                case (-2)
                write(*, *) "nr_solver diverge with NAN results, it = ", it
+               case (-3)
+               write(*, *) "nr_solver diverge, bs_solver reach maximum iteration number"
            end select
        end if
      enddo     
   end select
+  
+  if (stat<0) call IO_Abort("nr_solver diverge!")
 
   end subroutine rsf_update_V
+
+! use bisection to solve the rsf
+! when a is too small, it is not very stable to use newton raphson iteration
+subroutine bs_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, sigma, Z, v, is, stat)
+  !WARNING: This is not a well tested portion !!!
+  integer, intent(out) :: is
+  double precision, intent(in) :: xL, xR, x_acc
+  double precision :: xLeft, xRight, x_est
+  double precision, intent(out) :: v
+  double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
+  double precision :: temp
+  integer :: stat ! solution status
+  
+  ! Friction parameters:
+  external nr_fric_func_tau
+  type(rsf_type), intent(in) :: f
+  double precision, intent(in) :: theta, tau_stick, sigma, Z
+  integer, intent(in) :: it
+
+  stat  = 1
+
+  ! Find initial function estimates (dfunc_dx not needed yet)
+  call nr_fric_func_tau(xL, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  call nr_fric_func_tau(xR, f_high, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  xLeft = xL
+  xRight = xR  
+
+  ! Lucky guesses: 
+  if (f_low==0)  then
+    x_est=xLeft
+    return
+  else if (f_high==0) then
+    x_est=xRight
+    return
+  ! Orient the search so that func_x(x_low) < 0
+  else if (f_low<0) then 
+    x_low=xLeft
+    x_high=xRight
+  else 
+    x_high=xLeft
+    x_low=xRight
+  endif
+
+  do is=1,f%NRMaxIter
+      x_est = (x_low+x_high)/2d0
+      ! evaluate the function
+      call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+
+      if (func_x>=0) then
+          x_high = x_est
+      else
+          x_low  = x_est
+      end if
+      
+      if (abs(x_low-x_high)<abs(x_acc)) then
+          ! evaluate the objective function one last time
+          x_est = (x_low+x_high)/2d0
+          call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+          exit
+      end if
+
+      if (is==f%NRMaxIter) then 
+          write(*, *) "maximum bisect iteration reached, maxiter=", f%NRMaxIter
+          write(*, *) "xlow, xhigh", x_low, x_high
+          stat = -3
+      end if
+
+  end do
+  
+end subroutine
 
 !==================================================================
 !         Newton-Raphson algorithm with bisection step         
@@ -700,6 +786,7 @@ contains
       print*, 'xR', xR
       print*, 'Z', Z
       stat = -2 ! diverge with NAN
+      exit
       !call IO_abort('NR_Solver has NAN result')
     end if
     
@@ -722,65 +809,6 @@ contains
   
   end subroutine nr_solver
 
-!==================================================================
-!         Newton-Raphson algorithm from Kaneko's MATLAB code
-! uses NR algorithm from Kaneko's code used in 2011 paper, steps by
-! delta to specified tolerance
-
-  function nr_solver_Kaneko(nr_fric_func_tau, x_est, x_acc, f, theta, it, tau_stick, sigma, Z) result(v)
-  !WARNING: This is not a well tested portion !!!
- 
-  integer, parameter :: maxIteration=10
-  integer :: is
-  
-  double precision, intent(in) :: x_acc
-  double precision, intent(inout) :: x_est
-  double precision :: v
-  double precision :: dfunc_dx, dx, func_x 
-  double precision :: temp
-  
-  ! Friction parameters:
-  external nr_fric_func_tau
-  type(rsf_type), intent(in) :: f
-  double precision, intent(in) :: tau_stick, sigma, Z, theta
-  integer, intent(in) :: it
-
-  ! Find initial function estimates 
-  call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
-  
-  ! Loop over allowed iterations:
-  do is=1,maxIteration
-    dx=func_x/dfunc_dx
-    temp=x_est
-    x_est=x_est-dx
-    !  Check if change is negligible:
-    if (temp==x_est) return
-    ! Check convergence criterion:
-    if (abs(dx)<abs(x_acc)) then
-      call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
-      return
-    endif
- 
-    if (abs(dx)>10**9) then
-      print*,is
-      print*,'v = ',v
-      print*,'tau = ',x_est
-      print*,'dx = ',dx
-      call IO_abort('NR_Solver fails to converge')
-    endif
-    ! Evaluate function with new estimate of x
-    x_est = sign(x_est,tau_stick) !force the sign to be the same as tau_stick
-    call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
-  enddo
-  
-  print*,'v = ',v
-  print*,'tau = ',x_est
-  print*,'dx = ',dx
-  call IO_abort('NR_Solver has exceeded the maximum iterations')
-  
-  end function nr_solver_Kaneko
-
-
 !---------------------------------------------------------------------
 !-----------Friction function for Newton Raphson method---------------
 ! This function returns the value of the friction function and its 
@@ -798,16 +826,20 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       !  mu = mus +a*log(v/Vstar) + b*log(theta*Vstar/Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Lapusta et al. (2000))
       !  solved in terms of v
-      tmp = f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it) )
-      tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
-      v = sinh(tau/(-sigma*f%a(it)))*tmp
+      !tmp = (f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it)))
+!      tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
+      !v = sinh(tau/(-sigma*f%a(it)))*tmp
+
+      tmp = -(f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
+      v = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) - exp(tau/(sigma*f%a(it)) + tmp))
       v = sign(v, tau_stick)
       func_tau = tau_stick - Z*v - tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
-      dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
+      !dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
+      dv_dtau = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) + exp(tau/(sigma*f%a(it)) + tmp)) /(-sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1d0
 end subroutine nr_fric_func_tau
 
@@ -862,8 +894,6 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   ! using the maximum slip velocity on the fault
 
   vmax  = maxval(abs(v)) 
-!  write(*, *) "rsf_timestep, vmax=", vmax
-
   dti   = 0.0d0
 
   if (vmax>f%vEQ) then
@@ -916,18 +946,13 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
           xi = 1 - sigma(it)*(f%b(it)-f%a(it))/(k*f%Dc(it)) ! Eq. 15b
         endif
         xi = min(xi, 0.5d0) ! Eq. 15a,b
-
-        ! use a limit the minimal slip velocity to 0.1*vplate
-        dti = xi*f%Dc(it)/abs(v(it))
-        dti = dti*f%dtScale
+        dti = xi*f%Dc(it)/abs(v(it)) * f%dtScale
         if (dti > 0.0d0 .and. dti < max_timestep) max_timestep = dti
-        
       enddo
-
-!      write(*, *) "rsf_timestep, max_timestep before limiting it by a increment ratio = ", max_timestep
       
       ! ---------- Limit the time step increase by a factor ---------
       if (max_timestep>time%dt*time%dt_incf) max_timestep = time%dt*time%dt_incf
+
       time%dt = max_timestep 
       f%dt    = max_timestep
   else
@@ -956,5 +981,7 @@ end subroutine
   double precision, dimension(size(f%vplate)) :: vplate
       vplate = f%vplate
   end function 
+
+
 
 end module bc_dynflt_rsf

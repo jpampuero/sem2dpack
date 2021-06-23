@@ -582,7 +582,7 @@ contains
         bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
     end if
     
-    call rsf_init(bc%rsf,bc%coord(:, bc%iactive), dt, bc%Mu(bc%iactive), abs(bc%V(bc%iactive, 1)))
+    call rsf_init(bc%rsf, bc%coord(:, bc%iactive), dt, bc%Mu(bc%iactive), abs(bc%V(bc%iactive, 1)))
 
   elseif (associated(bc%twf)) then
     bc%MU = twf_mu(bc%twf,bc%coord,0d0)
