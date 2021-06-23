@@ -147,6 +147,7 @@ subroutine solve_adaptive(pb, petobj)
    !  call bc_select_kind(pb%bc, pb%fields%veloc,tmp, IS_DYNFLT)
    ! switch from static to dynamic
      pb%fields%veloc = 0d0
+     pb%fields%veloc_pre = 0d0
  !    write(*, *)"Done setting velocity!"
   end if
 
@@ -159,6 +160,9 @@ subroutine solve_adaptive(pb, petobj)
       if (rank==0) then
           call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
       end if
+      pb%fields%displ_pre = pb%fields%displ
+      pb%fields%veloc_pre = pb%fields%veloc
+      pb%fields%accel_pre = pb%fields%accel
       ! reinitialize the fields
   end if
   
