@@ -1,0 +1,31 @@
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , W=1.d99, ndof=1 ,
+  title = '2D model with roughness drag approximation', verbose='1111' , ItInfo = 400/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+&MESH_CART xlim=0d3,100d3, zlim=0d3,50d3, nelem=100,50/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST'  /
+&MAT_ELASTIC rho=2705.d0, cp=5770.d0, cs=3330.d0 /
+
+#----- Boundary conditions ---------------------
+&BC_DEF  tag = 1, kind = 'DYNFLT' /
+&BC_DYNFLT friction='SWF','TWF', Tn=-50d6,Tt=27.4545d6 /
+&BC_DYNFLT_SWF Dc=0.45d0, MuS=0.63d0, MuD=0.54d0, alpha=0.002d0 /
+&BC_DYNFLT_TWF kind=3, MuS=0.63d0, MuD=0.5409d0, Mu0=0.63d0, Dc=0.45d0,
+               X=0.d0, Z=0.d0, V=2000d0, L=3000d0, T=30.0d0 /
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+
+#---- Time scheme settings ----------------------
+&TIME  kind='leapfrog', TotalTime=30.0 /
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields ='DVS',bin=F,ps=F /
+&SNAP_PS  vectors=F, interpol=T, DisplayPts=6, ScaleField=0d0   /
