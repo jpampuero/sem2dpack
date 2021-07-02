@@ -212,11 +212,11 @@ contains
   double precision, dimension(size(v)) :: v_new,theta_new
   integer :: it
 
-  ! Cutoff small amplitude of slip rate
+! Reset nagative sliprates as Vstar accounting for the healing effect
   do it=1,size(v)
-    if(abs(v(it))<1.0d-16) then
-        v(it)=SIGN(1.0d-16,v(it))
-    endif 
+    if(v(it)<f%Vstar) then
+        v(it)=f%Vstar
+    endif
   enddo
 
   ! First pass: 
@@ -368,7 +368,7 @@ contains
   ! Ensure zero is bounded:
   do while (f_low*f_high>0)
     xLeft = xLeft/2.0
-    xRight = xRight*2
+    xRight = xRight*2.0
     call nr_fric_func_tau(xLeft, f_low, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
     call nr_fric_func_tau(xRight, f_high, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
   enddo

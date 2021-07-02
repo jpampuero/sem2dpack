@@ -1,0 +1,10 @@
+ifort -O3 -ip -ipo -unroll -c bc_dynflt_twf.f90
+ifort -O3 -ip -ipo -unroll -c bc_dynflt.f90
+ifort -O3 -ip -ipo -unroll -c bc_gen.f90
+ifort -O3 -ip -ipo -unroll -c problem_class.f90
+ifort -O3 -ip -ipo -unroll -c plot_gen.f90
+ifort -O3 -ip -ipo -unroll -c input.f90
+ifort -O3 -ip -ipo -unroll -c solver.f90
+ifort -O3 -ip -ipo -unroll -c init.f90
+ifort -O3 -ip -ipo -unroll -c main.f90
+ifort -O3 -ip -ipo -unroll -o /beegfs/home/weng/Weng/Software/sem2dpack/bin/sem2dsolve bc_dynflt_twf.o plot_visual3.o src_force.o receivers.o stf_ricker.o mesh_mesh2d.o mesh_layers.o plot_postscript.o distribution_order0.o elem_q4.o src_wave.o distribution_pwconr.o mat_gen.o stf_harmonic.o input.o problem_class.o mesh_structured.o bc_dynflt.o utils.o memory_info.o stf_user.o distribution_gradient.o distribution_spline.o mesh_cartesian.o bc_dynflt_swf.o mat_plastic.o time.o stf_tabulated.o bc_abso.o mxmlib.o fields.o stf_gen.o bnd_grid.o distribution_linear.o distribution_cd.o mesh_emc2.o rcm.o stdio.o src_moment.o mat_mass.o prop_elem.o bc_dynflt_normal.o distribution_gaussian.o mat_damage.o butterworth_filter.o bc_kinflt.o solver.o elem_q8h.o fem_grid.o spec_grid.o plot_gmt.o elem_q9.o bc_periodic.o bc_gen.o mesh_gen.o stf_brune.o bc_lsf.o main.o src_gen.o echo.o plot_avs.o mat_elastic.o stf_gaussian.o prop_mat.o distribution_hete1.o plot_gen.o distribution_general.o bc_dynflt_rsf.o generic_list.o constants.o bc_dirneu.o energy.o gll.o mat_kelvin_voigt.o init.o mat_visco.o  

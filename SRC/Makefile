@@ -38,7 +38,7 @@
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
+EXEC = /beegfs/home/weng/Weng/Software/sem2dpack/bin/sem2dsolve
 
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
