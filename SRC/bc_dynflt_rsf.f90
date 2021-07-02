@@ -93,7 +93,7 @@ contains
     case(1); kind_txt = 'Strong velocity-weakening'
     case(2); kind_txt = 'Classical with aging law'
     case(3); kind_txt = 'Classical with slip law'
-    case(4); kind_txt = 'V-shape RSF with slip law'
+    case(4); kind_txt = 'V-shape RSF with aging law'
     case default; call IO_abort('BC_DYNFLT_RSF: invalid kind')
   end select
   rsf%kind = kind
