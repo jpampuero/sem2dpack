@@ -674,7 +674,7 @@ class sem2dpack(object):
 
   def read_fault(self, ff=np.float32, LENTAG=1, is_rate_and_state=False):
       
-      import distutils
+      from distutils import util
       
       ''' Script to read FltXX files.
       Assuming that a single boundary output has been defined for the fault.
@@ -794,11 +794,11 @@ class sem2dpack(object):
               fault['t'] = np.genfromtxt(fname, usecols=2)
               fault['#EQ'] = np.genfromtxt(fname, usecols=3)
               dum = np.genfromtxt(fname, usecols=4, dtype=str)
-              fault['isDyn'] = np.array( [bool(distutils.util.strtobool(d)) for d in dum] )             
+              fault['isDyn'] = np.array( [bool(util.strtobool(d)) for d in dum] )             
               dum = np.genfromtxt(fname, usecols=5, dtype=str)
-              fault['isSwitch'] = np.array( [bool(distutils.util.strtobool(d)) for d in dum] )
+              fault['isSwitch'] = np.array( [bool(util.strtobool(d)) for d in dum] )
               dum = np.genfromtxt(fname, usecols=6, dtype=str)
-              fault['isEq'] = np.array( [bool(distutils.util.strtobool(d)) for d in dum] )           
+              fault['isEq'] = np.array( [bool(util.strtobool(d)) for d in dum] )           
           
       self.fault = fault        
       return 
