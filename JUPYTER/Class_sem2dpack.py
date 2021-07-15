@@ -801,7 +801,14 @@ class sem2dpack(object):
               fault['isEq'] = np.array( [bool(util.strtobool(d)) for d in dum] )           
           
       self.fault = fault        
+
+      # Find the earthquake
+      cdt_beg = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], 1)==False)
+      cdt_end = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], -1)==False)
+      index = np.arange(0, len(self.fault['isDyn']))
+      print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))      
       return 
+      
   ###
 
 
@@ -840,30 +847,36 @@ class sem2dpack(object):
       plt.show()    
   ###
 
+
   def plot_cycles_slip_rate(self, eq=1, is_normalisation=False, VW_halflen=9.5, _vmin=0.0, _vmax=2.0, 
                             savefig=False, VS_LVFZ=0.0, Lnuc=0.0):
 
       import matplotlib.colors as colors
-
       
       # Find the earthquake
-      cdt = ( self.fault['#EQ'] == float(eq)) & (self.fault['isEq']== True)
+      cdt_beg = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], 1)==False)
+      cdt_end = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], -1)==False)
+      index = np.arange(0, len(self.fault['isDyn']))
+
+      print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))
+      # choose the dynamic event range
+      cdt1, cdt2 = index[cdt_beg][eq], index[cdt_end][eq]
 
       # Slip rate and tim
-      V = self.fault['Slip_Rate'][:, cdt] #npts, nt
-      t = self.fault['t'][cdt]
+      V = self.fault['Slip_Rate'][:, cdt1:cdt2] #npts, nt
+      t = self.fault['t'][cdt1:cdt2]
       t -= t[0] # init time at zero
 
       # Shear stress: beginning vs end
-      init = self.fault['Shear_Stress'][:,cdt][:,0] /1e6
-      final = self.fault['Shear_Stress'][:,cdt][:,-1]/ 1e6
+      init = self.fault['Shear_Stress'][:,cdt1:cdt2][:,0] /1e6
+      final = self.fault['Shear_Stress'][:,cdt1:cdt2][:,-1]/ 1e6
 
       init += self.fault['st0']/1e6
       final += self.fault['st0']/1e6
           
       # SLIP RATE
       data = V
-      print ('Max slip rate: ', max(V.flatten()))
+      print ('Max slip rate: ', np.amax(V) )
 
       if is_normalisation: 
           data = V/ Vpl
@@ -878,6 +891,7 @@ class sem2dpack(object):
                 
           
       ### Plot
+      print ('Plotting ...')
       fig, axs = plt.subplots(1, 2, gridspec_kw={'width_ratios': [1, 3]}, sharey=True)
 
       ###
@@ -908,8 +922,8 @@ class sem2dpack(object):
       plt.tight_layout()
 
       if savefig: fig.savefig('/Users/elifo/Desktop/event_'+str(int(eq))+'.png', dpi=300)        
+      print('*')
   ###
-
     
 
   def plot_2D_slip_rate(self,  save=False, figname='2d_fault', cmap='magma', **kwargs):
