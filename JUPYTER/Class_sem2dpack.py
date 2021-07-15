@@ -931,7 +931,6 @@ class sem2dpack(object):
     Only positive x stations are used.
     '''
 
-
     print ('Plotting the spatiotemporal graph of slip rate...')
     fig = plt.figure(figsize=(6,6)); set_style(whitegrid=False, scale=1.0)
     
