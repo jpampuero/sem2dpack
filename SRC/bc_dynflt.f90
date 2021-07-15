@@ -400,12 +400,12 @@ contains
   allocate(bc%MU(npoin))
   if (associated(bc%swf)) then
     bc%MU = swf_mu(bc%swf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    if (associated(bc%twf)) bc%MU = min( bc%MU,twf_mu(bc%twf,bc%coord,0d0,bc%D(:,1)) )
   elseif (associated(bc%rsf)) then
     bc%MU = rsf_mu(bc%V(:,1),bc%rsf)
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,0d0) )
+    if (associated(bc%twf)) bc%MU = min( bc%MU,twf_mu(bc%twf,bc%coord,0d0,bc%D(:,1)) )
   elseif (associated(bc%twf)) then
-    bc%MU = twf_mu(bc%twf,bc%coord,0d0)
+    bc%MU = twf_mu(bc%twf,bc%coord,0d0,bc%D(:,1))
   endif
  
 ! cohesion
@@ -623,7 +623,7 @@ contains
    !DEVEL WARNING: slip rate is updated later, but theta is not
 
    ! superimposed time-weakening
-    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
+    if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time,bc%D(:,1)) )
 
     strength = - bc%MU * normal_getSigma(bc%normal)
                                          
@@ -644,11 +644,11 @@ contains
       bc%MU = swf_mu(bc%swf)
   
      ! superimposed time-weakening
-      if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
+      if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time,bc%D(:,1)) )
 
    !-- pure time-weakening
     elseif (associated(bc%twf)) then
-      bc%MU = twf_mu(bc%twf,bc%coord,time%time)
+      bc%MU = twf_mu(bc%twf,bc%coord,time%time,bc%D(:,1))
     endif
 
    ! Update strength

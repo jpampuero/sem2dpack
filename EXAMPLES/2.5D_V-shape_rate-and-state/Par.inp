@@ -1,0 +1,41 @@
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , W=20d3, ndof=1 ,
+  title = '2.5D V-shape rate and state', verbose='1111' , ItInfo = 50/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+&MESH_CART xlim=0d3,100d3, zlim=0d3,50d3, nelem=100,50/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST'  /
+&MAT_ELASTIC rho=2705.d0, cp=5770.d0, cs=3330.d0 /
+
+#----- Boundary conditions ---------------------
+&BC_DEF  tag = 1, kind = 'DYNFLT' /
+&BC_DYNFLT friction='RSF', Tn=-20d6,TtH="ORDER0", VH="ORDER0" /
+&DIST_ORDER0 xn=3,zn=1 /
+     20d3  60d3  
+16.449556432489867d6   17.249894012056423d6  16.035091115750937d6
+&DIST_ORDER0 xn=3,zn=1 /
+     20d3  60d3     
+0.1   1e-12  0.001
+
+&BC_DYNFLT_RSF kind=4, Dc=1e-3, MuS=0.6, aH='ORDER0', b=0.015, Vstar=1e-9, Vc=1e-2, thetaH="ORDER0"/
+&DIST_ORDER0 xn=2,zn=1 /
+     225d3    
+0.012   0.024
+&DIST_ORDER0 xn=3,zn=1 /
+     20d3  60d3  
+0.01   1000000000 1
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=145.345d0, Courant=0.6d0, kind='newmark' /
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields ='DVS',bin=F,ps=F /
+&SNAP_PS  vectors=F, interpol=F, DisplayPts=6, ScaleField=0d0   /
