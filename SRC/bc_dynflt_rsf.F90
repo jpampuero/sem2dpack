@@ -210,12 +210,27 @@ contains
   subroutine rsf_init_theta(f, mu, v)
       type(rsf_type), intent(inout) :: f
       double precision, intent(in) :: mu(:), v(:)
-      double precision, dimension(size(f%theta)) :: psi
+      double precision, dimension(size(f%theta)) :: tmp
+      double precision:: tmp_i
+      integer :: i
       
       ! initialize
 !      f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
 !               * f%Dc / f%Vstar
-      f%theta = f%Dc/f%Vstar * exp(f%a/f%b * log(2*f%Vstar/v * sinh(mu/f%a)) - f%mus/f%b)
+      
+      tmp = f%a/f%b * log(2*f%Vstar/v * sinh(mu/f%a))
+      f%theta = f%Dc/f%Vstar * exp(tmp - f%mus/f%b)
+      tmp_i   = 0d0
+
+      do i = 1, size(f%theta)
+          if (f%theta(i)>huge(0d0) .or. tmp(i)>huge(0d0)) then
+              ! expand the sinh and cancel the factor a
+              tmp_i = f%a(i)/f%b(i) * log(f%Vstar(i)/v(i))
+              tmp_i = mu(i)/f%b(i) + tmp_i
+              f%theta(i) = f%Dc(i)/f%Vstar(i) * exp(tmp_i- f%mus(i)/f%b(i))
+          end if
+      end do
+
   end subroutine rsf_init_theta
 
 ! reset the state variable and update to new dt
@@ -262,7 +277,8 @@ contains
 
       double precision, dimension(:), intent(in) :: v
       type(rsf_type), intent(in) :: f
-      double precision :: mu(size(v))
+      double precision :: mu(size(v)), tmp(size(v))
+      integer :: i
 
       select case(f%kind)
         case(1) 
@@ -271,7 +287,20 @@ contains
           !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
           ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
           !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-          mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp((f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a))
+          ! expand asinh(x) = log(x+sqrt(x.^2+1))
+          ! mu = a*log(x+sqrt(x.^2+1)), 
+          ! where x = exp((f0 + b*log(v0*theta/dc))/a + log(v/(2*v0)))
+
+          tmp  = (f%mus+f%b*log(f%Vstar*f%theta/f%Dc))/f%a + log(abs(v)/(2d0*f%Vstar)) 
+
+          ! if exp(tmp) is too large, it causes trouble! expand sinh
+          mu = f%a*asinh(exp(tmp))
+          do i = 1, size(v)
+              if (mu(i)>huge(0d0) .or. exp(tmp(i))>1d50) then
+                  ! asinh(exp(tmp)) ~ log(2*exp(tmp)) = tmp + log(2)
+                  mu(i) = f%a(i)*(tmp(i) + log(2d0))
+              end if
+          end do
       end select
 
   end function rsf_mu
@@ -319,9 +348,13 @@ contains
   integer::i
 
   !  Kaneko et al (2011) Eq. 14
-  tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
-  tmp = 2d0*f%Vstar*exp(-tmp/f%a)
-  v = sinh(abs(tau)/(-sigma*f%a))*tmp
+!  tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
+!  tmp = 2d0*f%Vstar*exp(-tmp/f%a)
+!  v = sinh(abs(tau)/(-sigma*f%a))*tmp
+!  v = sign(v, tau)
+
+  tmp = -(f%mus +f%b*log( f%Vstar*theta/f%Dc))/f%a
+  v = f%Vstar * (exp(tau/(-sigma*f%a)+tmp) - exp(tau/(sigma*f%a) + tmp))
   v = sign(v, tau)
 
   do i = 1, size(theta)
@@ -353,25 +386,24 @@ contains
 ! add control on slip velocity
 !
 !
-  subroutine rsf_solver(v, tau_stick, sigma, f, Z, time)
+  subroutine rsf_solver(v, tau_stick, sigma, f, Z, time, isSetmaxV)
   use time_evol, only: timescheme_type
   type(timescheme_type):: time
   double precision, dimension(:), intent(inout) :: v
+  logical, dimension(size(v)), intent(out) :: isSetmaxV
   double precision, dimension(:), intent(in) :: sigma,Z,tau_stick
   type(rsf_type), intent(inout) :: f
 
   double precision, dimension(size(v)) :: v_new,theta_new
   integer :: it, iter,  stat_i
 
+  isSetmaxV = .false.
+
   time%solver_converge_stat = 1
 
   ! First pass: 
   theta_new = rsf_update_theta(f%theta,v,f)
-!  write(*,*) "Done first update theta, max, min of theta_new",maxval(theta_new),minval(theta_new) 
-!  write(*,*) "log10(theta_new)  max, min", log10(maxval(theta_new)), log10(minval(theta_new))
-!  write(*,*) "log10(v)  max, min", log10(maxval(v)), log10(minval(v))
-!  write(*,*) "v  max, min", maxval(v), minval(v)
-!
+  
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1), stat_i)
   if (stat_i<0) then
       write(*, *) "rsf_solver, pass 1 diverge!"
@@ -387,6 +419,14 @@ contains
 
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2), stat_i)
+  
+  ! limit the slip velocity to v_new
+  do it = 1, size(v_new)
+      if (abs(v_new(it))>f%vmaxPZ) then
+          v_new(it) = sign(f%vmaxPZ, v_new(it))
+          isSetmaxV(it) = .true.
+      end if
+  end do
 
   if (stat_i<0) then
       write(*, *) "rsf_solver, pass 2 diverge!"
@@ -612,6 +652,7 @@ subroutine bs_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, s
   type(rsf_type), intent(in) :: f
   double precision, intent(in) :: theta, tau_stick, sigma, Z
   integer, intent(in) :: it
+  double precision:: df, f_pre
 
   stat  = 1
 
@@ -637,10 +678,16 @@ subroutine bs_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, s
     x_low=xRight
   endif
 
+  f_pre = 0d0
+  df    = 0d0
+
   do is=1,f%NRMaxIter
       x_est = (x_low+x_high)/2d0
+
       ! evaluate the function
       call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+
+      df = func_x - f_pre
 
       if (func_x>=0) then
           x_high = x_est
@@ -648,12 +695,13 @@ subroutine bs_solver(nr_fric_func_tau, xL, xR, x_acc, f, it, theta, tau_stick, s
           x_low  = x_est
       end if
       
-      if (abs(x_low-x_high)<abs(x_acc)) then
+      if (abs(x_low-x_high)<abs(x_acc) .and. abs(df)<abs(x_acc)) then
           ! evaluate the objective function one last time
           x_est = (x_low+x_high)/2d0
           call nr_fric_func_tau(x_est, func_x, dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
           exit
       end if
+      f_pre = func_x
 
       if (is==f%NRMaxIter) then 
           write(*, *) "maximum bisect iteration reached, maxiter=", f%NRMaxIter
@@ -681,7 +729,7 @@ end subroutine
   double precision :: xLeft, xRight, x_est
   double precision, intent(out) :: v
   double precision :: dfunc_dx, dx, dx_old, func_x, f_high, f_low, x_high, x_low
-  double precision :: temp
+  double precision :: temp, df, f_pre
   integer :: stat ! solution status
 
   !stat =  1 normal converge
@@ -739,12 +787,17 @@ end subroutine
   dx=dx_old
   
   call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
+  f_pre = 0d0
 
   ! Loop over allowed iterations:
   do is=1,f%NRMaxIter
+
+    df = func_x - f_pre
+    f_pre = func_x
    
     ! Bisect if N-R out of range, or not decreasing fast enough:
-    if( ((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x)>0 .or. abs(2*func_x)>abs(dx_old*dfunc_dx) ) then
+    if( ((x_est-x_high)*dfunc_dx-func_x)*((x_est-x_low)*dfunc_dx-func_x)>0 .or. abs(2*func_x)>abs(dx_old*dfunc_dx) &
+        .or. abs(dfunc_dx)>huge(0d0) .or. abs(func_x)>huge(0d0)) then
       dx_old=dx
       dx=0.5*(x_high-x_low)
       x_est=x_low+dx
@@ -762,7 +815,7 @@ end subroutine
     endif
   
     ! Check convergence criterion:
-    if (abs(dx)<abs(x_acc))  then
+    if (abs(dx)<abs(x_acc) .and. abs(df) < abs(x_acc))  then
         ! evaluate the function and update v, one last time
         call nr_fric_func_tau(x_est,func_x,dfunc_dx, v, f, theta, it, tau_stick, sigma, Z)
         ! converge as normal
@@ -786,8 +839,7 @@ end subroutine
       print*, 'xR', xR
       print*, 'Z', Z
       stat = -2 ! diverge with NAN
-      exit
-      !call IO_abort('NR_Solver has NAN result')
+      return
     end if
     
     ! Evaluate function with new estimate of x

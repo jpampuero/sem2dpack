@@ -1103,6 +1103,8 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
   double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA,dF
   integer :: ndof, i
   double precision, dimension(:), allocatable :: dV_tmp
+  logical, dimension(size(bc%iactive)) :: isSetmaxV
+  isSetmaxV = .false.
 
   ndof = size(MxA,2)
   
@@ -1161,7 +1163,7 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 !            write(*, *) "dv_tmp<0 or abs(dv_tmp)<1d-50, dv_tmp=", dV_tmp(i)
 !        end if
 !    end do
-    call rsf_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(bc%iactive,1), time)
+    call rsf_solver(dV_tmp, T(bc%iactive,1), normal_getSigma(bc%normal), bc%rsf, bc%Z(bc%iactive,1), time, isSetmaxV)
     bc%V(bc%iactive,1) = dV_tmp
 
     bc%MU(bc%iactive) = rsf_mu(bc%V(bc%iactive,1), bc%rsf)
@@ -1171,8 +1173,18 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
    ! superimposed time-weakening
     if (associated(bc%twf)) bc%MU = min( bc%MU, twf_mu(bc%twf,bc%coord,time%time) )
-
+    
     strength(bc%iactive)= - bc%MU(bc%iactive) * normal_getSigma(bc%normal)
+    
+    ! if slip velocity is set as vmaxPZ, then strength is set as Tstick - Vmax*Z
+    ! such that when traction T is applied, v=vmax on the boundary
+
+    do i = 1, size(bc%iactive)
+        if (isSetmaxV(i)) then
+            strength(bc%iactive(i)) = T(bc%iactive(i),1) - bc%Z(bc%iactive(i),1) * bc%V(bc%iactive(i),1) 
+        end if
+    end do
+    
     T(bc%iactive,1) = sign( strength(bc%iactive), T(bc%iactive,1))
 
   else
