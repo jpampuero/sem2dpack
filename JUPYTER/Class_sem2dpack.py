@@ -849,7 +849,8 @@ class sem2dpack(object):
 
 
   def plot_cycles_slip_rate(self, eq=1, is_normalisation=False, VW_halflen=9.5, _vmin=0.0, _vmax=2.0, 
-                            savefig=False, VS_LVFZ=0.0, Lnuc=0.0):
+                            savefig=False, VS_LVFZ=0.0, Lnuc=0.0, Vpl=6.34e-11, tmin=-1.0, tmax=-1.0, 
+                            _cmap='rainbow'):
 
       import matplotlib.colors as colors
       
@@ -882,8 +883,11 @@ class sem2dpack(object):
           data = V/ Vpl
           data = np.log10(data)
   #         print ('After normal. max : ', max (data.flatten()))
-  #         xx = t* VS_LVFZ/ Lnuc
-  #         yy = z_coord/ Lnuc    
+          # xx = t* VS_LVFZ/ Lnuc
+          # yy = z_coord/ Lnuc  
+          xx = t
+          yy = self.fault['x']     
+
       else:
           xx = t
           yy = self.fault['x']
@@ -909,12 +913,15 @@ class sem2dpack(object):
       ###
       ax = axs[1]
       ax.set_title('Slip rate for event #'+ str(eq))
-      ext = [min(xx), max(xx), min(yy), max(yy)]
-      xmin, xmax = min(t), max(t)
+      xmin, xmax = tmin, tmax
+      ext = [min(xx), max(xx), min(yy), max(yy)]      
+      if tmax < 0.0: tmax = max(xx)
+      if tmin < 0.0: tmin = min(xx)
+      ax.set_xlim(tmin, tmax)
       ax.hlines(y=VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
       ax.hlines(y=-VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
       im = ax.imshow(data, extent=ext,
-                 interpolation='nearest', cmap='rainbow', aspect='auto', vmin=_vmin, vmax=_vmax, origin='lower')
+                 interpolation='nearest', cmap=_cmap, aspect='auto', vmin=_vmin, vmax=_vmax, origin='lower')
       ax.set_xlabel('t (s)')
       cb = fig.colorbar(im, orientation='vertical')
       cb.set_label('V')
