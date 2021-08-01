@@ -825,24 +825,28 @@ class sem2dpack(object):
       plt.show()
   ###
 
-  def plot_cycles_cumulative_slip(self, VW_halflen=9.5, savefig=False):
+  def plot_cycles_cumulative_slip(self,VW_halflen=9.5,savefig=False,jump_sta=1,jump_dyn=1,
+                                      col_sta='gray',col_dyn='tomato'):
 
-      npts, nt = self.fault['Slip'].shape
-      colors = np.array( ['k' for i in np.arange(nt)] )
-      colors [self.fault['isDyn'] == True ] = 'cyan'
+      slip = self.fault['Slip']
+      sta = slip[:, self.fault['isDyn'] == False][:, ::jump_sta]
+      dyn = slip[:, self.fault['isDyn'] == True][:, ::jump_dyn]
+
+      print ('WARNING: If weird output, try a smaller jump!')
+      print ('shape of slip,sta,dyn: ', slip.shape,sta.shape,dyn.shape)
 
       fig = plt.figure(figsize=(8,4))
-      for ii, col in enumerate(colors):
-          plt.plot(self.fault['Slip'][:, ii], self.fault['x'], c=col)
+      for ii in enumerate(range(sta.shape[1])):
+        plt.plot(sta[:, ii], self.fault['x'], c=col_sta,lw=0.1)
       #
-
-      _xmin, _xmax = 0.0, max(self.fault['Slip'][:,-1])
+      for ii in enumerate(range(dyn.shape[1])):
+        plt.plot(dyn[:, ii], self.fault['x'], c=col_dyn,lw=0.1)
+      #
+      _xmin, _xmax = 0.0, max(slip[:,-1])
       plt.xlabel('Cumulated slip (m)')
       plt.ylabel('Along dip (m)')
-      plt.hlines(VW_halflen, xmin=_xmin, xmax=_xmax, linestyle=':', color='pink')
-      plt.hlines(-VW_halflen, xmin=_xmin, xmax=_xmax, linestyle=':', color='pink')
-
-      # plt.grid('both')
+      plt.hlines(VW_halflen, xmin=_xmin, xmax=_xmax, linestyle=':', color='g')
+      plt.hlines(-VW_halflen, xmin=_xmin, xmax=_xmax, linestyle=':', color='g')
       if savefig: fig.savefig('/Users/elifo/Desktop/cumslip.png', dpi=300)  
       plt.show()    
   ###
