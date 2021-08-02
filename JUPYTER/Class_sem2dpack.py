@@ -828,7 +828,12 @@ class sem2dpack(object):
   def plot_cycles_cumulative_slip(self,VW_halflen=9.5,savefig=False,jump_sta=1,jump_dyn=1,
                                       col_sta='gray',col_dyn='tomato'):
 
-      slip = self.fault['Slip']
+      # in case simulation is stopped manually, below cdt helps.
+      shape = min( self.fault['Slip'].shape[1], self.fault['isDyn'].shape[0])
+      print ('shape', shape)
+      slip = self.fault['Slip'][:, :shape]
+      isDyn = self.fault['isDyn'][:shape]
+
       sta = slip[:, self.fault['isDyn'] == False][:, ::jump_sta]
       dyn = slip[:, self.fault['isDyn'] == True][:, ::jump_dyn]
 
