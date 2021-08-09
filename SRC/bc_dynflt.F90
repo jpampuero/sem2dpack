@@ -50,6 +50,7 @@ module bc_dynflt
    ! for outputs:
     double precision :: ot1, odt, odtD, odtS, ot
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
+    integer :: ot_mode
     integer, pointer, dimension(:) :: oix_export => null()
     logical :: osides
   end type bc_dynflt_type
@@ -107,6 +108,7 @@ contains
 ! ARG: ot1      [dble] [0.d0] Time of first output (in seconds).
 !                Internally adjusted to the nearest multiple of the timestep.
 !                Its value can be found in the output file FltXX_sem2d.hdr
+! ARG: otV      [dble] [1d-3] threshold velocity for outputting purposes
 ! ARG: otdD     [dble] [0d0] Time lag between outputs for dynamic 
 ! ARG: otdS     [dble] [0d0] Time lag between outputs for static
 ! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output.
@@ -143,7 +145,7 @@ contains
   type(bc_dynflt_type), intent(out) :: bc
   integer, intent(in) :: iin
   double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V,vlock
-  double precision :: otdD, otdS
+  double precision :: otdD, otdS, otV
   character(20) :: TtH,TnH, SxxH,SxyH,SxzH,SyzH,SzzH &
                   ,dt_txt,oxi2_txt, cohesionH, VH, vlockH
   character(3) :: friction(2)
@@ -155,7 +157,7 @@ contains
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH, vlock, vlockH &
                          ,ot1,otd,oxi,osides, friction, opening &
                          ,cohesion, cohesionH, V, VH, &
-                         otdD, otdS,hnodeFix,hnodeScale
+                         otdD, otdS, otV,hnodeFix,hnodeScale
 
   Tt = 0d0
   Tn = 0d0
@@ -182,6 +184,7 @@ contains
   otd = 0.d0
   otdD = 0.d0
   otdS = 0.d0
+  otV  = 1.0d-3
 
   oxi(1) = 1
   oxi(2) = huge(i)
@@ -204,6 +207,7 @@ contains
   bc%odt = otd
   bc%odtD = otdD
   bc%odtS = otdS
+  bc%ot_mode = 0 ! 0: static, 1, dynamic 
 
   bc%oix1 = oxi(1)
   bc%oixn = oxi(2) 
@@ -1345,32 +1349,25 @@ end subroutine BC_DYNFLT_AppendDofFix
   type(timescheme_type) :: time
   double precision, dimension(:,:), intent(in) :: d,v
   double precision :: vmaxd2s, vmaxs2d, vmax
-  Logical :: adapt_time, refine
-  double precision::threshold=0.00 ! used for debuging
+  Logical :: adapt_time
+  integer :: ot_mode, ot_mode_pre! time output mode 0 (static), 1 (dynamic)
+  integer :: ot_mode_dynamic=1
 
   write(bc%ou_pot,'(6D24.16)') BC_DYNFLT_potency(bc,d), BC_DYNFLT_potency(bc,v)
 
   ! reset ot for each step that a switch in time scheme takes place
   if (time%switch) bc%ot = time%time
-
-  vmaxd2s = 0d0
-  vmaxs2d = 0d0
   vmax    = maxval(abs(bc%V(:, 1)))
-
-  if (associated(bc%rsf)) then
-      vmaxd2s=rsf_vmaxd2s(bc%rsf)
-      vmaxs2d=rsf_vmaxs2d(bc%rsf)
+  
+  if (vmax>=bc%otV) then
+      ot_mode = 1
+  else
+      ot_mode = 0
   end if
 
-  refine = .false. 
-  refine = (abs(vmax-vmaxd2s)<threshold*vmaxd2s) &
-           .or. (abs(vmax-vmaxs2d)<threshold*vmaxs2d)
-
-  ! write additional step
-  if (refine) then 
-      bc%ot = time%time
-      time%writeStep = .true.
-  end if
+  ot_mode_pre = bc%ot_mode
+  if (ot_mode /= ot_mode_pre) bc%ot = time%time
+  bc%ot_mode  = ot_mode 
 
   if ( time%time < bc%ot ) return
 
@@ -1398,15 +1395,10 @@ end subroutine BC_DYNFLT_AppendDofFix
       bc%ot = bc%ot + bc%odt
   else
       ! adaptive time stepping 
-      ! debug mode output every time step in refined period
-      if (refine) then
-          bc%ot     = bc%ot + time%dt
+      if (ot_mode==ot_mode_dynamic) then
+          bc%ot = bc%ot + max(bc%odtD, time%dt) 
       else
-          if (time%isdynamic) then
-              bc%ot = bc%ot + max(bc%odtD, time%dt) 
-          else
-              bc%ot = bc%ot + max(bc%odtS, time%dt) 
-          end if
+          bc%ot = bc%ot + max(bc%odtS, time%dt) 
       end if
       ! write time information if adaptive time into bindary
       write(bc%ou_time, *)  time%it, time%dt, time%time, & 
