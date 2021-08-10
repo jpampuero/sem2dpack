@@ -172,9 +172,12 @@ end subroutine solve_adaptive
 subroutine update_adaptive_step(pb)
   use bc_gen, only: BC_timestep
   type(problem_type), intent(inout) :: pb
+  double precision :: vgmax
+  vgmax = maxval(abs(pb%fields%veloc))
 
   ! rate-state time step following Lapusta et al., 2010
-  call BC_timestep(pb%bc,pb%time)
+  call BC_timestep(pb%bc,pb%time, vgmax)
+  
 end subroutine update_adaptive_step
 
 !=====================================================================

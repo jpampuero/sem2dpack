@@ -928,7 +928,7 @@ end subroutine nr_fric_func_v
 !
 ! this subroutine also determines if an earthquake is occurring
 
-subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
+subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
   use time_evol, only : timescheme_type
   
   use constants, only: PI
@@ -938,6 +938,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   double precision, intent(in) :: mu_star(:) 
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
+  double precision :: vgmax
 
   double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
   integer :: it
@@ -948,7 +949,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
 
-  if (vmax>f%vEQ) then
+  if (vmax>f%vEQ .or. vgmax>f%vEQ/2d0) then
       if ((.not. time%isEQ) .and. &
           (time%time-f%tEqPrev)>f%minGap .and. (.not. time%EQStart)) then
           time%EQStart = .true.
@@ -968,12 +969,13 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star)
       time%isEQ = .false.
   end if
   
-  if ((time%isDynamic .and. vmax<f%vmaxD2S) .or. &
-      ((.not. time%isDynamic) .and. vmax<f%vmaxS2D)) then
+  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxD2S/2d0)) .or. &
+      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D .and. vgmax<f%vmaxD2S/2d0))) then
 
       if (time%isDynamic) then
           time%switch = .true.
           write(*,*) "max sliprate:", vmax
+          write(*,*) "max global velocity:", vgmax
           write(*, *) "Switching from dynamic to static, EQNum = ", time%EQNum
       else
           time%switch = .false.

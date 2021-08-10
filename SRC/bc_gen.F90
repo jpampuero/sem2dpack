@@ -1074,11 +1074,12 @@ function bc_has_dynflt(bc) result(has_dynflt)
   end do
 end function bc_has_dynflt
 
-subroutine bc_timestep(bc, time)
+subroutine bc_timestep(bc, time, vgmax)
 
   use time_evol, only : timescheme_type
   type(bc_type), pointer, intent(in) :: bc(:)
   type(timescheme_type), intent(inout) :: time
+  double precision:: vgmax
   integer :: i
 
   if (.not. associated(bc)) return
@@ -1086,7 +1087,7 @@ subroutine bc_timestep(bc, time)
   do i = 1, size(bc)
     select case(bc(i)%kind)
     case (IS_DYNFLT)
-        call BC_DYNFLT_timestep(time, bc(i)%dynflt)
+        call BC_DYNFLT_timestep(time, bc(i)%dynflt, vgmax)
     end select
   enddo
     

@@ -48,7 +48,7 @@ module bc_dynflt
     double precision:: time_i
 
    ! for outputs:
-    double precision :: ot1, odt, odtD, odtS, ot
+    double precision :: ot1, odt, odtD, odtS, ot, otV
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
     integer :: ot_mode
     integer, pointer, dimension(:) :: oix_export => null()
@@ -1348,7 +1348,7 @@ end subroutine BC_DYNFLT_AppendDofFix
   type(bc_dynflt_type), intent(inout) :: bc
   type(timescheme_type) :: time
   double precision, dimension(:,:), intent(in) :: d,v
-  double precision :: vmaxd2s, vmaxs2d, vmax
+  double precision :: vmax
   Logical :: adapt_time
   integer :: ot_mode, ot_mode_pre! time output mode 0 (static), 1 (dynamic)
   integer :: ot_mode_dynamic=1
@@ -1398,6 +1398,7 @@ end subroutine BC_DYNFLT_AppendDofFix
       if (ot_mode==ot_mode_dynamic) then
           bc%ot = bc%ot + max(bc%odtD, time%dt) 
       else
+          ! output more steps with dt<otdS
           bc%ot = bc%ot + max(bc%odtS, time%dt) 
       end if
       ! write time information if adaptive time into bindary
@@ -1684,16 +1685,17 @@ end subroutine BC_DYNFLT_update_disp
 
   end function BC_DYNFLT_potency
 
-  subroutine BC_DYNFLT_timestep(time, bc)
+  subroutine BC_DYNFLT_timestep(time, bc, vgmax)
  
     use time_evol, only : timescheme_type
     type(timescheme_type), intent(inout) :: time
     type(bc_dynflt_type), intent(in) :: bc
+    double precision::vgmax
   
     if (associated(bc%rsf)) then 
       call rsf_timestep(time, bc%rsf, bc%V(bc%iactive,1), &
   				     -normal_getSigma(bc%normal), & 
-                     bc%hnode(bc%iactive), bc%MuStar(bc%iactive))
+                     bc%hnode(bc%iactive), bc%MuStar(bc%iactive), vgmax)
     endif 
 
   end subroutine
