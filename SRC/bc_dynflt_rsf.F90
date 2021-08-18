@@ -949,7 +949,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
   vmax  = maxval(abs(v)) 
   dti   = 0.0d0
 
-  if (vmax>f%vEQ .or. vgmax>f%vEQ/2d0) then
+  if (vmax>f%vEQ) then
       if ((.not. time%isEQ) .and. &
           (time%time-f%tEqPrev)>f%minGap .and. (.not. time%EQStart)) then
           time%EQStart = .true.
@@ -969,8 +969,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
       time%isEQ = .false.
   end if
   
-  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxD2S/2d0)) .or. &
-      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D .and. vgmax<f%vmaxD2S/2d0))) then
+  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxS2D*2d0)) .or. &
+      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D))) then
 
       if (time%isDynamic) then
           time%switch = .true.

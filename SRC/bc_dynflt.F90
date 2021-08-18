@@ -108,7 +108,7 @@ contains
 ! ARG: ot1      [dble] [0.d0] Time of first output (in seconds).
 !                Internally adjusted to the nearest multiple of the timestep.
 !                Its value can be found in the output file FltXX_sem2d.hdr
-! ARG: otV      [dble] [1d-3] threshold velocity for outputting purposes
+! ARG: otV      [dble] [1d-2] threshold velocity for outputting purposes
 ! ARG: otdD     [dble] [0d0] Time lag between outputs for dynamic 
 ! ARG: otdS     [dble] [0d0] Time lag between outputs for static
 ! ARG: oxi      [int(3)] [(1,huge,1)] First, last node and stride for output.
@@ -184,7 +184,7 @@ contains
   otd = 0.d0
   otdD = 0.d0
   otdS = 0.d0
-  otV  = 1.0d-3
+  otV  = 1.0d-2
 
   oxi(1) = 1
   oxi(2) = huge(i)
@@ -208,6 +208,7 @@ contains
   bc%odtD = otdD
   bc%odtS = otdS
   bc%ot_mode = 0 ! 0: static, 1, dynamic 
+  bc%otV  = otV
 
   bc%oix1 = oxi(1)
   bc%oixn = oxi(2) 
