@@ -192,7 +192,7 @@ module petsc_objects
  ! */
 
  ! set the non-zero initial guess
- call KSPSetInitialGuessNonzero(petobj%ksp, PETSC_TRUE, ierr);
+! call KSPSetInitialGuessNonzero(petobj%ksp, PETSC_TRUE, ierr);
 
  ! set tolerance
   call KSPSetTolerances(petobj%ksp,pb%time%TolLin,1.d-50,&
@@ -204,6 +204,8 @@ module petsc_objects
   call KSPGetType(petobj%ksp,ksptype, ierr);
   call KSPGetPC(petobj%ksp,ksp_pc, ierr);
   call PCGetType(ksp_pc, pctype, ierr)
+
+  if (trim(ksptype) /='preonly') call KSPSetInitialGuessNonzero(petobj%ksp, PETSC_TRUE, ierr); 
 
   if (rank==0) then
       write(iout, *) "KSPTYPE:------------"
