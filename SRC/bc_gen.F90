@@ -56,7 +56,7 @@ module bc_gen
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
             bc_select_kind, bc_trans, bc_update_dfault, &
             bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
-            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset, BC_D2S_ReInit,&
+            bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset,&
             BC_Update_Pre
 
 contains
@@ -290,17 +290,17 @@ end subroutine bc_reset
       enddo
   end subroutine
 
-  subroutine BC_D2S_ReInit(bc, v)
-  type(bc_type), pointer :: bc(:)
-  double precision, intent(inout) :: v(:,:)
-  integer::i
-
-  do i = 1,size(bc)
-    if ( bc(i)%kind == IS_DYNFLT) then
-      call BC_DYNFLT_D2S_ReInit(bc(i)%dynflt, v)
-    end if
-  enddo
-  end subroutine
+!  subroutine BC_D2S_ReInit(bc, v)
+!  type(bc_type), pointer :: bc(:)
+!  double precision, intent(inout) :: v(:,:)
+!  integer::i
+!
+!  do i = 1,size(bc)
+!    if ( bc(i)%kind == IS_DYNFLT) then
+!      call BC_DYNFLT_D2S_ReInit(bc(i)%dynflt, v)
+!    end if
+!  enddo
+!  end subroutine
 
 !=======================================================================
 !! Applies the boundary condition

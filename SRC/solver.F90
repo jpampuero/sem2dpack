@@ -12,7 +12,7 @@ module solver
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, &
                       bc_trans, bc_update_dfault, &
-                      bc_update_bcdv, bc_reset, bc_has_dynflt, BC_D2S_ReInit, bc_update_pre
+                      bc_update_bcdv, bc_reset, bc_has_dynflt, bc_update_pre
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec, &
                       FIELDS_reset, FIELDS_Update_Pre
 
@@ -112,15 +112,15 @@ subroutine solve_adaptive(pb, petobj)
   end if
 
 ! switch from dynamic to static
-  isw = id1 .and. (.not. id2)
-  if (isw) then
-      ! switch from dynamic to static
-  !    pb%fields%displ = 0d0 
-      pb%fields%accel = 0d0
-      if (rank==0) then
-!          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
-      end if
-  end if
+!  isw = id1 .and. (.not. id2)
+!  if (isw) then
+!      ! switch from dynamic to static
+!  !    pb%fields%displ = 0d0 
+!      pb%fields%accel = 0d0
+!      if (rank==0) then
+!!          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
+!      end if
+!  end if
   
 end subroutine solve_adaptive
 

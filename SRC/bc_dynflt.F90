@@ -57,7 +57,7 @@ module bc_dynflt
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
             BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
             BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix,&
-            BC_DYNFLT_reset, BC_DYNFLT_D2S_ReInit, BC_DYNFLT_Update_Pre, BC_DYNFLT_get_rotate_mat
+            BC_DYNFLT_reset, BC_DYNFLT_Update_Pre, BC_DYNFLT_get_rotate_mat
 
 contains
 
@@ -800,73 +800,73 @@ contains
 ! use slip and slip velocity on the boundary to update global fields inside the domain
 !
 
-  subroutine BC_DYNFLT_D2S_ReInit(bc, v)
-  type(bc_dynflt_type), intent(inout) :: bc
-  double precision, intent(inout) :: v(:,:)
-  double precision :: vtmp(size(v,1), size(v,2))
-  double precision :: dV(size(bc%V,1), size(bc%V, 2))
-  integer :: ndof, i, j
-
-  if (.not. associated(bc%rsf)) return
-
-  ndof = size(v, 2)
-
-  ! Print out some information
-  write(*, *) "BC_DYNFLT_D2S_ReInit for debugging..."
-
-  ! max and min value for velocity on the active section of the fault
-  write(*, *) "max, min particle velocity on node1"
-  do i = 1, ndof
-      write(*, *) "component = ", i
-      write(*, *) "active nodes:"
-      write(*, *) maxval(v(bc%node1(bc%iactive), i)), minval(v(bc%node1(bc%iactive), i)) 
-      write(*, *) "locked nodes:"
-      write(*, *) maxval(v(bc%node1(bc%ilock), i)), minval(v(bc%node1(bc%ilock), i)) 
-  end do
-
-  if (associated(bc%node2)) then
-      write(*, *) "max, min particle velocity on node2"
-      do i = 1, ndof
-          write(*, *) "component = ", i
-          write(*, *) "active nodes:"
-          write(*, *) maxval(v(bc%node2(bc%iactive), i)), minval(v(bc%node2(bc%iactive), i)) 
-          write(*, *) "locked nodes:"
-          write(*, *) maxval(v(bc%node2(bc%ilock), i)), minval(v(bc%node2(bc%ilock), i)) 
-      end do
-  end if
-
-  write(*, *) "max, min slip rate on fault"
-  do i = 1, ndof
-      write(*, *) "component = ", i
-      write(*, *) "active nodes:"
-      write(*, *) maxval(bc%V(bc%iactive,i)), minval(bc%V(bc%iactive, i))
-      write(*, *) "locked nodes:"
-      write(*, *) maxval(bc%V(bc%ilock,i)), minval(bc%V(bc%ilock, i))
-  end do
-
-  dV   = bc%V
-  dV(bc%iactive, 1) = dV(bc%iactive, 1) - rsf_vplate(bc%rsf)
-  dV(bc%ilock, :)   = 0d0
-
-  ! rotate back to x-z frame
-  if (ndof==2) dV  = rotate(bc, dV, -1)      
-
-  ! note the global d and v are relative to initial condition
-!  v = 0d0 ! zero out the velocity, quench the wave fields.
-!  vtmp = v
-!  vtmp(bc%node1,:) = 0d0 
-!  if (associated(bc%node2)) vtmp(bc%node2, :) = 0d0 
-!  v   = v - vtmp
-
-  ! set all nodes except fault to zero
-  ! do not set the creeping section to zero.
-  ! transform global velocity
-  call BC_DYNFLT_trans(bc, v, 1) 
-  ! update global velocity, consistent with slip velocity on the fault
-  v(bc%node1, :) = dV/2d0 
-  call BC_DYNFLT_trans(bc, v, -1) 
-
-  end subroutine
+!  subroutine BC_DYNFLT_D2S_ReInit(bc, v)
+!  type(bc_dynflt_type), intent(inout) :: bc
+!  double precision, intent(inout) :: v(:,:)
+!  double precision :: vtmp(size(v,1), size(v,2))
+!  double precision :: dV(size(bc%V,1), size(bc%V, 2))
+!  integer :: ndof, i, j
+!
+!  if (.not. associated(bc%rsf)) return
+!
+!  ndof = size(v, 2)
+!
+!  ! Print out some information
+!  write(*, *) "BC_DYNFLT_D2S_ReInit for debugging..."
+!
+!  ! max and min value for velocity on the active section of the fault
+!  write(*, *) "max, min particle velocity on node1"
+!  do i = 1, ndof
+!      write(*, *) "component = ", i
+!      write(*, *) "active nodes:"
+!      write(*, *) maxval(v(bc%node1(bc%iactive), i)), minval(v(bc%node1(bc%iactive), i)) 
+!      write(*, *) "locked nodes:"
+!      write(*, *) maxval(v(bc%node1(bc%ilock), i)), minval(v(bc%node1(bc%ilock), i)) 
+!  end do
+!
+!  if (associated(bc%node2)) then
+!      write(*, *) "max, min particle velocity on node2"
+!      do i = 1, ndof
+!          write(*, *) "component = ", i
+!          write(*, *) "active nodes:"
+!          write(*, *) maxval(v(bc%node2(bc%iactive), i)), minval(v(bc%node2(bc%iactive), i)) 
+!          write(*, *) "locked nodes:"
+!          write(*, *) maxval(v(bc%node2(bc%ilock), i)), minval(v(bc%node2(bc%ilock), i)) 
+!      end do
+!  end if
+!
+!  write(*, *) "max, min slip rate on fault"
+!  do i = 1, ndof
+!      write(*, *) "component = ", i
+!      write(*, *) "active nodes:"
+!      write(*, *) maxval(bc%V(bc%iactive,i)), minval(bc%V(bc%iactive, i))
+!      write(*, *) "locked nodes:"
+!      write(*, *) maxval(bc%V(bc%ilock,i)), minval(bc%V(bc%ilock, i))
+!  end do
+!
+!  dV   = bc%V
+!  dV(bc%iactive, 1) = dV(bc%iactive, 1) - rsf_vplate(bc%rsf)
+!  dV(bc%ilock, :)   = 0d0
+!
+!  ! rotate back to x-z frame
+!  if (ndof==2) dV  = rotate(bc, dV, -1)      
+!
+!  ! note the global d and v are relative to initial condition
+!!  v = 0d0 ! zero out the velocity, quench the wave fields.
+!!  vtmp = v
+!!  vtmp(bc%node1,:) = 0d0 
+!!  if (associated(bc%node2)) vtmp(bc%node2, :) = 0d0 
+!!  v   = v - vtmp
+!
+!  ! set all nodes except fault to zero
+!  ! do not set the creeping section to zero.
+!  ! transform global velocity
+!  call BC_DYNFLT_trans(bc, v, 1) 
+!  ! update global velocity, consistent with slip velocity on the fault
+!  v(bc%node1, :) = dV/2d0 
+!  call BC_DYNFLT_trans(bc, v, -1) 
+!
+!  end subroutine
   
 ! update the pre fields 
   subroutine BC_DYNFLT_Update_Pre(bc)
