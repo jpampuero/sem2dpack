@@ -41,7 +41,7 @@ module bc_kinflt
   end type
 
   public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_apply, BC_kinflt_write, &
-            BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set, BC_KINFLT_nnode, BC_KINFLT_node, &
+            BC_kinflt_select, BC_kinflt_trans, BC_KINFLT_nnode, BC_KINFLT_node, &
             BC_KINFLT_AppendDofFix, BC_KINFLT_nDofFix, BC_KINFLT_get_rotate_mat
 
 contains
@@ -581,30 +581,8 @@ subroutine BC_KINFLT_apply_quasi_static(bc,MxA,V,D,time)
   ! update slip
   bc%D = bc%D + time%dt * bc%V
 
-  ! rotate D, V back into x, y coordinate 
-  if (ndof==2) then
-      bc%V = rotate(bc, bc%V, -1)
-      bc%D = rotate(bc, bc%D, -1)
-  end if
-
-  ! transform global velocity, and displacement
-  call BC_KINFLT_trans(bc, V, 1)
-  call BC_KINFLT_trans(bc, D, 1)
-
-  ! only update node1, stores half slip
-  ! node2 now stores the average
-  V(bc%node1, :) = bc%V/2.0d0
-  D(bc%node1, :) = bc%D/2.0d0
-
-  ! transform back
-  call BC_KINFLT_trans(bc, V, -1)
-  call BC_KINFLT_trans(bc, D, -1)
-  
-  ! rotate V,D back to fault tangential/normal coordinate
-  if (ndof==2) then
-      bc%V = rotate(bc, bc%V, 1)
-      bc%D = rotate(bc, bc%D, 1)
-  end if
+  call BC_KINFLT_set_global_field(bc, bc%V, V)
+  call BC_KINFLT_set_global_field(bc, bc%D, D)
 
   ! apply symmetry to normal stress when needed
   if (.not.associated(bc%bc2) .or. ndof==1) bc%T(:,2)=0d0 
@@ -816,8 +794,6 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
   endif
   end subroutine
 
-
-
 !=====================================================================
 ! OUTPUT FORMAT: at each time, 4 data lines, one column per fault node
 ! 1: Slip
@@ -902,77 +878,6 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
 
   end subroutine export_side
 
-!=====================================================================
-! set values along boundary nodes with scalar input
-
-subroutine BC_KINFLT_set(bc, field, input, side_in)
-
-  type(bc_kinflt_type), intent(in) :: bc
-  double precision, intent(inout) :: field(:,:)
-  double precision, intent(in) :: input
-  integer, intent(in), optional :: side_in 
-  integer :: side 
-  
-  side  = 2 ! default, select all available sides
-  if (present(side_in)) side = side_in
-
-  ! side = -1, node1
-  ! side =  1, node2
-  ! side =  2, node1 + node2
-
-  select case(side)
-  case (-1)
-      field(bc%node1,:) = input
-      return
-  case (1)
-      if (associated(bc%bc2)) then
-          field(bc%node2, :) = input
-      end if
-      return
-  case (2)
-      field(bc%node1,:) = input
-      if (associated(bc%bc2)) then
-          field(bc%node2, :) = input
-      end if
-  end select
-
-end subroutine BC_KINFLT_set
-
-! ======================================================
-! set values along boundary nodes with array input
-subroutine BC_KINFLT_set_array(bc, field, input, side_in)
-
-  type(bc_kinflt_type), intent(in) :: bc
-  double precision, intent(inout) :: field(:,:)
-  double precision, intent(in) :: input(:,:)
-  integer, intent(in), optional :: side_in 
-  integer :: side 
-  
-  side  = 2 ! default, select all available sides
-  if (present(side_in)) side = side_in
-
-  ! side = -1, node1
-  ! side =  1, node2
-  ! side =  2, node1 + node2
-
-  select case(side)
-  case (-1)
-      field(bc%node1,:) = input(bc%node1,:)
-      return
-  case (1)
-      if (associated(bc%bc2)) then
-          field(bc%node2, :) = input(bc%node2,:)
-      end if
-      return
-  case (2)
-      field(bc%node1,:) = input(bc%node1,:)
-      if (associated(bc%bc2)) then
-          field(bc%node2, :) = input(bc%node2,:)
-      end if
-  end select
-
-end subroutine BC_KINFLT_set_array
- 
 ! select fields only on dynamic fault boundary and zero other components
 subroutine BC_KINFLT_select(bc, field_in, field_out, side_in)
    
@@ -1014,6 +919,38 @@ function BC_KINFLT_nnode(bc) result(n)
   integer :: n
   n = size(bc%node1, 1)
 end function BC_KINFLT_nnode
+
+  subroutine BC_KINFLT_set_global_field(bc, dV, V)
+  type(bc_kinflt_type), intent(in) :: bc
+  double precision, intent(in)::dV(:,:)
+  double precision ::dV_tmp(size(dV, 1), size(dV,2))
+  double precision, intent(inout) :: V(:,:)
+  integer :: ndof, nside
+
+  nside = 1
+
+  dV_tmp = dV
+
+  if (associated(bc%node2)) nside = 2
+  ndof  = size(V, 2)
+
+  call BC_KINFLT_trans(bc, V,  1)
+
+  if (ndof==2 .and. nside==1) then
+      ! transform already in T, N frame
+      V(bc%node1, 1) = 0.5d0 * dV(:, 1)
+      ! V(:, 2) is should not be modified
+      ! which stores the value normal to the fault
+      !
+  else
+      if (ndof==2) dV_tmp = rotate(bc, dV_tmp, -1)
+      V(bc%node1, :) = 0.5d0 * dV_tmp
+  end if
+
+  call BC_KINFLT_trans(bc, V,  -1)
+
+  end subroutine
+
 
 subroutine BC_KINFLT_node(bc, node1, node2)
   type(bc_kinflt_type), intent(in) :: bc
@@ -1100,12 +1037,10 @@ subroutine BC_KINFLT_trans(bc, field, direction)
               tmp1 = rotate(bc, tmp1, -1)
               field(bc%node1, :) = tmp1
           end if
-          field(bc%node1,:) = - field(bc%node1, :)
       end if
   end select
 
 end subroutine BC_KINFLT_trans
-
 
 end module bc_kinflt
   

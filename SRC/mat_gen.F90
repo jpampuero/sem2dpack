@@ -481,7 +481,7 @@ end subroutine MAT_Update_DMG
 ! and update internal variables
 ! Called by the solver
 !
-subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp, isdynamic)
+subroutine MAT_Fint(f,d,v,matpro, matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp, isdynamic)
 
   use spec_grid, only : sem_grid_type
 
@@ -489,6 +489,7 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp
   double precision, dimension(ngll,ngll,ndof), intent(out) :: f
   double precision, dimension(ngll,ngll,ndof), intent(inout) :: d,v
   type(matwrk_elem_type), intent(inout) :: matwrk
+  type(matpro_elem_type), intent(in) :: matpro
   double precision, intent(in) :: dt
   type(sem_grid_type), intent(in) :: grid
   logical, intent(in) :: update
@@ -531,7 +532,7 @@ subroutine MAT_Fint(f,d,v,matwrk, ngll, ndof, dt, grid, update, E_ep,E_el,sg,sgp
     end if
     
     ! update is always set .true.
-    call MAT_stress(s,e,matwrk,ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
+    call MAT_stress(s,e,matwrk, matpro,ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
     f = MAT_forces(s,matwrk%derint,ngll,ndof)
   endif
 
@@ -558,12 +559,13 @@ end subroutine MAT_Fint_EP
 !
 ! compute stress and update (or not) the internal state variable
 !
- subroutine MAT_stress(s,e,matwrk,ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
+ subroutine MAT_stress(s,e,matwrk, matpro, ngll,ndof, update, isdynamic, dt, E_ep,E_el,sg,sgp)
 
   integer, intent(in) :: ngll,ndof
   double precision, intent(in) :: e(ngll,ngll,ndof+1)
   double precision, intent(out) :: s(ngll,ngll,ndof+1)
   type (matwrk_elem_type) :: matwrk
+  type(matpro_elem_type), intent(in) :: matpro
   logical, optional, intent(in) :: update
   double precision, optional, intent(in) :: dt
   logical, optional :: isdynamic
@@ -578,8 +580,7 @@ end subroutine MAT_Fint_EP
 
   select case (matwrk%kind)
     case (IS_ELAST)
-      ! never called
-      !call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
+      call MAT_ELAST_stress(s,e,matpro,ngll,ndof) 
     case (IS_PLAST)
       call MAT_PLAST_stress(s,e,matwrk%plast,ngll,update, &
                             E_ep_local,E_el_local,sgp_local)
@@ -1047,7 +1048,7 @@ subroutine MAT_stress_dv(s,d,v,matwrk,matpro,grid,e,ngll,ndof)
   
   if (MAT_isKelvinVoigt(matpro)) call MAT_KV_add_etav(d,v,matwrk%kv,ngll,ndof)
   call MAT_stress(s, MAT_strain(d,matwrk,grid,e,ngll,ndof) &
-                 ,matwrk,ngll,ndof, update=.false., isdynamic=.false.)
+                 ,matwrk,matpro, ngll,ndof, update=.false., isdynamic=.false.)
   
 end subroutine MAT_stress_dv
 

@@ -675,7 +675,7 @@ subroutine compute_Fint(f, d, v, pb, update, petobj)
 
     !if (all(abs(dloc)<TINY_XABS) .and. all(abs(vloc)<TINY_XABS)) cycle
 
-    call MAT_Fint(floc,dloc,vloc,pb%matwrk(e), & 
+    call MAT_Fint(floc,dloc,vloc,pb%matpro(e), pb%matwrk(e), & 
                    pb%grid%ngll,pb%fields%ndof,pb%time%dt, &
                    pb%grid, update_in, E_ep,E_el,sg,sgp, pb%time%isdynamic)
     call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly

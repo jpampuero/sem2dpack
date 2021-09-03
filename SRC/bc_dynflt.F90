@@ -1308,7 +1308,7 @@ subroutine BC_DYNFLT_AppendDofFix(bc, indexFixDof, istart, ndof)
 end subroutine BC_DYNFLT_AppendDofFix
 
 !---------------------------------------------------------------------
-  function get_jump (bc,v) result(dv)
+  function get_jump(bc,v) result(dv)
 
   type(bc_dynflt_type), intent(in) :: bc
   double precision, intent(in) :: v(:,:)
