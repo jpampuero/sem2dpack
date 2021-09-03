@@ -54,8 +54,8 @@ module bc_gen
                         !! IS_USER = 8
 
   public :: bc_type,bc_read, bc_apply, bc_apply_kind, bc_init,bc_write, bc_timestep, & 
-            bc_set_kind, bc_select_kind, bc_trans, bc_update_dfault, bc_set_fix_zero, &
-            bc_select_fix, bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
+            bc_select_kind, bc_trans, bc_update_dfault, &
+            bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
             bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset, BC_D2S_ReInit,&
             BC_Update_Pre
 
@@ -457,6 +457,50 @@ function BC_nfaultnode(bc) result(n)
 end function
 
 !=======================================================================
+! obtain rotation matrix and its inverse of all the fault nodes
+subroutine BC_fault_rotmat(bc, rotmat, rotmat_inv, nnode)
+  type(bc_type), pointer :: bc(:)
+  integer, intent(in):: nnode
+  double precision, dimension(nnode,2,2), intent(inout):: rotmat, rotmat_inv
+  double precision, dimension(:,:,:), allocatable:: rotmat_tmp1, rotmat_tmp2
+  integer :: i, n, istart, iend
+
+  if (.not. associated(bc)) return
+  rotmat = 0d0
+  rotmat_inv = 0d0
+  istart = 1
+  
+  do i = 1,size(bc)
+    select case(bc(i)%kind)
+    case (IS_KINFLT)
+        n = bc_kinflt_nnode(bc(i)%kinflt)
+        iend = istart + n - 1
+        allocate(rotmat_tmp1(n,2,2))
+        allocate(rotmat_tmp2(n,2,2))
+        call bc_kinflt_get_rotate_mat(bc(i)%kinflt, rotmat_tmp1, 1)
+        call bc_kinflt_get_rotate_mat(bc(i)%kinflt, rotmat_tmp2, -1)
+        rotmat(istart:iend,:,:) = rotmat_tmp1
+        rotmat_inv(istart:iend,:,:) = rotmat_tmp2
+        istart = iend + 1
+        deallocate(rotmat_tmp1)
+        deallocate(rotmat_tmp2)
+    case (IS_DYNFLT)
+        n = bc_dynflt_nnode(bc(i)%dynflt)
+        iend = istart + n - 1
+        allocate(rotmat_tmp1(n,2,2))
+        allocate(rotmat_tmp2(n,2,2))
+        call bc_dynflt_get_rotate_mat(bc(i)%dynflt, rotmat_tmp1, 1)
+        call bc_dynflt_get_rotate_mat(bc(i)%dynflt, rotmat_tmp2, -1)
+        rotmat(istart:iend,:,:) = rotmat_tmp1
+        rotmat_inv(istart:iend,:,:) = rotmat_tmp2
+        istart = iend + 1
+        deallocate(rotmat_tmp1)
+        deallocate(rotmat_tmp2)
+    end select
+  enddo
+end subroutine
+
+!=======================================================================
 ! obtain all the fault nodes
 subroutine BC_faultnode(bc, node1, node2, nnode)
   type(bc_type), pointer :: bc(:)
@@ -524,8 +568,19 @@ end subroutine
 !
 ! if index1 = index2 (symmetric assumption)
 ! only node1 are stored
+!
+! in the case of ndof=1
 ! u'(1) = -u(1)
 ! u(1)  = -u'(1)
+!
+! in the case of ndof = 2
+! u'(1, 1) = -R11 * u(1, 1) - R12 u(1, 2) 
+! u'(1, 2) = R12 * u(1, 1) + R22 u(1, 2) 
+!
+! u'(1, :) = [-1, 0; 0, 1] * R * u(1, :) 
+!
+! The inverse transform is realized by
+! u = R' * [-1, 0; 0, 1] * u'
 !
 
 subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
@@ -537,6 +592,8 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   integer,dimension(:), allocatable:: node1, node2
   integer, dimension(:), allocatable:: rows, cols
   double precision, dimension(:,:), allocatable:: vals, valsinv
+  double precision, dimension(:,:,:), allocatable:: rotmat, rotmat_inv
+  double precision, dimension(2,2) :: rotmat_i, rotmat_inv_i
   PetscErrorCode  :: ierr
   integer :: rank
   integer :: start, fini
@@ -576,41 +633,59 @@ subroutine BC_build_transform_mat(bc, X, Xinv, ndof, npoin, ierr)
   nnode = BC_nfaultnode(bc)
   allocate(node1(nnode), node2(nnode))
   call BC_faultnode(bc, node1, node2, nnode)
+  allocate(rotmat(nnode,2,2), rotmat_inv(nnode,2,2))
+  call BC_fault_rotmat(bc, rotmat, rotmat_inv, nnode)
 
   ! create X and Xinv for each fault split node pair and each ndof
   do i = 1, nnode
       n1 = node1(i)
       n2 = node2(i)
+      rotmat_i = rotmat(i,:,:)
+      rotmat_inv_i = rotmat_inv(i,:,:)
 
-      if (n1==n2) then
+      if (n1==n2 .and. ndof==1) then
           ! symmetric node 2 is not stored
           allocate(rows(1), cols(1), vals(1,1), valsinv(1,1))
       else
           allocate(rows(2), cols(2), vals(2,2), valsinv(2,2))
       end if
-      
-     do j = 1, ndof
-          if (n1==n2) then
-             rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
-             cols    = rows
-             vals(1,1) = -1d0
-             valsinv(1,1) = -1d0
-          else
-             rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
-             rows(2) = (n2 - 1) * ndof + j - 1 ! global index for node n2 and dof j
-             cols    = rows
-             vals(1,1) = -0.5d0
-             vals(1,2) =  0.5d0
-             vals(2,:) =  0.5d0
-             valsinv   = 2d0*vals
-          end if
-          call MatSetValues(X, size(rows), rows, size(cols), cols, vals, INSERT_VALUES, ierr)
-          call MatSetValues(Xinv, size(rows), rows, size(cols), cols, valsinv, INSERT_VALUES, ierr)
-     end do !j
+
+     if (ndof==1 .or. n1 /= n2) then 
+         do j = 1, ndof
+              if (n1==n2) then
+                 rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
+                 cols    = rows
+                 vals(1,1) = -1d0
+                 valsinv(1,1) = -1d0
+              else
+                 rows(1) = (n1 - 1) * ndof + j - 1 ! global index for node n1 and dof j
+                 rows(2) = (n2 - 1) * ndof + j - 1 ! global index for node n2 and dof j
+                 cols    = rows
+                 vals(1,1) = -0.5d0
+                 vals(1,2) =  0.5d0
+                 vals(2,:) =  0.5d0
+                 valsinv   = 2d0*vals
+              end if
+              call MatSetValues(X, size(rows), rows, size(cols), cols, vals, INSERT_VALUES, ierr)
+              call MatSetValues(Xinv, size(rows), rows, size(cols), cols, valsinv, INSERT_VALUES, ierr)
+         end do !j
+     else
+         ! handle the case of symmetry and ndof == 2
+         ! rows and cols are index for first and second component
+         rows(1)       =  (n1 - 1) * ndof  + 1 - 1
+         rows(2)       =  (n1 - 1) * ndof  + 2 - 1
+         cols          =  rows
+         vals(1,:)     = -rotmat_i(1, :)
+         vals(2,:)     =  rotmat_i(2, :)
+         valsinv(:,1)  = -rotmat_inv_i(:, 1)
+         valsinv(:,2)  =  rotmat_inv_i(:, 2)
+         call MatSetValues(X, size(rows), rows, size(cols), cols, vals, INSERT_VALUES, ierr)
+         call MatSetValues(Xinv, size(rows), rows, size(cols), cols, valsinv, INSERT_VALUES, ierr)
+     end if
      deallocate(rows, cols, vals, valsinv)
   end do !i
 
-  deallocate(node1, node2)
+  deallocate(node1, node2, rotmat, rotmat_inv)
   end if ! rank == 0
 
   ! assemble matrix X and Xinv
@@ -693,64 +768,14 @@ subroutine bc_select_kind(bc, field_in, field_out, bc_kind, dirneu_kind_in)
   enddo
 end subroutine bc_select_kind
 
-! ====================================================================
-! select field on the nodes where degree of freedom is fixed
-!
-! first transform the field, d to d'
-! select the following bc:
-!       dirichlet boundaries,
-!       kinematic fault boundary (side -1, node1)
-!       dynflt boundary (side -1, node1) 
-!
-! undo the transform after the selection
-!
-! used only in quasi-statics
-!
-
-subroutine bc_select_fix(bc, field_in, field_out)
-
-  use fields_class, only: fields_type
-
-  type(bc_type), pointer :: bc(:)
-  double precision, dimension(:,:), intent(inout) :: field_in
-  double precision, dimension(:,:), intent(inout) :: field_out
-  integer :: i, side
-  integer :: IS_DIR    = 2 
-
-  side = -1
-!  side = 2
-
-  ! transform field_in 
-  call bc_trans(bc, field_in, 1)
-
-  if (.not. associated(bc)) return
-
-  do i = 1,size(bc)
-      select case (bc(i)%kind)
-      case (IS_DYNFLT)
-          ! select dynflt side -1
-        call BC_DYNFLT_select(bc(i)%dynflt, field_in, field_out, side)
-      case (IS_DIRNEU) 
-          ! select dirichlet 
-        call BC_DIRNEU_select_kind(bc(i)%dirneu, field_in, field_out, IS_DIR)
-      case (IS_DIRABS) 
-          ! select dirichlet 
-        call BC_DIRABS_select_kind(bc(i)%dirabs, field_in, field_out, IS_DIR)
-      case (IS_KINFLT) 
-        call BC_KINFLT_select(bc(i)%kinflt, field_in, field_out, side)
-      end select
-  enddo
-  ! undo the transform
-  call bc_trans(bc, field_in, -1)
-  call bc_trans(bc, field_out, -1)
-
-end subroutine bc_select_fix
-
 ! Return the index of fixed dofs
 ! Note the index is 1 based (fortran)
 ! dirichlet dofs in dirneu and dirabs
 ! -1 side dofs for dynflt and kinflt 
 ! (in the transformed problem)
+! Note if symmetry is used, only first component
+! of the transformed dof is fixed (tangential jump)
+!
 
 subroutine bc_GetIndexDofFix(bc, indexDofFix, ndof)
   type(bc_type), pointer :: bc(:)
@@ -813,146 +838,6 @@ function bc_nDofFix(bc, ndof) result(n)
       end select
   enddo
 end function 
-!======================================================================
-! set the field on the fixed degree of freedom to zero
-!
-! used only in quasi-static for static condensation
-!
-!       dirichlet boundaries,
-!       kinematic fault boundary (side -1)
-!       dynflt boundary (side -1) 
-!
-
-subroutine bc_set_fix_zero(bc, field)
-
-  use fields_class, only: fields_type
-
-  type(bc_type), pointer :: bc(:)
-  double precision, dimension(:,:), intent(inout) :: field
-  integer :: i, side
-  integer :: IS_DIR  = 2 
-
-  side = -1
-  !side = 2 ! TEST
-  ! transform
-  !call bc_trans(bc, field, 1)
-
-  if (.not. associated(bc)) return
-
-  do i = 1,size(bc)
-      select case (bc(i)%kind)
-      case (IS_DYNFLT)
-          ! select dynflt side -1
-        call BC_DYNFLT_set(bc(i)%dynflt, field, 0d0, side)
-      case (IS_DIRNEU) 
-          ! select dirichlet 
-        call BC_DIRNEU_set_kind(bc(i)%dirneu, field, 0d0, IS_DIR)
-      case (IS_DIRABS) 
-          ! select dirichlet 
-        call BC_DIRABS_set_kind(bc(i)%dirabs, field, 0d0, IS_DIR)
-      case (IS_KINFLT) 
-        call BC_KINFLT_set(bc(i)%kinflt, field, 0d0, side)
-      end select
-  enddo
-  !call bc_trans(bc, field, -1)
-
-end subroutine bc_set_fix_zero
-
-
-!=======================================================================
-! Sets the field along the boundary to a specific value
-! Only used in quasi-static solver
-! use to fix values along certain boundary
-!
-! NOT USED
-!subroutine bc_set(bc,field,input)
-!
-!  use fields_class, only: fields_type
-!
-!  type(bc_type), pointer :: bc(:)
-!  double precision, intent(in) :: input
-!  double precision, dimension(:,:), intent(inout) :: field
-!
-!  integer :: i
-!
-!  if (.not. associated(bc)) return
-! ! apply first periodic, then absorbing, then the rest
-! ! Sep 29 2006: to avoid conflict between ABSORB and DIRNEU
-!  do i = 1,size(bc)
-!    if ( bc(i)%kind == IS_PERIOD) call bc_set_single(bc(i))
-!  enddo
-!  do i = 1,size(bc)
-!    if ( bc(i)%kind == is_absorb) call bc_set_single(bc(i))
-!  enddo
-!  do i = 1,size(bc)
-!    if ( bc(i)%kind /= IS_PERIOD .and. bc(i)%kind /= IS_ABSORB) call bc_set_single(bc(i))
-!  enddo
-!    
-!contains
-!
-!  subroutine bc_set_single(bc)
-!
-!    type(bc_type), intent(inout) :: bc
-!    ! DEVEL these other set functions will have to be created 
-!    ! in their respective files.
-!    select case(bc%kind)
-!      case(IS_DIRNEU)
-!        !call bc_DIRNEU_set(bc%dirneu,field_in,input,field_out)
-!      case(IS_KINFLT)
-!        !call bc_KINFLT_set(bc%kinflt,field_in,input,field_out)
-!      case(IS_ABSORB)
-!        !call BC_ABSO_set(bc%abso,field_in,input,field_out)
-!      case(IS_PERIOD)
-!        !call bc_perio_set(bc%perio,field_in,input,field_out)
-!      case(IS_LISFLT)
-!        !call BC_LSF_set(bc%lsf,field_in,input,field_out)
-!      case(IS_DYNFLT)
-!        call BC_DYNFLT_set(bc%dynflt,field,input)
-!!!      case(IS_USER)
-!!!        call BC_USER_set(bc%user,field_in,input,field_out)
-!    end select
-!
-!  end subroutine bc_set_single
-!  
-!end subroutine bc_set
-
-! set fields on the boundary for a specific kind
-! Note only dirichlet and dynflt is supported
-subroutine bc_set_kind(bc, field, input, bc_kind, dirneu_kind, side_in)
-
-  use stdio, only: IO_abort
-  use fields_class, only: fields_type
-
-  type(bc_type), pointer :: bc(:)
-  double precision, intent(in) :: input
-  double precision, dimension(:,:), intent(inout) :: field
-  integer, intent(in):: bc_kind, dirneu_kind
-  integer, intent(in), optional :: side_in 
-  integer :: side
-
-  integer :: i
-
-  side  = 2 ! default, select all available sides
-  if (present(side_in)) side = side_in
-
-  if (.not. associated(bc)) return
-
-  do i = 1, size(bc)
-      if (bc(i)%kind /= bc_kind) continue
-      select case (bc(i)%kind)
-          case (IS_DYNFLT)
-             call BC_DYNFLT_set(bc(i)%dynflt, field, input, side) 
-          case (IS_KINFLT)
-!		    Need to implement the kinematic faults
-!             call BC_KINFLT_set(bc(i)%kinflt, field, input, side) 
-          case (IS_DIRNEU)
-             call BC_DIRNEU_set_kind(bc(i)%dirneu, field, input, dirneu_kind) 
-          case default
-             call IO_abort('bc_set_kind: unsupported bc kind') 
-     end select
-  enddo
-    
-end subroutine bc_set_kind
 
 ! ==============================================================
 ! Transform a field on the fault boundary
@@ -1038,27 +923,6 @@ subroutine bc_update_bcdv(bc, d, time)
   enddo
 
 end subroutine bc_update_bcdv
-
-subroutine bc_set_fault(bc, field, field_set, side_in)
-  type(bc_type), pointer :: bc(:)
-  double precision, dimension(:,:), intent(inout) :: field
-  double precision, dimension(:,:), intent(in) :: field_set
-  integer, intent(in), optional :: side_in 
-  integer :: side
-  integer :: i
-
-  side  = 2 ! default, select all available sides
-  if (present(side_in)) side = side_in
-  
-  if (.not. associated(bc)) return
-  
-  do i = 1,size(bc)
-    if (bc(i)%kind==IS_DYNFLT) then
-      call bc_dynflt_set_array(bc(i)%dynflt, field, field_set, side)
-    end if
-  enddo
-
-end subroutine bc_set_fault
 
 function bc_has_dynflt(bc) result(has_dynflt)
   type(bc_type), pointer, intent(in) :: bc(:)

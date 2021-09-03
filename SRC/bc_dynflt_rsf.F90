@@ -969,7 +969,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
       time%isEQ = .false.
   end if
   
-  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxS2D*2d0)) .or. &
+  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxS2D*100d0)) .or. &
       ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D))) then
 
       if (time%isDynamic) then

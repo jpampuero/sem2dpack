@@ -10,8 +10,8 @@ module solver
   use echo, only : ItInfo
   use stdio, only : IO_Abort
   use sources, only : SO_add
-  use bc_gen , only : BC_apply, bc_apply_kind, bc_select_kind, bc_set_kind, &
-                      bc_select_fix, bc_set_fix_zero, bc_trans, bc_update_dfault, &
+  use bc_gen , only : BC_apply, bc_apply_kind, &
+                      bc_trans, bc_update_dfault, &
                       bc_update_bcdv, bc_reset, bc_has_dynflt, BC_D2S_ReInit, bc_update_pre
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec, &
                       FIELDS_reset, FIELDS_Update_Pre
@@ -65,71 +65,31 @@ subroutine solve_adaptive(pb, petobj)
   PetscErrorCode :: ierr
   double precision :: tmp(size(pb%fields%displ, 1), size(pb%fields%displ, 2))
   double precision :: tn, dt
-  integer :: rank, i, maxcut = 2
+  integer :: rank, i
   
   call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
   
   id1 = pb%time%isdynamic
   tn  = pb%time%time - pb%time%dt
 
-  pb%time%solver_converge_stat = 1
+  if (pb%time%isDynamic) then
+      ! dynamic, obtain perturbation
 
-  do i = 1, maxcut
-
-      ! reset all the current fields to pre solution
-      call FIELDS_Reset(pb%fields)
-      ! reset the boundary fields into pre solution
-      if (rank==0) call BC_Reset(pb%bc, pb%time%dt)
-
-      if (pb%time%isDynamic) then
-          ! dynamic, obtain perturbation
-          pb%fields%displ = pb%fields%displ - pb%fields%dn
-
-          if (rank==0) then
-              call solve_dynamic(pb, petobj)
-          end if
-          
-          ! add perturbation back to the background displacement
-          pb%fields%displ = pb%fields%displ + pb%fields%dn
-      else
-          ! quasi-static
-          ! work with total displacement (relative to di) 
-          if (pb%time%isUsePetsc) then
-              call solve_quasi_static_petsc(pb, petobj)
-          else
-              call solve_quasi_static(pb)
-          end if
-          ! update background values for dynamic step
-          pb%fields%dn = pb%fields%displ
-      end if ! isdynamic
-       
-      ! broadcast pb%time%solver_converge_stat
-      call MPI_Bcast(pb%time%solver_converge_stat, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
-      
-      ! check if the solution has converged or not
-      if (pb%time%solver_converge_stat>0) then
-          ! isConverge is always true 
-          exit
-      end if
-
-      ! cut the time step by a half
-      pb%time%dt = pb%time%dt/2d0
-      pb%time%time  = tn + pb%time%dt
+      pb%fields%displ = pb%fields%displ - pb%fields%dn
 
       if (rank==0) then
-          write(*, *) "solver did not converge, cut timestep, dt = ", pb%time%dt
+          call solve_dynamic(pb, petobj)
       end if
-
-      if (i==maxcut .or. (rank==0 .and. pb%time%dt<pb%time%dt_min)) then
-!          call IO_abort("solver does not converge after cutting dt by 10 times or dt<dt_min")
-      end if
-  end do
-
-  ! At this point, the solution has converged
-  ! declare update pre solution on the fields, and bc
-  call FIELDS_Update_Pre(pb%fields)
-  if (rank==0) call BC_Update_Pre(pb%bc) 
-
+      
+      ! add perturbation back to the background displacement
+      pb%fields%displ = pb%fields%displ + pb%fields%dn
+  else
+      ! quasi-static
+      call solve_quasi_static_petsc(pb, petobj)
+      ! update background values for dynamic step
+      pb%fields%dn = pb%fields%displ
+  end if ! isdynamic
+   
   if (rank==0) then
       if (.not. pb%time%fixdt) call update_adaptive_step(pb)
   end if
@@ -155,15 +115,11 @@ subroutine solve_adaptive(pb, petobj)
   isw = id1 .and. (.not. id2)
   if (isw) then
       ! switch from dynamic to static
-      pb%fields%displ = 0d0 
+  !    pb%fields%displ = 0d0 
       pb%fields%accel = 0d0
       if (rank==0) then
-          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
+!          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
       end if
-      pb%fields%displ_pre = pb%fields%displ
-      pb%fields%veloc_pre = pb%fields%veloc
-      pb%fields%accel_pre = pb%fields%accel
-      ! reinitialize the fields
   end if
   
 end subroutine solve_adaptive
@@ -310,7 +266,7 @@ subroutine solve_leapfrog(pb,petobj)
   v_mid => pb%fields%veloc
   a => pb%fields%accel
   f => a
-                       
+  
   d = d + pb%time%dt * v_mid
   ! Maybe replace by K * d
   call compute_Fint(f,d,v_mid,pb) 
@@ -389,129 +345,6 @@ end subroutine solve_symplectic
 ! IS_LISFLT = 5, &
 ! IS_DYNFLT = 6
 
-subroutine solve_quasi_static(pb)
-  type(problem_type), intent(inout) :: pb
-  double precision, dimension(:,:), pointer :: d, v, a, f
-  double precision, dimension(pb%fields%npoin, pb%fields%ndof) :: d_pre, d_fix, v_pre
-  
-  ! vplate is built into the rate-state b.c.
-  double precision :: dt 
-  integer :: i
-  logical :: has_dynflt = .false.
-
-  integer :: IS_DIRNEU = 1, & 
-             IS_KINFLT = 2, & 
-             IS_DYNFLT = 6, &
-             IS_DIRABS = 7
-         
-  integer :: IS_DIR    = 2, IS_NEU = 1, flag = 0 
-
-  ! points to displacement
-  ! save some memory by modifying in place
-  d => pb%fields%displ
-  v => pb%fields%veloc
-  ! use acceleration and f to work with force
-  a => pb%fields%accel
-  f => pb%fields%accel
-
-  dt = pb%time%dt
-  
-  ! use additional memory to keep the previous displacement
-  ! use to update predictor for rsf faults
-  d_pre = pb%fields%displ
-  
-  ! update displacement to obtain a better initial guess for pcg solver
-  ! update both d and pb%fields%disp
-  d   = d + dt * v 
-
-  ! apply dirichlet boundary condition and kinematic boundary condition
-  ! set displacement to desired value and zero-out forcing f at DIR nodes
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
-  v_pre = pb%fields%veloc
-
-  ! transform fields, apply half slip rate on side -1 and then transform back
-  ! different from dynamic, update displacement as well.
-  call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
-
-  d_fix = 0.0d0
-
-
-  ! check if there's dynflt boundary
-  has_dynflt = bc_has_dynflt (pb%bc)
-  
-  ! start 2 passes
-  pb%time%pcg_iters = 0
-
-  do i = 1, 2
-
-    ! update fault displacement for rsf 
-    ! d(fault) = d_pre(fault) + dt * v(fault)
-    ! v  = 0.5 * (vpre + v)
-    !d = d_pre + (v + v_pre)/2d0 *dt
-    call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
-    
-    ! obtain d_fix, d'_fix rotated back to d_fix
-
-    call bc_select_fix(pb%bc, d, d_fix)
-
-    ! solve for forces created by d_fix, finding K_{21}d^f + K_{23}d^{dir} 
-    call compute_Fint(f, d_fix, pb%fields%veloc, pb)
-   
-    ! apply newmann if there's any, used to solve dofs in the medium
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
-    
-    f = -f
-   
-    ! set the fixed dofs to 0
-    call BC_trans(pb%bc, d,  1)
-    call BC_set_fix_zero(pb%bc, d)
-    call BC_trans(pb%bc, d, -1)
-    
-    ! (preconditioned) conjugate gradient method solver
-    call pcg_solver(d, f, pb, flag)
-    d = d + d_fix
-
-    pb%time%pcg_iters(i) = flag 
-
-    ! update velocity for the off fault dofs
-    v = (d - d_pre)/dt
-
-    ! detect if there's dynflt fault boundary
-    ! if not, break the loop and exit after the pcg solver
-
-    if (.not. has_dynflt) exit
-    ! apply boundary conditions including following: 
-    !    1.  compute fault traction, compute state variable 
-    !    2.  update slip rate, update fault velocity in fields%veloc 
-    !
-    ! velocity is modified inside this subroutine
-
-    ! recompute the force use the updated total disp
-    call compute_Fint(f, d, pb%fields%veloc, pb)
-    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
-
-    ! reapply dichlet boundary condition to overwrite the fault tip node
-    ! if there's a conflict between tip and Dirichlet bc.
-    !
-    ! Note this issue only occurs when simulating half domain 
-    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
-    ! call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
-  enddo
-  
-  ! declare final slip values on the fault
-  call bc_update_bcdv(pb%bc, d, pb%time%time)
-  a   = 0d0
-  !a  = (v - v_pre)/dt ! a crude estimate of acceleration
-  
-end subroutine solve_quasi_static
-
-! solve the mechanical balance 2 passes with dt
-! compute dtmax to update the damage variable
-! if dtmax<dt
-!    dt = dtmax
-!    resolve the mechanical balance, 2 passes
-!
 subroutine solve_quasi_static_petsc(pb, petobj)
 #include <petsc/finclude/petscksp.h>
   use petscksp
@@ -522,7 +355,7 @@ subroutine solve_quasi_static_petsc(pb, petobj)
   
   ! vplate is built into the rate-state b.c.
   double precision :: dt, dtmax, tn 
-  integer :: i, ndof, npoin,j
+  integer :: i, ndof, npoin,j, k
   logical :: has_dynflt = .false.
 
   integer :: IS_DIRNEU = 1, & 
@@ -584,7 +417,6 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     d  = d_pre + dt * v_pre 
 
     ! apply dirichlet boundary condition and kinematic boundary condition
-    ! set displacement to desired value and zero-out forcing f at DIR nodes
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
     call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
 
@@ -632,10 +464,6 @@ subroutine solve_quasi_static_petsc(pb, petobj)
     call VecScatterEnd(petobj%bd_fix_ctx,petobj%d,petobj%b,INSERT_VALUES,SCATTER_FORWARD,ierr)
     end_time   = MPI_Wtime()
     elapse_time = end_time - start_time
-
-!    if (print_time) then 
-!    write(*, *) 'Elapse Time for VecScatter fix dof =', elapse_time, 's'
-!    end if
 
     ! solve the linear system for d
     start_time = MPI_Wtime()
@@ -709,11 +537,14 @@ subroutine solve_quasi_static_petsc(pb, petobj)
 
   enddo !i 
 
-  if (rank==0) then
-     if (maxval(abs(v))>1e-2) then
-         write(*, *) "Instability, max (v) = ", maxval(abs(v))
-     end if
-  end if
+  ! print the coordinates of the nodes that have high slip rate
+!  if (rank==0) then
+!      do k = 1, pb%grid%npoin
+!         if (maxval(abs(v(k,:)))>1e-2) then
+!             write(*, *) "Large velocity, v = ", v(k,:), " at coord = ", pb%grid%coord(:,k)
+!         end if
+!      end do
+!  end if
 
   if (.not. isUpdateDMG) exit
 !
@@ -749,11 +580,10 @@ subroutine solve_quasi_static_petsc(pb, petobj)
   enddo !j
 
   if (rank==0) then
-  ! declare final slip values on the fault
-  call bc_update_bcdv(pb%bc, d, pb%time%time)
-  a   = 0d0
+      ! declare final slip values on the fault
+      call bc_update_bcdv(pb%bc, d, pb%time%time)
+      a   = 0d0
   end if
-  !a  = (v - v_pre)/dt ! a crude estimate of acceleration
   
 end subroutine solve_quasi_static_petsc
 
@@ -890,202 +720,9 @@ subroutine compute_Fint_EP(f, pb)
 
 end subroutine compute_Fint_EP
 
-!=====================================================================
-! NOT SUPPORTED
-subroutine cg_solver(d, f, pb, tolerance)
-  double precision, dimension(:,:), intent(inout) :: d
-  double precision, dimension(:,:), intent(in) :: f
-  double precision, intent(in) :: tolerance
-  type(problem_type), intent(inout) :: pb
-
-  ! internal variables
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p
-  double precision, dimension(pb%fields%ndof, pb%fields%ndof) :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
-  double precision :: norm_f,norm_r
-  integer, parameter :: maxIterations=10000
-  integer :: IS_DIRNEU = 1, & 
-             IS_DYNFLT = 6
-         
-  integer :: IS_DIR    = 2, & 
-             IS_NEU    = 1 
-  integer :: it  
- 
-  call compute_Fint(K_p,p,pb%fields%veloc,pb)
-  call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DYNFLT, IS_NEU)
-  call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DIRNEU, IS_DIR)
-  !call BC_set(pb%bc, K_p, 0.0d0, K_p) 
-  
-  ! initial residual
-  r = f - K_p
-  norm_f = norml2(f)
-
-  p = r
-
-  do it=1,maxIterations
-    ! compute stiffness*p for later steps
-    call compute_Fint(K_p,p,pb%fields%veloc,pb)
-    call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DYNFLT, IS_NEU)
-    call BC_set_kind(pb%bc, K_p, 0.0d0, IS_DIRNEU, IS_DIR)
-    !call BC_set(pb%bc, K_p, 0.0d0, K_p) 
-    
-    ! find step length
-    alpha_n = sum(r*r)
-    alpha_d = sum(p*K_p)
-
-    alpha = alpha_n/alpha_d
-
-
-    ! determine approximate solution
-    d = d + alpha*p
-
-    ! find the residual
-    r = r - alpha*K_p
-
-    ! test if within tolerance
-    norm_r = norml2(r)
-    if (norm_r/norm_f < tolerance) return
-    if (norm_r/norm_f > 10.0d10) call IO_Abort('Conjugate Gradient does not converge')
-
-    ! improve the step
-    beta_n = sum(r*r)
-    beta_d = alpha_n
-    beta = alpha_n/beta_d
-
-    ! search direction
-    p = r + beta*p
-  enddo
-  
-  call IO_Abort('Conjugate Gradient does not converge')
-
-end subroutine cg_solver
-
 double precision function norml2(x)
   double precision, dimension(:,:), intent(in) :: x
   norml2 = sqrt( sum(x*x) )
 end function norml2
-
-
-!=====================================================================
-! Preconditioned conjugate gradient with Jacobi preconditioner
-!
-! Jacobi preconditioner is precomputed, inverse of diagonal of stiffness
-! matrix. Global stiffness matrix is never assembled.
-!
-! d, f are untransformed as inputs
-!
-
-subroutine pcg_solver(d, f, pb, flag)
-
-  double precision, dimension(:,:), intent(inout) :: d
-  double precision, dimension(:,:), intent(inout) :: f
-  type(problem_type), intent(inout) :: pb
-
-  double precision, dimension(pb%fields%npoin,pb%fields%ndof) :: r, p, K_p, z
-  double precision :: alpha_n, alpha_d, alpha, beta_n, beta_d, beta
-  double precision :: norm_f, norm_r, tolerance
-  integer :: maxIterations
-  ! one hardwired parameter to ensure stable division
-  double precision, parameter :: eps_stable = 1.0d-15
-  integer :: it, flag
-
-  flag = -1
-
-  tolerance     = pb%time%TolLin
-  maxIterations = pb%time%MaxIterLin
-  
-  call bc_trans(pb%bc, f, -1) ! f -> f'
-  call bc_trans(pb%bc, d,  1) ! d to d'
-
-  ! From here on work with f', d', p', K' * p'
-  call compute_kp_prime(K_p, d, pb)
-  
-  ! set the left hand side of fixed DOFs to zero
-  call BC_set_fix_zero(pb%bc, K_p)
-  call BC_set_fix_zero(pb%bc,   f)
-
-  r = f - K_p
-
-  norm_f = norml2(f) ! initial right hand side 
-
-  ! obtain transformed preconditioner
-!  invKDiag = pb%invKDiag
-!  invKDiag = 1d0/invKDiag
-!  call bc_trans(pb%bc, invKDiag, -1)
-!  
-!  ! might be zero at fault node 2, stablize before division
-!  where (abs(invKDiag)<eps_stable) invKDiag = eps_stable
-!  invKDiag = 1d0/invKDiag
-
-  z = pb%invKDiagTrans * r ! z'
-  p = z ! p'
-  
-  do it=1,maxIterations
-
-    ! compute stiffness*p for later steps
-    call compute_kp_prime(K_p, p, pb) 
-    call BC_set_fix_zero(pb%bc, K_p)
-    
-    ! the following steps work with p', K' * p'
-    ! find step length
-    alpha_n = sum(z*r)
-    alpha_d = sum(p*K_p)
-    alpha = alpha_n/alpha_d
-
-    ! determine approximate solution work with d'
-    d = d + alpha*p
-
-    ! find new residual
-    r = r - alpha*K_p
-
-    ! test if within tolerance
-    norm_r = norml2(r)
-
-    ! if |LHS-RHS|<tolerance*|RHS|
-
-    if (norm_r/norm_f < tolerance) then 
-        flag = it
-        ! transform after convergence.
-        ! convert d' to d, back transform
-         call bc_trans(pb%bc, d, -1) 
-        ! convert f' to f, forward transform
-         call bc_trans(pb%bc, f,  1) 
-        return
-    end if
-    if (norm_r/norm_f > 10.0d10) exit
-
-    z = pb%invKDiag * r
-
-    ! improve the step
-    beta_n = sum(z*r)
-    beta_d = alpha_n
-    beta = beta_n/beta_d
-
-    ! search direction
-    p = z + beta*p
-  enddo
-  
-  call IO_Abort('Preconditioned Conjugate Gradient does not converge')
-  
-end subroutine pcg_solver
-
-! ==============================================================
-! Compute K' * p' according to the transform of Junpei Seki, 2017 
-!
-subroutine compute_kp_prime(kp, pprime, pb)
-  type(problem_type), intent(inout) :: pb
-  double precision, dimension(:,:), intent(inout) :: pprime
-  double precision, dimension(:,:), intent(inout) :: kp
-
-  ! Transform P' to P
-  ! P = X^{-1} * P'
-  call bc_trans(pb%bc, pprime, -1) ! p' -> p 
-  ! KP = K * P
-  call compute_Fint(kp, pprime, pb%fields%veloc, pb) !K*p
-  ! K'* P' = X^{-1} * KP = X^{-1} * K * X^{-1} P' = K' * P'
-  call bc_trans(pb%bc, kp, -1)     ! K' * p'
-  ! rotate P to P'
-  call bc_trans(pb%bc, pprime, 1)  ! p -> p'
-
-end subroutine compute_kp_prime
 
 end module solver

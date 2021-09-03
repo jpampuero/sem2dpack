@@ -157,7 +157,6 @@ module petsc_objects
  call BC_build_transform_mat(pb%bc, petobj%X, petobj%Xinv, ndof, npoin, ierr)
  CHKERRQ(ierr)
  
- 
  ! --------------------------------------------------------------------------
  ! initialize the Petsc KSP solver
 

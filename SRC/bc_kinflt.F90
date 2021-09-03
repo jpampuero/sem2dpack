@@ -42,7 +42,7 @@ module bc_kinflt
 
   public :: BC_kinflt_type, BC_kinflt_read, BC_kinflt_init, BC_kinflt_apply, BC_kinflt_write, &
             BC_kinflt_select, BC_kinflt_trans, BC_kinflt_set, BC_KINFLT_nnode, BC_KINFLT_node, &
-            BC_KINFLT_AppendDofFix, BC_KINFLT_nDofFix
+            BC_KINFLT_AppendDofFix, BC_KINFLT_nDofFix, BC_KINFLT_get_rotate_mat
 
 contains
 
@@ -617,7 +617,15 @@ end subroutine BC_KINFLT_apply_quasi_static
 function BC_KINFLT_nDofFix(bc, ndof) result(n)
     type(bc_kinflt_type), intent(in) :: bc
     integer:: n, ndof
-    n = size(bc%node1) * ndof
+
+    if (associated(bc%node2)) then
+        n = size(bc%node1) * ndof
+    else
+        ! if the fault has only one side, there's only 1 dof per node
+        ! symmetry is assumed, nonzero slip, zero openning
+        n = size(bc%node1)
+    end if
+
 end function
 
 ! append index of dof to indexFixDof, order does not matter
@@ -625,15 +633,24 @@ end function
 subroutine BC_KINFLT_AppendDofFix(bc, indexFixDof, istart, ndof)
   type(bc_kinflt_type), intent(in) :: bc
   integer, dimension(:), intent(inout) :: indexFixDof
-  integer :: istart, ndof 
+  integer :: istart, ndof, ndof_fix 
   integer :: i, iend, nnode_i
-  
-  nnode_i = size(bc%node1)
-  do i = 1, ndof
+
+    nnode_i = size(bc%node1)
+  if (associated(bc%node2)) then
+      ndof_fix = ndof
+  else
+      ! pick only the first component as fix dof
+      ! when using symmetry
+      ndof_fix = 1
+  endif
+
+  do i = 1, ndof_fix
       iend = istart + nnode_i - 1
-      indexFixDof(istart: iend) = (bc%node1 - 1) * ndof + i
-      istart = iend + 1 
+      indexFixDof(istart: iend) = (bc%node1 - 1)*ndof + i
+      istart = iend + 1
   end do
+
 end subroutine BC_KINFLT_AppendDofFix
 
 !=======================================================================
@@ -776,6 +793,29 @@ subroutine BC_KINFLT_apply_dynamic(bc,MxA,V,D,time)
   endif
 
   end function rotate
+
+
+    ! get the rotation matrix for all nodes
+  subroutine BC_KINFLT_get_rotate_mat(bc, mat_rot, fb)
+  type(bc_kinflt_type), intent(in) :: bc
+  double precision, intent(inout) :: mat_rot(bc%npoin, 2, 2)
+  integer, intent(in) :: fb
+
+ ! forward rotation
+  if (fb==1) then
+      mat_rot(:, 1, 1) = bc%n1(:,2)
+      mat_rot(:, 1, 2) = -bc%n1(:,1)
+      mat_rot(:, 2, 1) = bc%n1(:,1)
+      mat_rot(:, 2, 2) = bc%n1(:,2)
+ ! backward rotation
+  else
+      mat_rot(:, 1, 1) = bc%n1(:,2)
+      mat_rot(:, 1, 2) = bc%n1(:,1)
+      mat_rot(:, 2, 1) = -bc%n1(:,1)
+      mat_rot(:, 2, 2) = bc%n1(:,2)
+  endif
+  end subroutine
+
 
 
 !=====================================================================
@@ -1013,17 +1053,14 @@ subroutine BC_KINFLT_trans(bc, field, direction)
   ! note that field is directly modified
   type(bc_kinflt_type), intent(in) :: bc
   double precision, dimension(:,:), intent(inout) :: field
-  double precision, dimension(:,:), pointer :: tmp1, tmp2
+  double precision, dimension(size(bc%node1, 1),size(field, 2)) :: tmp1, tmp2
   integer, intent(in) :: direction
   integer :: i, Nbcnode, ndof
 
   ndof    = size(field, 2)
   Nbcnode = size(bc%node1, 1)
 
-  allocate(tmp1(Nbcnode, ndof)) 
-  allocate(tmp2(Nbcnode, ndof)) 
-
-  tmp1    = field(bc%node1, :)  
+  tmp1    = field(bc%node1, :)
   tmp2    = 0d0
 
   if (associated(bc%bc2)) then
@@ -1039,21 +1076,34 @@ subroutine BC_KINFLT_trans(bc, field, direction)
           field(bc%node2, :) = 0.5d0 * (tmp2 + tmp1)
       else
           ! one sided fault
-          field(bc%node1,:) = - field(bc%node1, :)
+          if (ndof==1) then
+              field(bc%node1,:) = - field(bc%node1, :)
+          else
+              tmp1  = rotate(bc, tmp1, 1)
+              field(bc%node1, 1) = - tmp1(:, 1)
+              field(bc%node1, 2) =   tmp1(:, 2)
+          end if
       end if
   case (-1)
       ! backward transform
       if (associated(bc%bc2)) then
           ! two sided fault
-          field(bc%node1, :) = tmp2 - tmp1 
-          field(bc%node2, :) = tmp2 + tmp1 
+          field(bc%node1, :) = tmp2 - tmp1
+          field(bc%node2, :) = tmp2 + tmp1
       else
           ! one sided fault
+          if (ndof==1) then
+              field(bc%node1,:) = - field(bc%node1, :)
+          else
+              tmp1(:, 1)   = - tmp1(:, 1)
+              ! rotate from [T,N] to [x,z] frame
+              tmp1 = rotate(bc, tmp1, -1)
+              field(bc%node1, :) = tmp1
+          end if
           field(bc%node1,:) = - field(bc%node1, :)
       end if
   end select
 
-  deallocate(tmp1, tmp2)
 end subroutine BC_KINFLT_trans
 
 
