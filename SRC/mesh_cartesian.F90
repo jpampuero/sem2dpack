@@ -294,11 +294,11 @@ subroutine CART_build(mesh,grid)
  ! Elements are sequentially numbered horizontally from bottom-left to top-right
   call MESH_STRUCTURED_connectivity(grid%knods,mesh%nx,mesh%nz,grid%ngnod,mesh%ezflt)
   
+  splitN = 0
  ! Boundary conditions
   if (mesh%ezflt>0) then
     allocate(grid%bnds(6))
   else
-    splitN = 0
     if (mesh%split) splitN = floor( (mesh%splitD-mesh%xmin)/(mesh%xmax-mesh%xmin)*mesh%nx )
     if (splitN>0) then
       allocate(grid%bnds(5))  
