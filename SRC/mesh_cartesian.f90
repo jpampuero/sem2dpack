@@ -295,10 +295,10 @@ subroutine CART_build(mesh,grid)
   call MESH_STRUCTURED_connectivity(grid%knods,mesh%nx,mesh%nz,grid%ngnod,mesh%ezflt)
   
  ! Boundary conditions
+  splitN = 0
   if (mesh%ezflt>0) then
     allocate(grid%bnds(6))
   else
-    splitN = 0
     if (mesh%split) splitN = floor( (mesh%splitD-mesh%xmin)/(mesh%xmax-mesh%xmin)*mesh%nx )
     if (splitN>0) then
       allocate(grid%bnds(5))  
