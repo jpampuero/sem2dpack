@@ -24,7 +24,7 @@ module bc_dynflt_rsf
     double precision :: dt
     double precision :: dtScale
     double precision :: vmaxPZ ! maximum slip rate to control the process zone size
-    integer :: iter, NRMaxIter
+    integer :: iter, NRMaxIter, StepLock, minStep
     double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ, tEqPrev, minGap
     type(rsf_input_type) :: input
   end type rsf_type
@@ -67,6 +67,7 @@ contains
 ! ARG: minGap   [dble] [10 s] minimum time gap between two earthquake events
 ! ARG: NRTol    [dble] [1.0d-4] relative tolerance for NR solver 
 ! ARG: NRMaxIter [Int] [200] maximum interation number for NR solver 
+! ARG: minStep [Int]  [50] minimum step before another switch 
 !
 ! END INPUT BLOCK
 
@@ -80,7 +81,7 @@ contains
 
   double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
   double precision :: NRTol,minGap,dtScale,vmaxPZ 
-  integer :: NRMaxIter 
+  integer :: NRMaxIter, minStep 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
   character(25) :: kind_txt
@@ -88,7 +89,7 @@ contains
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
            vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap, &
-           dtScale, vmaxPZ
+           dtScale, vmaxPZ, minStep
 
   kind = 1
   Dc = 0.5d0
@@ -110,6 +111,7 @@ contains
   vEQ     = 10d-3 ! 10 mm/s
   minGap  = 10 ! 10 s
   NRMaxIter = 2000 
+  minStep  = 50
   NRTol     = 1.0d-4
   dtScale = 1d0
   vmaxPZ  = 1d10 ! by default a very large value, no control on process zone size
@@ -139,13 +141,15 @@ contains
   rsf%minGap  = minGap
   rsf%NRTol   = NRTol
   rsf%NRMaxIter = NRMaxIter
+  rsf%minStep = minStep
+  rsf%StepLock = 0
   rsf%teqPrev = -huge(1d0) 
   rsf%dtScale = dtScale
   rsf%vmaxPZ  = vmaxPZ
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
                MuSH,aH,bH,VstarH,thetaH,vplateH,& 
-               vmaxS2D,vmaxD2S, vEQ, NRMaxIter, NRTol
+               vmaxS2D,vmaxD2S, vEQ, NRMaxIter, minStep, NRTol
 
   return
 
@@ -162,6 +166,7 @@ contains
             /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3,&
             /5x,'  V threshold (earthquake event) . . .(vEQ) = ',EN12.3,&
             /5x,'  NR Max iteration . . . . . . .(NRMaxIter) = ',I4,&
+            /5x,'  Minimum locked steps . . . . . .(minStep) = ',I4,&
             /5x,'  NR tolerance . . . . . . . . . . . (NRTol)= ',EN12.3)
 
   end subroutine rsf_read
@@ -574,6 +579,7 @@ contains
 
   stat   = 1 ! converge normally
   maxtau = tau_stick
+  iter_i = 0
 
   ! compute the lower bound initial guess
   tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%mus+f%b*log(f%Vstar*f%theta/f%dc))/f%a)
@@ -968,15 +974,24 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
       end if
       time%isEQ = .false.
   end if
+
+  f%StepLock = max(f%StepLock - 1, 0)
   
-  if ((time%isDynamic .and. (vmax<f%vmaxD2S .and. vgmax<f%vmaxS2D*100d0)) .or. &
-      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D))) then
+  if ((time%isDynamic .and. (vmax<f%vmaxD2S) .and. f%StepLock==0) .or. &
+      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D)) .or. & 
+      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D) .and. (f%StepLock>0))) then
+      ! three cases of being static:
+      ! 1: previous step dynamic + vmax < vmaxD2S + steplock==0 (normal switch)
+      ! 2: previous step static + vmax < vmaxS2D (keep being static)
+      ! 3: previous step static + vmax > vmaxS2D + steplock>0 (forced being static for minStep)
 
       if (time%isDynamic) then
           time%switch = .true.
           write(*,*) "max sliprate:", vmax
           write(*,*) "max global velocity:", vgmax
           write(*, *) "Switching from dynamic to static, EQNum = ", time%EQNum
+          ! reset steplock to minStep
+          f%StepLock = f%minStep
       else
           time%switch = .false.
       end if
@@ -1013,12 +1028,15 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
       ! dynamic stepping
       ! if previous state was static switch to dynamic
       ! update number of earthquakes occurred so far 
+      
       if (.not. time%isDynamic) then
           time%switch = .true.
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.
           write(*, *) "Switching from static to dynamic, EQNum = ", time%EQNum
           write(*,*) "max sliprate:", vmax
+          ! reset steplock to minstep
+          f%StepLock = f%minStep
       else
           time%switch    = .false.
       end if
