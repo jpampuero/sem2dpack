@@ -26,6 +26,7 @@ module bc_dynflt_rsf
     double precision :: vmaxPZ ! maximum slip rate to control the process zone size
     integer :: iter, NRMaxIter, StepLock, minStep
     double precision :: vmaxD2S, vmaxS2D, NRTol, vEQ, tEqPrev, minGap
+    double precision :: vmaxD2S_VS
     type(rsf_input_type) :: input
   end type rsf_type
 
@@ -80,7 +81,7 @@ contains
   integer, intent(in) :: iin
 
   double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
-  double precision :: NRTol,minGap,dtScale,vmaxPZ 
+  double precision :: NRTol,minGap,dtScale,vmaxPZ, vmaxD2S_VS 
   integer :: NRMaxIter, minStep 
   character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
   integer :: kind
@@ -89,7 +90,7 @@ contains
   NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
            DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
            vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap, &
-           dtScale, vmaxPZ, minStep
+           dtScale, vmaxPZ, minStep,vmaxD2S_VS
 
   kind = 1
   Dc = 0.5d0
@@ -108,6 +109,7 @@ contains
   vplateH = ''
   vmaxS2D = 5d-3 ! 5 mm/s
   vmaxD2S = 2d-3 ! 2 mm/s
+  vmaxD2S_VS = 1d-2 ! 10 mm/s for velocity strengthening region 
   vEQ     = 10d-3 ! 10 mm/s
   minGap  = 10 ! 10 s
   NRMaxIter = 2000 
@@ -137,6 +139,7 @@ contains
 
   rsf%vmaxS2D = vmaxS2D
   rsf%vmaxD2S = vmaxD2S
+  rsf%vmaxD2S_VS = vmaxD2S_VS
   rsf%vEQ     = vEQ
   rsf%minGap  = minGap
   rsf%NRTol   = NRTol
@@ -944,7 +947,7 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
   double precision, intent(in) :: mu_star(:) 
   type(timescheme_type), intent(inout) :: time
   double precision, dimension(:), intent(in) :: v,sigma
-  double precision :: vgmax
+  double precision ::vgmax, vmax_VW, vmax_VS
 
   double precision :: k, xi, chi, dti, tmp, max_timestep,vmax
   integer :: it
@@ -953,6 +956,9 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
   ! using the maximum slip velocity on the fault
 
   vmax  = maxval(abs(v)) 
+  vmax_VW = maxval(abs(v), f%a<f%b) ! vmax for velocity weakeaning
+  vmax_VS = maxval(abs(v), f%a>f%b) ! vmax for velocity strengtening
+
   dti   = 0.0d0
 
   if (vmax>f%vEQ) then
@@ -977,9 +983,9 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
 
   f%StepLock = max(f%StepLock - 1, 0)
   
-  if ((time%isDynamic .and. (vmax<f%vmaxD2S) .and. f%StepLock==0) .or. &
-      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D)) .or. & 
-      ((.not. time%isDynamic) .and. (vmax<f%vmaxS2D) .and. (f%StepLock>0))) then
+  if ((time%isDynamic .and. vmax_VW<f%vmaxD2S .and. vmax_VS<f%vmaxD2S_VS .and. f%StepLock==0) .or. &
+      ((.not. time%isDynamic) .and. (vmax_VW<f%vmaxS2D)) .or. & 
+      ((.not. time%isDynamic) .and. (vmax_VW>f%vmaxS2D) .and. (f%StepLock>0))) then
       ! three cases of being static:
       ! 1: previous step dynamic + vmax < vmaxD2S + steplock==0 (normal switch)
       ! 2: previous step static + vmax < vmaxS2D (keep being static)
@@ -987,7 +993,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
 
       if (time%isDynamic) then
           time%switch = .true.
-          write(*,*) "max sliprate:", vmax
+          write(*,*) "max sliprate in velocity weakening:", vmax_VW
+          write(*,*) "max sliprate in velocity strengthening:", vmax_VS
           write(*,*) "max global velocity:", vgmax
           write(*, *) "Switching from dynamic to static, EQNum = ", time%EQNum
           ! reset steplock to minStep
@@ -1034,7 +1041,8 @@ subroutine rsf_timestep(time,f,v,sigma,hnode,mu_star,vgmax)
           ! switch to Dynamic and minimal time step
           time%isDynamic = .true.
           write(*, *) "Switching from static to dynamic, EQNum = ", time%EQNum
-          write(*,*) "max sliprate:", vmax
+          write(*,*) "max sliprate in velocity weakening:", vmax_VW
+          write(*,*) "max sliprate in velocity strengthening:", vmax_VS
           ! reset steplock to minstep
           f%StepLock = f%minStep
       else
