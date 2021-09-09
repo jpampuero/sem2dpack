@@ -419,22 +419,14 @@ contains
   end if
 
   ! limit the slip velocity to v_new
-  do it = 1, size(v_new)
-      if (abs(v_new(it))>f%vmaxPZ) then
-          v_new(it) = sign(f%vmaxPZ, v_new(it))
-      end if
-  end do
+  v_new = sign(min(abs(v_new), f%vmaxPZ),v_new)
 
   theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2), stat_i)
   
   ! limit the slip velocity to v_new
-  do it = 1, size(v_new)
-      if (abs(v_new(it))>f%vmaxPZ) then
-          v_new(it) = sign(f%vmaxPZ, v_new(it))
-          isSetmaxV(it) = .true.
-      end if
-  end do
+  isSetmaxV = abs(v_new) > f%vmaxPZ
+  v_new = sign(min(abs(v_new), f%vmaxPZ),v_new)
 
   if (stat_i<0) then
       write(*, *) "rsf_solver, pass 2 diverge!"
