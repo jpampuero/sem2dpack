@@ -1,0 +1,1725 @@
+
+------------------------------------------------------------------------
+Fri Dec 21 15:19:03 PST 2012
+
+*** This is the last entry in this file ***
+Moved the whole package to the SourceForge SVN server.
+Changes will now be logged automatically in SVN.
+
+------------------------------------------------------------------------
+Thu Sep 20 00:52:05 PDT 2012
+
+bc_dynflt.f90	[1]	opening dislocation with free shear stress
+
+------------------------------------------------------------------------
+Tue Sep 18 00:16:46 PDT 2012
+
+bc_dynflt_swf.f90	[1]	fixed bug with slip-strengthening: 
+				mu was being set to mus always
+				(pointed out by Yihe Huang)
+
+------------------------------------------------------------------------
+Aug 29 2012
+
+stf_ricker.f90	[1]	no warning if onset=1/f0	
+
+------------------------------------------------------------------------
+Tue Aug  7 16:17:30 PDT 2012
+
+mat_elastic.f90	[1]	anisotropic SH (FR 3547982)
+
+------------------------------------------------------------------------
+Tue Aug  7 2012
+
+Released 2.3.8
+
+docs	[1] updated chapter 1: reference list (new section "application examples"),
+	update notifications instructions, link to older files
+
+------------------------------------------------------------------------
+Aug 3 2012
+
+Released 2.3.7 (from August 11 2010)
+
+------------------------------------------------------------------------
+Thu Mar 29 11:25:23 PDT 2012 
+
+mat_gen.f90	[1] set a warning when a material is not used by any element
+
+------------------------------------------------------------------------
+Oct 14 2011
+
+mesh2d/read_dcm.m	[1]	Reads a 2D mesh in DCM format, the output of the 
+	EZ4U mesh generation software (http://www-lacan.upc.es/ez4u.htm)
+
+------------------------------------------------------------------------
+Thu Oct 13 11:27:07 PDT 2011
+
+bc_dynflt_rsf.f90	[1] fixed theta*V/Dc in classical rate-and-state (pointed out by Yihe Huang)
+bc_abso.f90	[2] implemented for boundaries that are not horizontal or vertical
+                    but only with explicit scheme, no Stacey, no periodic, no incident waves
+
+------------------------------------------------------------------------
+Wed Aug 17 10:54:46 PDT 2011
+
+bc_kinflt.f90	[1] new kinematic fault module
+bc_gen.f90	[1]
+bc_DTTTN0.f90	[1] removed
+stf_gaussian.f90	[2] new gaussian source time function (Yihe Huang)
+stf_gen.f90	[2]
+mat_elastic.f90	[3] now anisotropic coefficients can be heterogeneous (FR 3313940)
+
+
+------------------------------------------------------------------------
+Fri May 13 12:12:38 PDT 2011
+
+bc_dynflt.f90	[1] fixed segmentation fault when pure time weakening, a bug in initialization 
+		(pointed out by Yihe Huang)
+
+------------------------------------------------------------------------
+Wed May 11 2011
+
+bc_dynflt_twf.f90	[1] version B: mu keeps growing linearly beyond the nucleation front 
+			up to distance L, then jumps to a huge value. 
+			Solves an issue pointed out by Yihe Huang:
+			slip-weakening stopping barriers were overridden by time-weakening
+
+------------------------------------------------------------------------
+Mon May  2 17:38:05 PDT 2011
+
+bc_dynflt_twf.f90	[1] reset the time-weakening coefficient to its static value 
+       			once nucleation is over. This solves an issue pointed out by Yihe Huang:
+			in the old version total weakening persisted after the end of
+			the artificial nucleation process and was impeding physical healing
+
+------------------------------------------------------------------------
+Mon Apr 25 17:34:28 PDT 2011
+
+bc_dynflt.f90	[1] factored the call to time-weakening friction in the solver
+
+------------------------------------------------------------------------
+Thu Feb 17 16:36:30 PST 2011
+
+fem_grid.f90	[1] more simple calculation of area in FE_GetElementArea
+
+------------------------------------------------------------------------
+Tue Oct 26 11:40:37 PDT 2010
+
+bc_dynflt.f90	[1] fixed bug: skip removal of common nodes for single-sided faults
+
+------------------------------------------------------------------------
+Aug 27 2010
+
+PRE/mesh2d/read_inp.m	[1] reads a 2D mesh in the INP format of ABAQUS exported by CUBIT
+
+------------------------------------------------------------------------
+Aug 11 2010
+
+Archived version 2.3.7
+
+------------------------------------------------------------------------
+Tue Aug 10 23:48:29 PDT 2010
+
+mesh_structured.f90	[1] Q8h elements
+mesh_layers.f90	[2] option ezflt=-1 sets the fault in the middle (like MESH_CART)
+
+------------------------------------------------------------------------
+Aug 8 2010
+
+mesh_layers.f90 	[1] Q8h elements for curved faults with smooth normal
+fem_grid.f90	[1]
+elem_q8h.f90	[1]
+init.f90	[1]
+
+------------------------------------------------------------------------
+Feb 5 2010
+
+input.f90	[1] fmax now has default value = 1 Hz
+
+------------------------------------------------------------------------
+Mon Feb  1 18:08:02 PST 2010
+
+bc_dynflt.f90	[1] crack tip nodes (non split nodes) are now ignored
+
+------------------------------------------------------------------------
+Fri Jan 29 09:38:58 PST 2010
+
+mesh2d/mesh2d_merge.m	[1] allow for non consecutive boundary tags
+			[2] allow for number of sides different than 4
+mesh2d/mesh2d_wedge.m	[3] allow for non rectilinear boundaries and prescribed boundary nodes
+
+------------------------------------------------------------------------
+Tue Nov 17 17:40:34 PST 2009
+
+distribution_linear.f90	[1] input does not need to be ordered anymore, sorting is now done internally
+distribution_spline.f90	[1]
+
+------------------------------------------------------------------------
+Wed Nov  4 15:40:33 PST 2009
+
+bc_dynflt.f90	[1] added cohesion
+
+------------------------------------------------------------------------
+Wed Oct  7 21:53:50 PDT 2009
+
+bc_dynflt_twf.f90	[1] for kind=1, corrected handling of T so that final front
+        		position is exactly = V*T
+
+------------------------------------------------------------------------
+Thu Oct  1 12:30:57 PDT 2009
+
+mesh_cartesian.f90 	[1] added fznz in MESH_CART: 
+         		    vertical size (in number of elements) of fault zone layer
+mesh_layers.f90	[1]
+
+------------------------------------------------------------------------
+Thu Sep 24 11:20:19 PDT 2009
+
+bc_dynflt_twf.f90	[1] new kind=2 for expanding/contracting nucleation zone
+                            as in Andrews and Ben-Zion (1997, eqs 2 and 3)
+
+------------------------------------------------------------------------
+Mon Sep 21 12:11:44 PDT 2009
+
+bc_dynflt.f90	[1] added TWF to RSF
+mat_damage.f90	[2] rearranged compute_stress so that test for convexity can be commented out easily
+
+------------------------------------------------------------------------
+Tue Sep  8 16:52:41 PDT 2009
+
+bc_dirneu.f90	[1] fixed bug in SH mode: 
+                    bc_DIRNEU_set was never ignoring the second field component
+
+------------------------------------------------------------------------
+Sep 1 2009
+
+RELEASED 2.3.6
+
+------------------------------------------------------------------------
+Fri Aug  7 06:37:18 PDT 2009
+
+doc	[1] added description of absorbing boundaries
+	    energy and stress glut outputs
+            visco-plasticity
+
+------------------------------------------------------------------------
+Fri Jul 31 06:14:01 PDT 2009
+
+mat_plastic.f90 [1] fixed update of elastic strain to compute elastic energy
+
+------------------------------------------------------------------------
+Tue Jul 28 09:23:23 PDT 2009
+
+bc_dynflt_normal.f90	[1] added cohesion response: kind=0 in &BC_DYNFLT_NOR
+bc_dynflt.f90	[2] now fault opening is optional: 'opening' in &BC_DYNFLT
+
+------------------------------------------------------------------------
+Fri Jul 24 07:02:41 PDT 2009
+
+mat_plastic.f90	[1] fixed bug (2.3.5): was using e=etot+e0 (total strain) 
+                    instead of e=e+e0 (elastic strain)
+		[2] fixed bug: now initial plastic strain is always zero,
+                    argument 'ep' removed from &MAT_PLASTIC
+                (both bugs pointed out by Shiqing Xu)
+
+------------------------------------------------------------------------
+Thu Jul  9 03:23:20 PDT 2009 
+Sat Jul 11 08:03:21 PDT 2009
+
+mesh_layers.f90 [1] fault with smooth normal: new ztopH='QSPLINE' in &MESH_LAYER
+                    and &QSPLINE block
+		[2] added argument 'fztag' to &MESH_LAYERED: tags the elements
+		    that touch the fault
+utils.f90	[1] added computation of dy/dx in splint
+mesh_cartesian.f90	[3] added argument 'fztag' to &MESH_CART 
+
+------------------------------------------------------------------------
+Mon Jul  6 03:49:08 PDT 2009
+
+time.f90	[1] abort if unknown time scheme kind
+
+------------------------------------------------------------------------
+Thu Jul  2 10:23:46 PDT 2009
+
+mat_plastic.f90	[1] simplified plastic update
+
+------------------------------------------------------------------------
+Thu Jun  4 07:01:23 PDT 2009
+
+receivers.f90	[1] fixed format L1 (was L). Pointed out by Christian Hiblot
+
+------------------------------------------------------------------------
+Thu May 21 10:18:53 PDT 2009
+
+POST/sem2d_read_specgrid.m	[1] fixed path to gll_sem2d.tab file
+
+------------------------------------------------------------------------
+Thu Apr 23 17:36:43 PDT 2009
+
+bc_dynflt_swf.f90	[1] added null() to swf_type pointer fields
+			gfortran's 'associated' gives true for a non-initialized pointer
+			(problem pointed out by Arben Pitarka)
+
+------------------------------------------------------------------------
+Fri Feb 20 13:16:45 PST 2009
+
+bc_dynflt_swf.f90	[1] exports initial values (Tt,Tn,mu) in FltXX_init_sem2d.tab 
+doc	[1]
+
+------------------------------------------------------------------------
+Thu Feb 19 17:43:53 PST 2009
+
+bc_dynflt_swf.f90	[1] added instantaneous healing to slip-weakening friction
+			  (implementation valid only for leapfrog)
+bc_dynflt.f90	[1]
+
+------------------------------------------------------------------------
+Tue Feb 17 09:56:16 PST 2009
+
+mat_gen.f90	[1] damage stress glut was not set to zero for plastic 
+ 		and elastic materials
+
+------------------------------------------------------------------------
+Sun Feb 15 23:45:43 PST 2009
+
+RELEASED 2.3.5
+
+doc	[1] reorganized chapters, expanded doc about meshing
+solver.f90	[2] fixed bug in compute_Fint: 
+           	    plastic stress glut was not reset to zero
+
+------------------------------------------------------------------------
+Fri Feb 13 11:29:47 PST 2009
+
+POST/plot_seis.m	[1] new argument for amplitude scaling factor
+
+------------------------------------------------------------------------
+Thu Feb 12 14:32:43 PST 2009
+
+POST/sem2d_snapshot_movie.m	[1] exports animated GIF (using imwrite)
+POST/mesh2d/Contents.m	[2] new
+distribution_linear.f90	[3] now works for X and Z
+distribution_spline.f90	[3]
+PRE/mesh2d/mesh2d_wedge.m	[4] new
+
+------------------------------------------------------------------------
+Wed Feb 11 16:34:07 PST 2009
+
+PRE/ViewMeshQuality.m	[1] improved documentation
+			[2] now a function, conversion to log index is optional
+			[3] now faster: replaced fill by patch
+POST/sem2d_snapshot_movie.m	[4] plays movie from snapshots
+doc	[5] updated personal URLs and Matlab utlities
+POST/sample_snapshots.m	[6] removed
+POST/Contents.m	[7] new
+
+------------------------------------------------------------------------
+Fri Feb  6 10:02:48 PST 2009
+
+bc_gen.f90	[1] ignores bc when tag does not exist in mesh, instead of aborting 
+spec_grid.f90	[1]
+
+------------------------------------------------------------------------
+Wed Feb  4 13:06:01 PST 2009
+
+PRE/mesh2d	[1] Matlab tools to generate structured meshes
+mesh_mesh2d.f90	[2] new mesh input format: mesh2d
+mesh_gen.f90	[2]
+EXAMPLES/Using_MESH2D	[2]
+src_force.f90	[3] not required for SH
+
+------------------------------------------------------------------------
+Tue Jan 20 14:20:10 PST 2009
+
+mat_plastic.f90	[1] fixed elastic energy: was adding initial strain twice
+
+------------------------------------------------------------------------
+Wed Jan 14 11:44:05 PST 2009
+
+bc_dynflt.f90	[1] added potency output
+doc		[1] updated and revised section "Fault outputs"
+mat_plastic.f90	[2] separated plastic and damage components of stress glut
+                    (still needs refactoring, encapsulation)
+mat_damage.f90	[2]
+mat_gen.f90	[2]
+solver.f90	[2]
+energy.f90	[2]
+
+------------------------------------------------------------------------
+Tue Jan 13 11:34:26 PST 2009
+
+mat_plastic.f90	[1] fixed plastic energy (missing factor 2 in last term)
+mat_damage.f90	[1]
+
+------------------------------------------------------------------------
+Sat Jan  3 11:07:03 PST 2009
+
+mat_damage.f90	[1] added plastic component in stress glut
+                    (would be better if separated components)
+
+------------------------------------------------------------------------
+Fri Jan  2 10:35:14 PST 2009
+
+energy.f90	[1] fixed intent(inout) in initialization
+                    intent(in) in stress_glut_init was scratching energy_init
+mat_plastic.f90	[2] fixed elastic energy and stress glut 
+                    was using relative elastic strain instead of total
+
+------------------------------------------------------------------------
+Tue Dec 30 23:09:38 PST 2008
+
+stf_brune.f90	[1] fixed bug: set to zero at negative times
+
+------------------------------------------------------------------------
+Tue Dec 23 23:55:45 PST 2008
+
+mat_plastic.f90 [1] compute and export stress glut
+mat_gen.f90	[1]
+solver.f90	[1]
+energy.f90	[1]
+main.f90	[1]
+init.f90	[1]
+constants.f90	[1]
+mat_damage.f90	[1]
+
+------------------------------------------------------------------------
+Sun Dec 21 15:38:03 PST 2008
+
+src_gen.f90	[1] now can have amplitude input for each source in multiple sources mode
+                    see SRC_DEF with file
+stdio.f90	[1] IO_file_columns
+
+------------------------------------------------------------------------
+Thu Dec 18 14:32:38 PST 2008
+
+src_moment.f90	[1] doc: note on scaling seismic moment from 3D to 2D
+
+------------------------------------------------------------------------
+Fri Dec 12 11:48:59 PST 2008
+
+POST/sem2d_read_fault.m	[1] default filename is first Flt* found in current dir
+POST/sem2d_plot_grid.m	[2] plots spectral element grid
+
+------------------------------------------------------------------------
+Tue Dec  2 10:47:11 PST 2008
+
+POST/arias_intensity.m	[1] fixed bug: handle leading zeros
+
+------------------------------------------------------------------------
+Wed Nov 26 16:07:49 PST 2008
+
+RELEASED 2.3.4
+
+energy.f90	[1] now computes the CHANGE of elastic energy
+mat_plastic.f90	[1]
+mat_damage.f90	[1]
+POST/plot_model.m	[2] plots velocity and density model
+mesh_layers.f90	[3] stops if zmin is shallower than some layer
+
+------------------------------------------------------------------------
+Tue Nov 25 17:16:12 PST 2008
+
+POST/response_spectra.m	[1] new (for Isabel Bernal)
+POST/arias_intensity.m	[2] new (for Isabel Bernal)
+
+------------------------------------------------------------------------
+Wed Nov 19 21:12:49 PST 2008
+
+distribution_hete1.f90	[1] fixed bug in linear interpolation
+plot_postscript.f90	[2] fixed bug in plotting velocity model as background
+
+------------------------------------------------------------------------
+Nov 16 2008
+
+constants.f90	[1] energy computations in expert mode (parameter COMPUTE_ENERGIES)
+init.f90	[1]
+main.f90	[1]
+energy.f90	[2] new type encapsulates energies
+solver.f90	[1] [2]
+problem_class.f90	[2]
+mat_plastic.f90	[1] [2] [3] compute elastic energy
+mat_damage.f90	[1] [2] [3]
+mat_gen.f90	[1] [2] [3]
+stf_brune.f90	[4] Brune's source time function
+stf_gen.f90	[4]
+receivers.f90	[5] fixed labels of output table
+
+
+------------------------------------------------------------------------
+Wed Nov 12 15:18:08 PST 2008
+
+problem_class.f90	[1] completed plastic energy output (damage and plastic materials)
+init.f90	[1]
+solver.f90	[1]
+main.f90	[1]
+mat_gen.f90	[1]
+mat_damage.f90	[1]
+plot_gen.f90	[1]
+mat_plastic.f90	[1]
+
+------------------------------------------------------------------------
+Wed Nov  5 09:39:10 PST 2008
+stf_tabulated.f90	[1] assumes values  beyond input time range are same 
+			as values at initial and final times
+
+------------------------------------------------------------------------
+Oct 22 2008
+
+sem2d_extract_points.m	[1] extracts field values at arbitrary point (GLL interpolation)
+sem2d_read_specgrid.m	[1] 
+gll.f90	[1] print gll_sem2d.tab
+spec_grid.f90	[1]
+
+------------------------------------------------------------------------
+Thu Oct  9 16:38:47 PDT 2008
+
+POST/sem2d_extract_line.m	[1] extracts field values on horizontal or vertical lines (for Shiqing Xu)
+
+------------------------------------------------------------------------
+Oct  1 2008
+
+mat_gen.f90	[1] implementing energy outputs ... (for Shiqing Xu, see !xu)
+mat_damage.f90	[1]
+solver.f90	[1]
+
+------------------------------------------------------------------------
+Sun Sep 21 10:27:08 PDT 2008
+
+plot_gen.f90	[1] added div and curl snapshot output
+mat_gen.f90	[1]
+fields.f90	[1]
+POST/sem2d_snapshot_read.m	[1] (doc)
+
+------------------------------------------------------------------------
+Wed Aug 27 18:18:22 PDT 2008
+
+bc_dynflt.f90	[1] verified yesterday enhancement
+POST/sem2d_read_fault.m	[2] adapted to osides=T
+
+------------------------------------------------------------------------
+Wed Aug 27 01:58:13 PDT 2008
+
+bc_dynflt.f90	[1] export displacements and velocities of each side of the fault
+		(new argument 'osides' in BC_DYNFLT)
+		Requested by Raul Madariaga. This was a feature in older versions
+bc_gen.f90	[1]
+init.f90	[1]
+main.f90	[1]
+
+------------------------------------------------------------------------
+Thu Aug 14 18:27:44 PDT 2008
+
+POST/spec2D_cplot.m	[1] updated	
+
+------------------------------------------------------------------------
+Tue Aug  5 15:50:43 PDT 2008
+
+RELEASED 2.3.3
+
+mesh_cartesian.f90	[1] fixed default ezflt=0
+time.f90	[2] partially encapsulated timescheme_type
+		    (main and solver still need it public)
+init.f90	[2]
+plot_gen.f90	[2]
+receivers.f90	[2]
+		[3] fixed 'number' when 'file'
+bc_dynflt.f90	[2]
+bc_abso.f90	[2]
+
+------------------------------------------------------------------------
+Wed Jul 30 14:07:06 PDT 2008
+
+mesh_cartesian.f90	[1] arbitrary fault location (ezflt, supersedes FaultX)
+mesh_layers.f90		[2] fault in layered meshes
+mesh_structured.f90	[1][2] 
+distribution_linear.f90	[3] can read data from Par.inp
+
+------------------------------------------------------------------------
+Mon Jul 28 18:02:55 PDT 2008
+
+time.f90	[1] fixed bug in initialization of beta in Newmark-alpha scheme
+		    separated TIME_NEWMARK from TIME_HHTA
+		    changed Newmark default to leapfrog equivalent
+solver.f90	[1]
+init.f90	[1]
+
+------------------------------------------------------------------------
+Tue Jul 22 17:57:05 PDT 2008
+
+mat_plastic.f90	[1] fixed viscoplasticity 
+		(following correction on Andrews (2005) by Duan (2008))
+
+------------------------------------------------------------------------
+Fri May 16 16:20:02 PDT 2008
+
+RELEASED 2.3.2
+
+------------------------------------------------------------------------
+Sat Apr 19 12:15:58 CEST 2008
+
+memory_info.f90	[1] long integers for very large simulations
+
+------------------------------------------------------------------------
+Mon Apr 14 16:40:25 CEST 2008
+
+bc_dynflt_rsf.f90 	[1] new state-and-velocity dependent friction solver
+			    as in Ampuero and Ben-Zion (2008)
+bc_dynflt.f90	[1]
+		[2] fixed bug in time-weakening: it was only enabled in conjunction 
+		    with slip-weakening, now it can stand alone too
+
+------------------------------------------------------------------------
+Apr  9 21:23
+
+RELEASED 2.3.1
+
+------------------------------------------------------------------------
+Wed Apr  2 14:37:45 CEST 2008
+
+bc_dynflt_twf.f90	[1] time weakening friction, and combinations
+bc_dynflt.f90		[1]
+bc_gen.f90		[1]
+
+------------------------------------------------------------------------
+Mon Mar 31 17:26:42 CEST 2008
+
+receivers.f90	[1] introduced loop in unformatted,direct-access writes
+		    to avoid stack overflow
+                    but there is still stack overflow in other parts
+		    of the code, e.g. maxval in main.f90
+stdio.f90	[1]
+spec_grid.f90	[1]
+
+------------------------------------------------------------------------
+Fri Mar 21 01:19:46 JST 2008
+
+prop_elem.f90	[1] fixed mem count
+		[2] modified prop_elem_type (created hete_type)
+		    to reduce memory usage when homogeneous
+prop_mat.f90	[1]
+main.f90	[3] avoid outputs when iexec=0
+memory_info.f90	[4] memory report now in bytes, with cumulative
+
+------------------------------------------------------------------------
+Wed Mar 19 16:14:32 JST 2008
+
+main.f90	[1] more accurate CPU time estimates (NT_CHECK parameter)
+
+------------------------------------------------------------------------
+Tue Mar 18 11:39:34 JST 2008
+
+mat_damage.f90	[1] reduced memory usage by assuming constant mu and lambda inside element
+mat_plastic.f90	[1]
+mat_elastic.f90	[2] reduced memory usage by removing H and Ht from mat_elast_type
+solver.f90	[2]
+mat_gen.f90	[2]
+
+------------------------------------------------------------------------
+Mon Mar 17 20:28:24 JST 2008
+
+memory_info.f90	[1] storearray returns when size=0 
+		[2] uses IO_abort
+prop_mat.f90	[3] test property_name length
+mat_*.f90	[4] refactored: encapsulated material modules
+                [5] more complete memory usage report
+mat_common.f90	[4] removed
+prop_elem.f90	[5] new function PROP_size
+
+------------------------------------------------------------------------
+Wed Mar 12 23:17:45 JST 2008
+
+spec_grid.f90	[1] fixed memory leak (deallocate pointers during cleanup of linked lists)
+mesh_emc2.f90	[1]
+
+------------------------------------------------------------------------
+Mon Mar 10 12:06:02 JST 2008
+
+mat_common.f90	[1] refactoring matwrk_elem_type: new derint_type
+mat_damage.f90	[1] now calls MAT_set_derint
+mat_gen.f90	[1]
+mat_plastic.f90	[1]
+prop_mat.f90	[2] removed ngll from matpro_elem_type
+spec_grid.f90	[3] added loop in SE_init_coord binary output to avoid stack overflow
+
+------------------------------------------------------------------------
+Thu Mar  6 18:34:13 JST 2008
+
+RELEASED 2.3.0
+
+plot_gen.f90	[1] renamed &PLOTS to &SNAP_DEF
+		[2] moved IT1 and ITD from echo.f90 (were ItSnapshot*)
+		[4] renamed 'postscript' argument to 'ps'
+echo.f90	[2] removed &ECHO
+		    moved arguments to &GENERAL and &SNAP_DEF
+		    removed ECHO_read, new ECHO_set
+                    moved some 'save' variables to plot_gen.f90
+main.f90	[2]
+plot_postscript.f90	[3] renamed &PLOTS_POSTSCRIPT to &SNAP_PS
+bc_dynflt.f90	[5] &BC_DYNFLT: renamed arguments IxOut, DtOutput, FirstOutput
+		    and suffix Het to oxi, otd, ot1 and H
+		    moved Dc,MuS,MuD to new &BC_DYNFLT_SWF
+		[6] factored out slip weakening friction
+bc_dynflt_normal.f90	[5] &BC_DYNFLT_NORMAL renamed to &BC_DYNFLT_NOR
+bc_dynflt_swf.f90	[6] new module for slip weakening friction
+
+------------------------------------------------------------------------
+Wed Mar  5 10:04:36 JST 2008
+
+POST/sem2d_snapshot_gui.m	[1] added wait message while plotting
+				[2] fixed "field select" values at start, or at directory change
+				[3] shortened directory name on plot title
+				[4] resized gui
+mat_elastic.f90	[5] added anisotropy to MAT_ELAST_stress
+		[6] corrected notations: c44 now is c55
+bc_dynflt.f90	[8] renamed of bc_swff.f90, 
+		    renamed &BC_SWFF to &BC_DYNFLT
+bc_gen.f90	[8]
+doc/USERS_GUIDE	[7] added comments on meshing, moved physics chapter to #2
+
+------------------------------------------------------------------------
+Tue Mar  4 23:17:07 JST 2008
+
+bc_dynflt_normal.f90	[1] new normal response (Coulomb, Prakash-Clifton #1 and #2)
+bc_swff.f90	[1]
+mat_gen.f90	[2] changed syntax of MATERIAL block: "type" replaces the "isXXXX" flags
+		[3] MAT_xxxx blocks can be given in any order
+bc_abso.f90	[4] check that boundary is vertical or horizontal
+		    (argument 'side' no longer needed)
+bc_dirneu.f90	[4]
+spec_grid.f90	[4] (removed 'side_x' parameter, inherited from fem_grid.f90)
+mat_elastic.f90	[5] memory optimization in box grids with homogeneous materials
+utils.f90	[5] (new function unique)
+spec_grid.f90	[5] (new SE_firstElementTagged, removed SE_single_tag)
+
+------------------------------------------------------------------------
+Mon Mar  3 19:29:42 JST 2008
+
+dist_gaussian.f90	[1] new 'order' argument
+time.f90	[2] new functions TIME_getCoefA2D, TIME_getCoefA2V
+bc_swff.f90	[2]
+bc_abso.f90	[2]
+
+------------------------------------------------------------------------
+Fri Feb 29 20:01:02 JST 2008
+
+POST/sem2d_snapshot_gui.m	[1] improved (now it's a real GUI)
+
+------------------------------------------------------------------------
+Fri Feb 22 00:14:38 JST 2008
+
+mat_damage.f90	[1] adapted xi_zero, gamma_r and convexity loss conditions
+		    to 2D plane strain
+
+------------------------------------------------------------------------
+Mon Feb 18 10:50:48 JST 2008
+
+mat_gen.f90	[1] factored computation of stresses and internal variables update (new MAT_stress)
+		[3] new MAT_stress_dv
+mat_elastic.f90	[1] 
+mat_plastic.f90	[1]
+mat_damage.f90	[1]
+mat_common.f90	[2] added SH to MAT_strain
+plot_gen.f90	[3] export stress and strain: general, without global storage 
+fields.f90	[4] merged PSV and SH in FIELD_strain_elem
+stdio.f90	[5] IO_field_elem_single: moved inquire
+bc_swff.f90	[6] cleaned up BC_write, BC_init (fields not needed)
+bc_gen.f90	[6]
+main.f90	[6]
+init.f90	[6]
+
+------------------------------------------------------------------------
+Sun Feb 17 22:23:34 JST 2008
+
+plot_postscript.f90	[1] fixed: plot Stability and Resolution even when postscript=.false.
+			    initialize automatically PLOT_PS
+			[2] changed default to interpol=F
+plot_gen.f90	[1] removed PLOT_PS_init
+solver.f90	[3] factored computation of internal forces (compute_Fint)
+mat_gen.f90	[3] new MAT_Fint
+mat_elastic.f90	[4] added ngll,ndof to arguments in MAT_ELAST_f
+mat_kelvin_voigt.f90	[4] added ngll,ndof to arguments in MAT_KV_add_etav
+
+------------------------------------------------------------------------
+Sat Feb 16 10:30:10 JST 2008
+
+mat_damage.f90	[1] modified for plane strain: 
+		      e13=e23=e33=0 
+		      s33=nu*(s11+s22)
+		    inputs change: no need for e33
+POST/sem2d_snapshot_read.m	[2] added plastic variables
+
+------------------------------------------------------------------------
+Thu Feb 14 12:50:21 JST 2008
+
+mat_plastic.f90	[1] new elasto-visco-plastic material
+mat_gen.f90	[1]
+mat_common.f90	[1] [2] refactoring: new functions common to many materials
+		        (MAT_set_derint, MAT_strain_PSV, MAT_forces_PSV)
+mat_damage.f90	[2] [3] fixed: subtract plastic strain before evaluating initial stress
+		[4] reduced memory for uniform elastic moduli
+
+------------------------------------------------------------------------
+Wed Feb  6 14:58:36 JST 2008
+
+doc/	[1] documented Matlab utilities
+POST/	[1]
+PRE/	[1]
+
+------------------------------------------------------------------------
+Tue Feb  5 12:47:33 JST 2008
+
+mat_common.f90	[1] new, contains matwrk_elem_type (formerly in prop.mat.f90)
+prop_mat.f90	[1]
+mat_damage.f90	[1]
+mat_elastic.f90	[1]
+mat_gen.f90	[1]
+mat_kelvin_voigt.f90	[1]
+problem_class.f90	[1]
+
+In POST/ :
+sem2d_snapshot_gui.m	[2] refactored (formerly sem2d_view.m)
+			[3] added damage outputs
+sem2d_snapshot_plot.m	[2] formerly Plot2dSnapshot
+sample_snapshots.m	[2] 
+sem2d_snapshot_read.m	[2] [3] new
+sem2d_read_specgrid.m	[2] new
+Init2DSnapshot.m	[2] removed, merged in sem2d_snapshot_plot.m
+specfilter.m	[4] linked to ~/TOOLS/Matlab
+specshift.m	[4]
+xcorrshift.m 	[4] formerly XCorrShift.m
+sem2d_read_fault.m	[5] renamed, formerly read_fault.m
+sem2d_read_seis.m	[5] renamed, formerly read_seis.m
+
+
+PackDistribution.csh	[6] fixed tar, heading "../" appeared since v2.2.12c
+
+------------------------------------------------------------------------
+Mon Jan 28 18:58:59 JST 2008
+
+bc_swff.f90	[1] added V,D,T to bc
+		[3] changed friction update flag (leapfrog or newmark)
+bc_lsf.f90	[2] simplified and added SH case
+bc_gen.f90	[2]
+
+------------------------------------------------------------------------
+Sun Jan 27 20:09:47 JST 2008
+
+bc_swwf.f90	[1] merged SH and PSV solvers
+bc_gen.f90	[1]
+
+------------------------------------------------------------------------
+Fri Jan 18 15:46:41 JST 2008
+
+plot_gen.f90	[1] plot stress and strain only if bin=T
+		[2] no info only if no snapshot output
+main.f90	[2]
+
+Changed website URL in doc and AuthorContact
+
+------------------------------------------------------------------------
+Thu Jan 17 09:56:36 JST 2008
+
+mat_elastic.f90	[3]
+
+UNRELEASED 2.2.12e
+mat_damage.f90	[1] bug: rewind on read
+		[2] eij an sij temporary storage on call compute_stress 
+		[3]
+mat_kelvin_voigt.f90	[1]
+mxmlib.f90	[3] new, optimized matrix products
+
+------------------------------------------------------------------------
+Wed Jan 16 19:14:49 JST 2008
+
+UNRELEASED 2.2.12d
+stf_harmonic.f90	[1] new monochromatic source time function 
+			   (as requested by Vladimir Lyakhovsky)
+stf_gen.f90	[1]
+bc_gen.f90	[2] how to add user bc
+doc/	[3] added chapter on how to add features
+	[4] added references to work using SEM2DPACK
+
+------------------------------------------------------------------------
+Tue Jan 15 17:41:39 JST 2008
+
+stf_gen.f90	[1] how to add user stf
+mat_gen.f90	[2] how to add user material
+mat_elast.f90	[3] changed subroutine name ELAST_KD to MAT_ELAST_f
+solver.f90	[3]
+prop_mat.f90	[4] MAT_newKind: fixed logical to integer
+mesh_gen.f90	[5] ounit was undefined when writing MeshNodesCoord_sem2d.tab
+
+Compiled with "-warn all -C" and cleaned up unused variables
+
+------------------------------------------------------------------------
+Mon Jan 14 2008
+
+doc/selfdoc.csh	[1] now uses verbatim instead of a2ps
+doc/		[1] mv old stuff to junk
+
+------------------------------------------------------------------------
+Sun Jan 13 17:55:41 JST 2008
+
+UNRELEASED 2.2.12c
+Sent only to Vladimir Lyakhovsky
+
+bc_dirneu.f90	[1] DIRNEU Dirichlet/Neumann boundary conditions
+        	    time-dependent, supersedes DT0TN0
+bc_DT0TN0.f90	[1] removed
+bc_gen.f90	[1]
+                [3] bc_set: removed optionals scal and which
+                [4] replaced text tags by integer tags
+stf_gen.f90	[2] new, encapsulates source time functions
+		    so it can be called also by DIRNEU
+src_gen.f90	[2]
+		[5] changed 'TimeFunction' to 'stf'
+
+------------------------------------------------------------------------
+Fri Jan  4 17:59:54 JST 2008
+
+mat_gen.f90	[1] MATERIAL block syntax changed
+		[2] changed test for homogeneous material
+mat_kelvin_voigt.f90	[3] KELVIN_VOIGT block name changed to MAT_KV
+mat_elastic.f90	[2] [4] ELASTIC block name changed to MAT_ELASTIC
+init.f90	[2]
+spec_grid.f90	[2]
+
+------------------------------------------------------------------------
+Fri Dec 28 17:43:21 JST 2007
+
+mat_gen.f90     [1] fixed MAT_read: watch length of 'mode' in select case
+
+------------------------------------------------------------------------
+Mon Dec 17 13:47:30 JST 2007
+
+mat_gen.f90	[1] fixed MAT_init_elem_prop to allow multiple material attributes
+		on the same element (ex: combine elastic and Kelvin-Voigt)
+
+------------------------------------------------------------------------
+Thu Aug 16 14:59:59 CEST 2007
+
+[1] Reorganized the directory, preparing for SubVersion usage.
+main/ now contains everything that will go to SubVersion.
+SRC/ has now only one branch (beta_3.x was moved out, to ~/WAVES/SEM2DPACK/)
+
+PackDistrib.csh	[1]
+doc/USERS_GUIDE/Makefile	[1]
+doc/MakeDoc.csh	[1]
+
+------------------------------------------------------------------------
+Tue Jul  3 11:10:37 CEST 2007
+
+plot_postscript.f90	[1] fixed bug in plot_scal during interpolation
+			    (size of stmp was incorrect) (SR 1746891)
+
+------------------------------------------------------------------------
+Mon Jul  2 12:22:55 CEST 2007
+
+mat_damage.f90	[1] continue damage implementation
+main.f90	[1]
+solver.f90	[1]
+src_wave.f90	[2] fixing for new property class
+bc_abso.f90	[2]
+prop_mat.f90	[2]
+mat_gen.f90	[1] [2]
+mat_elastic.f90	[2]
+mat_kelvin_voigt.f90	[2]
+init.f90	[2]
+fields.f90	[1]
+
+------------------------------------------------------------------------
+Tue Jun 26 14:44:17 CEST 2007
+
+prop_mat.f90	[1] major refactoring: introduced material property objects
+		    with input database and element database
+		    and material working arrays
+mat_damage.f90	[1] new
+mat_elastic.f90	[1] renamed elastic.f90
+mat_kelvin_voigt.f90	[1] renamed kelvin_voigt.f90
+solver.f90	[1]
+plot_gen.f90	[1]
+mat_gen.f90	[1]
+mat_mass.f90	[1]
+init.f90	[1]
+distribution_cd.f90	[1] interfaces changed
+problem_class.f90	[1]
+plot_visual3.f90	[1]
+plot_postscript.f90	[1]
+mesh_layers.f90	[1]
+fields.f90	[1]
+prop_elem.f90	[1]
+bc_swff.f90	[1]
+bc_abso.f90	[1]
+src_wave.f90	[1] [2] fixed ref point when wave incidence from above
+input.f90	[1]
+spec_grid.f90	[1]
+src_gen.f90	[1]
+bc_gen.f90	[1]
+plot_avs.f90	[1]
+distribution_general.f90	[1]
+utils.f90	[3] new setopt
+
+------------------------------------------------------------------------
+Fri Jun 15 12:37:49 CEST 2007
+
+spec_grid.f90	[2] fixed "flat grid" optimization (was ignored)
+distribution_cd.f90	[1] new, factored out of distribution_general.f90
+distribution_general.f90	[1]
+mesh_layers.f90	[1]
+kelvin_voigt.f90	[1]
+bc_swff.f90	[1]
+
+------------------------------------------------------------------------
+Thu Jun 14 12:11:05 CEST 2007
+
+no more OPT_HOMOG, handled automatically
+
+distribution_general.f90	[1] optional string in DIST_Read_CD
+mesh_layers.f90	[1]
+kelvin_voigt.f90	[1]
+bc_swff.f90	[1]
+
+------------------------------------------------------------------------
+Sun Jun 10 20:13:47 CEST 2007
+
+plot_gmt.f90	[1] export triangulation file for GMT's "pscontour -T"
+plot_gen.f90	[1]
+init.f90	[1]
+
+------------------------------------------------------------------------
+Thu Jun  7 15:40:06 CEST 2007
+
+bc_DT0TN0.f90	[1] fixed bug: now ignored if SH
+
+------------------------------------------------------------------------
+Wed Jun  6 15:23:09 CEST 2007
+
+RELEASED 2.2.11
+
+plot_postscript.f90	[1] interpolation for scalar plots
+
+POST/movie.csh optional -crop
+doc snapshot and seismogram figures
+
+------------------------------------------------------------------------
+Wed Jun  6 00:50:52 CEST 2007
+
+bc_abso.f90	[1] incident wave field (FR 1676280)
+		[3] periodic input not needed anymore (handled internally)
+src_wave.f90	[1]
+elastic.f90	[1] [2] fixed bug in ELAST_inquire (mu/lambda)
+src_gen.f90	[1]
+solver.f90	[1]
+time.f90	[1]
+bc_gen.f90	[1] [3]
+init.f90	[1]
+bc_swff.f90	[3]
+bc_periodic.f90	[3]
+bc_lsf.f90	[3]
+
+------------------------------------------------------------------------
+Mon Jun  4 13:31:43 CEST 2007
+
+plot_postscript.f90 [1] added GROUPS to input block doc
+stf_ricker.f90	[1]	[2] changed SRC_RICKER to STF_RICKER
+stf_tabulated.f90	[3] new source time function: spline-interpolated from file values
+src_gen.f90	[3]
+utils.f90	[3] moved common spline routines here
+distribution_spline.f90	[3]
+src_wave.f90	[1]
+src_gen.f90	[1]
+ricker_functions.f90 [2] changed to stf_ricker.f90
+mesh_emc2.f90	[1]
+mesh_layers.f90	[1]
+mesh_cartesian.f90	[1]
+bc_lsf.f90	[1]
+bc_abso.f90	[1]
+bc_swff.f90	[1]
+distribution_pwconr.f90	[1]
+distribution_hete1.f90	[1]
+distribution_order0.f90	[1]
+distribution_gradient.f90	[1]
+distribution_spline.f90	[1]
+distribution_linear.f90	[1]
+distribution_gaussian.f90	[1]
+stf_user.f90	[1]
+src_force.f90	[1]
+src_moment.f90	[1]
+
+------------------------------------------------------------------------
+Sat Jun  2 13:05:40 CEST 2007
+
+src_moment.f90	[1] implemented moment tensor sources
+		[4] allow source at element edge or vertex
+receivers.f90	[2] removed relocation to boundary
+fem_grid.f90	[3] abort if point out of element
+		[4]
+src_gen.f90	[1] [2] [4]
+input.f90	[1] passed ndof to src_moment
+src_explo.f90	[1] deleted (explosion now in src_moment module)
+spec_grid.f90	[2] [4]
+src_wave.f90	[4]
+
+------------------------------------------------------------------------
+Fri Jun  1 14:46:55 CEST 2007
+
+constants.f90	[1] moved all optimizations comments here
+elastic.f90	[1] 
+mesh_cartesian.f90	[1]	
+mesh_layers.f90	[1]
+
+doc: optimization parameters (see "installation")
+
+------------------------------------------------------------------------
+Thu May 31 16:39:11 CEST 2007
+
+RELEASED 2.2.10
+
+time.f90	[1]	beautified echo
+init.f90	[1]
+plot_postscript.f90	[1]
+elastic.f90	[1]
+spec_grid.f90	[1]
+main.f90	[1]
+echo.f90	[1] deleted OutputFile, echo only to stdout
+mesh_gen.f90	[1]
+receivers.f90	[1]
+src_gen.f90	[1]
+bc_abso.f90	[1]
+bc_gen.f90	[1]
+src_force.f90	[1]
+mesh_layers.f90	[1]
+plot_gen.f90	[1]
+
+EXAMPLES/TestLayers_2, flat stratified medium
+PRE/set_mesh_layers.m
+
+EXAMPLES/TestSH (with test)
+
+POST/read_seis.m
+POST/plot_seis.m
+
+Updated figures in user's manual
+
+------------------------------------------------------------------------
+Wed May 30 17:12:40 CEST 2007
+
+mesh_structured.f90	[1] new module, refactored commons from mesh_cartesian and mesh_layers
+mesh_cartesian.f90	[1]	
+mesh_layers.f90	[1]
+utils.f90	[1] moved sub2ind here
+fem_grid.f90	[1] new FE_reorder
+
+EXAMPLES/run_tests.csh script for automated tests 
+
+------------------------------------------------------------------------
+Tue May 29 23:00:38 CEST 2007
+
+mesh_layers.f90	[1] mesh for layered medium
+		[3] add input echo
+elastic.f90	[2] abort if mesh tag is not a material tag
+input.f90	[4] beautified input echo 
+distribution_spline.f90	[5] fixed bug in read_spline_dist (array allocation)
+		[6] file format changed: first line (length) not needed
+main.f90	[7] echo and snapshot at t=0
+distribution_linear.f90 [6]
+distribution_gradient.f90 [6]
+mesh_cartesian.f90	[3] [4]
+mesh_emc2.f90	[3] [4]
+mesh_gen.f90	[3] [4]
+plot_postscript.f90	[4]
+plot_gen.f90	[4]
+receivers.f90 	[4] [6]
+src_gen.f90	[4] [6]
+bc_gen.f90	[4]
+
+------------------------------------------------------------------------
+Thu May 17 20:50:26 CEST 2007
+
+src_gen.f90	[1] echo source file name instead of source coordinates
+
+------------------------------------------------------------------------
+Mon Apr  9 09:13:00 CEST 2007
+
+fem_grid.f90	[1] FE_SetConnectivity: simplified VertexConn storage
+		[2] FE_SetConnectivity: considered Q9 
+spec_grid.f90	[1]
+
+------------------------------------------------------------------------
+Thu Apr  5 08:41:29 CEST 2007
+
+fem_grid.f90	[1] FE_SetConnectivity: simplified nn setting
+		[2] =>null() in type definition
+spec_grid.f90	[2]
+
+------------------------------------------------------------------------
+Wed Apr  4 21:45:28 CEST 2007
+
+fem_grid.f90 	[1] intent(inout) in FE_SetConnectivity
+
+------------------------------------------------------------------------
+Wed Apr  4 10:21:55 CEST 2007
+
+RELEASED 2.2.9
+
+mesh_cartesian.f90	[1] cleanup prints
+distribution_hete1.f90	[1]
+elastic.f90	[1]
+
+
+------------------------------------------------------------------------
+Mon Apr  2 13:43:26 CEST 2007
+
+distribution_hete1.f90 [1] fixed bug 1692766: name of namelist is case sensitive,
+                           more robust generate_hete1_dist
+init.f90 	[2] clean up (compiler -w all -C)
+bc_gen.f90	[2]
+src_gen.f90	[2]
+elastic.f90	[2]
+
+contrib/Smith_tunnel/new/  example mesh of a tunnel
+
+------------------------------------------------------------------------
+Sun Apr  1 16:41:50 CEST 2007
+
+src_gen.f90	[1] add template for user-supplied source time function
+stf_user.f90	[1]
+***devel/material_property.f90	[2] module in progress defines property class 
+				(see elastic.f90)
+
+------------------------------------------------------------------------
+Mon Mar 19 06:58:56 CET 2007
+
+EXAMPLES/LambsProblem as in Mercerat et al 2006
+Analytical solution from EX2DDIR
+
+------------------------------------------------------------------------
+Thu Mar 15 08:17:02 CET 2007
+
+spec_grid.f90	[1] refactor spectral / fem / boundary grids
+init.f90	[1]
+bnd_grid.f90	[1]
+fem_grid.f90	[1]
+mesh_cartesian.f90	[1]
+plot_postscript.f90	[1]
+bc_gen.f90	[1]
+bc_swff.f90	[1]
+bc_periodic.f90	[1]
+bc_lsf.f90	[1]
+bc_abso.f90	[1]
+bc_DTTTN0.f90	[1]
+bc_DT0TN0.f90	[1]
+mesh_emc2.f90	[1]
+mesh_gen.f90	[1]
+elastic.f90	[1]
+utils.f90	[1]
+receivers.f90	[1]
+
+------------------------------------------------------------------------
+Tue Mar 13 17:48:31 CET 2007
+
+mesh_cartesian.f90	[1] introduced "constants" module, 
+                            deleted ndime from mesh structures
+ricker_functions.f90	[1]
+constants.f90	[1]
+spec_grid.f90	[1]
+receivers.f90	[1]
+plot_postscript.f90	[1]
+src_wave.f90	[1]
+src_gen.f90	[1]
+mesh_emc2.f90	[1]
+elastic.f90	[1]
+distribution_gaussian.f90	[1]
+bc_abso.f90	[1]
+bc_swff.f90	[1]
+bc_periodic.f90	[1]
+bc_lsf.f90	[1]
+src_force.f90	[1]
+src_explo.f90	[1]
+bc_DTTTN0.f90	[1]
+
+
+------------------------------------------------------------------------
+Mon Mar 12 04:59:03 CET 2007
+
+RELEASED 2.2.8
+
+receivers.f90	[1] arbitrary receiver locations
+spec_grid.f90	[1]
+		[2] Q49_getshape
+plot_postscript.f90	[2]
+
+
+------------------------------------------------------------------------
+Sat Mar 10 04:57:31 CET 2007
+
+src_gen.f90	[1] multiple sources
+plot_postscript.f90	[1]
+problem_class.f90	[1]
+
+------------------------------------------------------------------------
+Fri Feb 23 08:37:00 CET 2007
+
+doc: simplified a bit the QUADRANGULATE description
+... but still need here an example
+
+------------------------------------------------------------------------
+Sun Feb 11 18:06:18 CET 2007
+
+receivers.f90	[1] arbitrary receiver locations
+spec_grid.f90	[1]
+plot_postscript.f90	[1]
+main.f90	[1]
+
+... spec_grid.f90:FE_find_point not ready yet !!
+
+------------------------------------------------------------------------
+Thu Feb  8 18:01:02 CET 2007
+
+distribution_hete1.f90	[1] doc note
+
+
+------------------------------------------------------------------------
+Thu Feb  8 15:30:53 CET 2007
+
+RELEASED 2.2.7
+
+Feature requested by Steve Smith:
+
+distribution_hete1.f90	[1] new distribution
+distribution_general.f90	[1] + template comments
+elastic.f90	[2] now materials can be any 2D distribution
+distribution_gradient.f90	[3] doc
+
++ added to EXAMPLES/InaBox
++ added FAQ in user's guide
+
+------------------------------------------------------------------------
+Feb 4 2007
+
+Clean up warnings (mainly unused variables, pointed out by F.Gallovic) from:
+butterworth_filter.f90
+fields.f90
+bc_periodic.f90
+bc_DTTTN0.f90
+bc_abso.f90
+spec_grid.f90
+gll.f90
+memory_info.f90
+distribution_order0.f90
+echo.f90
+
+------------------------------------------------------------------------
+Sat Feb  3 17:37:31 CET 2007
+
+init.f90	[1] fixed bug with array check2
+
+------------------------------------------------------------------------
+Thu Jan 18 16:05:04 CET 2007
+ 
+RELEASED 2.2.6
+
+kelvin_voigt.f90	[1] fixed wrong format in check outputs
+spec_grid.f90	[2] cosmetic changes in SE_get_element_info
+
++ user's guide : comments on stability/resolution figure 
+  modified PRE/ViewMeshQuality.m
+  Prompted by Haiying Gao [21/12/06]
+
+------------------------------------------------------------------------
+Wed Jan 17 17:56:20 CET 2007
++ EXAMPLES/TestFLT1D: StrT, StrN --> Tt, Tn
+  Pointed out by Frantisek Gallovic [15/01/07]
+
+------------------------------------------------------------------------
+Fri Nov 10 15:41:30 CET 2006
+mesh_cartesian.f90	[1] Reverse Cuthill-McKee reordering
+rcm.f90		[1] 
+
+------------------------------------------------------------------------
+Wed Nov  1 22:45:39 CET 2006 
+
+RELEASED 2.2.5
+
+------------------------------------------------------------------------
+Tue Oct 31 14:40:09 CET 2006
+
+elastic.f90	[1] memory optim for SH homogeneous case (IS_HOMOG parameter flag)
+		[2] array optim in ELAST_KD1_SH (hprime,hTprime local)
+		[3] ndof field in elastic type
+plot_postscript.f90	[4] moved some input arguments to fixed parameters in the code
+		[5] fixed bug in plotting velocity models (empty cells)
+		[6] no backgound color if velocity model is almost homogeneous
+		[7] introduced components in snapshots (ex: vx,vy,vz,va)
+plot_gen.f90	[7]
+input.f90	[7]
+time.f90	[8] symplectic algorithms: PV,PFR,PEFRL
+solver.f90	[8]
+bc_swff.f90	[8]
+bc_abso.f90	[8]
+init.f90 	[8]
+
+
+------------------------------------------------------------------------
+Wed Oct 25 13:36:51 CEST 2006
+
+bc_gen.f90	[1] abort if a tag defined in a BC_DEF block is not present in the mesh
+init.f90	[2] fixed bug when no receivers
+
+------------------------------------------------------------------------
+Fri Oct 20 16:44:35 CEST 2006
+
+main.f90	[1] output seismogram at t=0
+receivers.f90	[1]
+
+------------------------------------------------------------------------
+Sun Oct 15 15:03:59 CEST 2006
+
+solver.f90	[1] add Kelvin-Voigt to Newmark solver
+spec_grid.f90	[2] BC_inquire: returns a null pointer if no boundary exists with the requested tag 
+
+------------------------------------------------------------------------
+Mon Oct  9 14:15:54 CEST 2006
+
+plot_postscript.f90	[1] if ndof=2 and no vector plot: plot amplitude of vector fields
+			+[2] skip cell if white (makes smaller *.ps)
+
+------------------------------------------------------------------------
+Wed Jan 18 10:51:01 CET 2006
+
+Released a patched version 2.2.4a
+
+------------------------------------------------------------------------
+Tue Nov 22 20:05:40 CET 2005
+
+bc_gen.f90	[1] remove "assemble" option in bc_set
+bc_periodic.f90	[1]
+solver.f90	[1]
+
+------------------------------------------------------------------------
+Tue Sep 20 21:30:28 CEST 2005
+
+Fixed compilation error pointed out by Leo Alvarado using g95  [14/09/05], 
+also Mahn Viet [22/10/05] and Jason Crosswhite [13/01/05] :
+
+kelvin_voigt.f90	[1] encapsulated kelvin_voigt_type 
+solver.f90	[1]
+
+------------------------------------------------------------------------
+Mon Aug 22 22:18:27 CEST 2005
+
+kelvin_voigt.f90	[1] Kelvin-Voigt viscous material
+bc_swff.f90	[2] switch leapfrog/newmark in friction update
+		+[3] outputs *2 (=slip) when symmetric
+init.f90	[1]
+input.f90	[1]
+problem_class.f90	[1]
+solver.f90	[1]
+
+------------------------------------------------------------------------
+Wed Aug 17 15:09:38 CEST 2005
+
+bc_gen.f90	[1] argument "which" made optional
+bc_lsf.f90	[2] corrected fault frame map
+bc_swff.f90	[2]
+		+ [3] input stress fields as well as tractions (renamed)
+		+[4] new friction solver, as in Day et al 2005 
+distribution_general.f90	[5] new "constant or distribution" type
+distribution_pwconr.f90	[6] zone boundary belongs to inner zone
+fields.f90	[7]
+init.f90	[7]
+memory_info.f90	[8] output every time an array is allocated
+mesh_cartesian.f90	[9] memory info
+mesh_emc2.f90	[9]
+solver.f90	[7] staggered, centered-difference scheme (it's the new default)
+     => faster, less memory, gives more accurate explicit fault friction solver
+src_gen.f90	[10] argument source is pointer
+time.f90	[7]
+
++ EXAMPLES/TestFlt2D: convergence test scripts
+
+------------------------------------------------------------------------
+Fri Aug 12 16:46:37 CEST 2005
+
+spec_grid.f90	[1] faster SE_init_numbering, old was O(N^2), new is O(N).
+
+------------------------------------------------------------------------
+Thu Aug 11 12:11:53 CEST 2005
+
+spec_grid.f90	[1] sem_grid_type: rm xjaci, weights; new wgll2, dshape
+		    SE_Jacobian, SE_InverseJacobian, SE_VolumeWeights
+bc_abso.f90	[1] 
+elastic.f90	[1]
+init.f90	[1]
+src_explo.f90	[1]
+
+------------------------------------------------------------------------
+Sat Jul 30 21:20:54 CEST 2005
+
+elastic.f90	[1] Optimized K*d, OPT_NGLL=9, for PSV and SH
+		(+ there was a glitch in the optimized PSV)
+plot_gen.f90	[2] Renamed snapshots x_*ps with x=d,v or a
+plot_postscript.f90	[2]
+
+------------------------------------------------------------------------
+Thu Jul 28 23:19:08 CEST 2005
+
+bc_abso.f90	[1] ABCs implemented as boundary term C*v; +SH
+bc_gen.f90	[1]
+bc_lsf.f90	[1] M instead of 1/M
+bc_swff.f90	[1] "
+fields.f90	[1] added displ_alpha, veloc_alpha; rm tmp
+init.f90	[1] M inverted after BC_init	
+main.f90	
+plot_postscript.f90	[2] color scalar snapshots
+solver.f90	[1] added displ_alpha, veloc_alpha; rm tmp; BC_set('ALL')
+src_explo.f90	[3] init recoded; rm pointers (iglob)
+src_force.f90 	[3] rm pointers
+src_gen.f90	[3]
+
+------------------------------------------------------------------------
+Thu Jul 21 20:06:42 CEST 2005
++ EXAMPLES/TestAbso
++ SRC/mesh_cartesian.f90: set grid%flat=.true.
+
+------------------------------------------------------------------------
+Wed Jul 20 15:25:18 CEST 2005
++ POST: fixed seis_plot.csh and post_seis.f90
+
+------------------------------------------------------------------------
+Fri Jun 10 20:06:53 CEST 2005
+
+bc_swff.f90	[1] SH (antiplane)
+elastic.f90	[1]
+fields.f90	[1] 
+init.f90	[1] 
+input.f90	[1]
+main.f90	[1]
+plot_avs.f90	[1]
+plot_gen.f90	[1]
+plot_postscript.f90	[1] + [2] scalar fields
+plot_visual3.f90	[1]
+receivers.f90	[1]
+solver.f90	[1]
+src_force.f90	[1]
+time.f90	[3] check CFL moved to init.f90
+
+------------------------------------------------------------------------
+Thu Jun  2 20:10:22 CEST 2005
++ elastic.f90: Moved out ELAST_KD1 (the version that uses global arrays) 
+  to SRC/devel/elastic_KD_global.f90
+  Replaced it by ELAST_KD2
+  New ELAST_KD2: NGLL as parameter allows more compiler optimizations
++ created SRC/beta_3.x, SRC/beta_2.x and SRC/save_2.x
+  SRC/beta_2.x has a 'commit_changes' utility that updates sources
+    to SRC/save_2.x and keeps a 'change_log'
+  SRC/beta_3.x development started on 2005-05-08
+
+------------------------------------------------------------------------
+Fri Feb 18 14:28:18 CET 2005
++ init.f90: explicit formats in *.tab outputs to avoid line breaks
+
+------------------------------------------------------------------------
+Mon Feb  7 14:04:40 CET 2005
++ POST: movie.csh tested with gifsicle and animate
++ created PRE/ and moved there some pre-processing stuff from POST/ (+doc)
++ PRE: readftq.m and plotftq.m (from ALBERTTO/)
++ doc: more about the method (checked refs) and about checking quality mesh.
+
+------------------------------------------------------------------------
+Sun Feb  6 15:30:16 CET 2005
++ POST: sample_seis.m, sample_fault.m
++ POST: updated from SEM2DPACK_1.x:
+  post_fault.f90 (+doc), Makefile
+  Bug in BC_SWFFLT_write: was using real time, instead of integer
+
+------------------------------------------------------------------------
+Sat Feb  5 22:20:21 CET 2005
++ POST: updated from SEM2DPACK_1.x:
+  post_seis.f90, seis_b2a.csh, seis_plot.csh (+doc) 
+
+------------------------------------------------------------------------
+Fri Jan 28 09:42:38 CET 2005
++ G.Wimpey, a bug highlighted by g95: 
+  if a subroutine argument with intent(out) is a derived type, 
+  all the components may be reset on entry (by the compiler).
+  This was not the desired behavior in CART_build and EMC2_build.
+  Same in spec_grid:Q49_read_elements, but this one is never used.
+
+------------------------------------------------------------------------
+Tue Jan 25 15:29:40 CET 2005
++ Makefile for doc/
++ doc: update tex
++ sample_snapshots.m: comments
+
+------------------------------------------------------------------------
+Mon Jan 24 19:35:00 CET 2005
++ Greg Wimpey (Colorado School of Mines) pointed a minor 
+  bug in an unused format in init.f90, which interrupted compilation with g95.
+  Lines were deleted.
+
+------------------------------------------------------------------------
+Tue Jan 18 10:38:19 CET 2005
++ Wouter Kimman (Colorado School of Mines) asked for binary outputs 
+  for stress and strain, I added these (see PLOTS):
+	dx_sem2d.dat
+	dz_sem2d.dat
+	vx_sem2d.dat
+	vz_sem2d.dat
+	ax_sem2d.dat
+	az_sem2d.dat
+	e11_sem2d.dat
+	e22_sem2d.dat
+	e12_sem2d.dat
+	s11_sem2d.dat
+	s22_sem2d.dat
+	s33_sem2d.dat
+	s12_sem2d.dat
+  also:
+  	coord_sem2d.dat
+	ibool_sem2d.dat
+	grid_sem2d.hdr (ascii, grid parameters)
+        POST/sample_snapshots.m, etc
+
+------------------------------------------------------------------------
+lun aoû  9 20:04:36 EDT 2004
++++ Version 2.2.2 released +++
++ fixed movie.csh
++ fixed seismogram scripts for Intel compiler (x2_sem2d.tab is new)
++ spec_grid.se_init_numbering: interior and edge nodes numbered
+  in the same loop => did not improve performance
+
+------------------------------------------------------------------------
+dim jun 20 19:38:25 EDT 2004
++ Intel has fixed the bug with "transfer" (ifort 8.0.046_pe047.1) 
++ minor fixes in the code to make it compile with ifort:
+    elastic.elast_init: la2,mu2,Kx2,Kz2 changed from pointer to dummy arrays,
+    			la2 => elast%elem(e)%hete%coef(1)
+			changed to:
+    			la2 = elast%elem(e)%hete(:,:)%coef(1)
+    plot_postscript.plot_ps: changed declaration of vfield (weird bug)
+
+------------------------------------------------------------------------
+dim jan 18 17:48:00 EST 2004
+! bugs in Intel compiler:
+  so far the code does not work with the Intel compiler.
+  IFC 7.1.038: incorrect results due to inconsistencies in the compiler, 
+  IFORT 8.0.034: there is a compilation error, due to the 
+  use of an undocumented feature of "transfer" in generic_list
+  I have reported both issues to Intel Support.
++ fixed division by zero in plot_postscript.plot_efield when the field
+  is constant, but the test is not very robust ...
++ fixed a misprint in bc_swff ("= >" should be "=>")
+  pointed out by Gilbert Brietzke <brietzke@geophysik.uni-muenchen.de>
+- during Christmas, I started the implementation of PMLs.
+  In progress: definition of the mesh for the absorbing layer
+
+------------------------------------------------------------------------
+jeu nov 13 20:02:09 EST 2003
++++ Version 2.2.1 released +++
++ fixed a bug in mesh_emc2.f90: special tag for crack tip nodes
+
+------------------------------------------------------------------------
+mar oct 28 13:37:10 EST 2003
++++ Version 2.2 released +++
++ doc: BC_SWFFLT
++ TestFlt2D ran OK
++ bc_swff.f90: output SU script
+
+------------------------------------------------------------------------
+mar oct 28 01:14:51 EST 2003
++ time.f90: analysed eN-alpha scheme, see comments in src
+  new input rho controls hf dissipation
++ bc_gen.f90/init.f90: fixed bug, now I am sure periodic boundaries
+  are first initialized, then mass matrix inverted, then init other BCs
+
+------------------------------------------------------------------------
+lun oct 27 13:36:56 EST 2003
++ bc_swff.f90: setup outputs "FltXX_semd.dat" and "FltXX_semd.hdr"
+  can convert to ascii using SU's subset and b2a (see comment in src)
+
+------------------------------------------------------------------------
+dim oct 26 16:56:03 EST 2003
++ fields.f90,solver.f90: fields%tmp allocated with other fields, not critical
++ elastic.elast_KD2: using local(element) arrays, better performance
++ fixed a bug in solver.f90: deallocate(tmp)
+  Back to simplified solver. No special cases.
++ fixed a bug in spec_grid.bc_set_bulk_node: iback needed ("inverse" of isort)
+  to redefine bc%ibool
++ spec_grid.SE_BcTopoInit: initialize minimal bc data
+  --> called in init.f90 before any PS_PLOT call (there is one in check_grid)
+  The physical parameters of the BCs can be defined later.
+  In fact, some BCs need dt => they must be defined after check_grid
++ bc_swff.f90: added output files "fltXX_sem2d.dat", compil OK
+
+------------------------------------------------------------------------
+dim oct 26 01:45:34 EDT 2003
++ bc_swff.f90 compiled OK
++ dist_pwconr.f90 : radially piecewise constant distribution
+
+------------------------------------------------------------------------
+jeu oct 23 12:11:52 EDT 2003
++ seismograms: fixed 'XZD', fixed the scripts (no more ShowSeis.csh),
+  modified doc accordingly
+- started dpt/bc_swff.f90 : slip weakening friction fault
++++ bc_lsf OK, sending to Matt for further test: RELEASE 2.1beta +++
++ more options in bc_lsf
++ fixed yesterday's bug
++ doc: seismograms data format
+
+------------------------------------------------------------------------
+mer oct 22 15:35:30 EDT 2003
++ deallocate all non remanent allocated arrays on subroutine exit
+  This should be automatic in f95 !
+! bug in bc_lsf for single-component linear-slip-law
+- testing bc_lsf with Matt parameters  
+
+------------------------------------------------------------------------
+mar oct 21 18:34:41 EDT 2003
+- preparing a test for bc_lsf (TestLSF), waiting for data from Matt Haney
++ periodicity in bc_abso.f90
++ 3 options in bc_lsf.f90: only tangent, only normal, both
+
+------------------------------------------------------------------------
+dim oct 19 11:49:14 EDT 2003
++ bc_lsf.f90 compiled. It has a periodicity flag.
++ saved touched files in SRC/save/
++ utils.f90 <-- contrib subroutines (sort, hunt, ...)
++ time.f90: courant default reset to 0.5
+
+------------------------------------------------------------------------
+mar oct 14 00:36:29 EDT 2003
++ dtan,sngl,dsin,dabs,dsqrt --> tan,real,sin,abs,sqrt
+- Testing STI's Understand for Fortran
+
+------------------------------------------------------------------------
+lun oct 13 19:58:59 EDT 2003
++++ SEM2DPACK_2.0 released +++
+- Stacey absorbing bcs are sometimes unstable (see example 2)
+
+------------------------------------------------------------------------
+dim oct 12 14:36:02 EDT 2003
++ Bug fixed: differential length in line integrals, abs(jac), ref KarShe99
++ Bug fixed: global numbering, problem with vertex nodes in unstructured grid
+- SEM2DPACK_2.0 in preparation for distrib (license, doc, examples, ...) 
+
++ inputs and outputs have changed, see doc
+
+------------------------------------------------------------------------
+mer oct  8 14:16:03 EDT 2003
++ Elastic database has now two different objects: homogeneous and heterogeneous elements.
+- In progress: bc_lsf.f90
+
+------------------------------------------------------------------------
+mar fév 18 21:06:51 CET 2003
+Checking: dpt was stopped on 20 sep 2002,
+          when implementing linear velocity model and new database.
+
+------------------------------------------------------------------------
+Mon Sep 16 20:57:16 CEST 2002
+Output check_stb.ps and check_res.ps
+
+------------------------------------------------------------------------
+Thu Sep 12 12:18:06 CEST 2002
+Checking for Caracas project.
+

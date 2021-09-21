@@ -1,0 +1,49 @@
+# Parameter file for SEM2DPACK 2.x 
+# Test for absorbing boundary conditions
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=9, fmax=75d0 ,
+  title = '1D test for absorbing boundaries', verbose='0000', ItInfo = 400/
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-1.5d3,0.5d3 ,zlim=-50d0,50d0 , nelem=40,2 /
+
+#---- Elastic material parameters --------------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2500.d0, cp=5000.d0, cs=2887.d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tags =1,3 ,kind = 'PERIOD' /
+#&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+
+#&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_ABSORB  stacey=T /
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=T /
+
+#&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+#&BC_ABSORB  stacey=T /
+
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=T /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=0.5d0, courant = 0.6d0, kind='newm' /
+
+#---- Sources ----------------------------------
+&SRC_DEF stf= 'RICKER' ,coord= 0.d0,0.d0 
+mechanism= 'WAVE' /
+&SRC_RICKER  f0= 30d0, onset = 0.05d0, ampli = 1.d0 /
+
+&SRC_WAVE angle = 0d0, phase='P'/
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 21 , first = 0d3,0d3, last = 0.5d3,0d3, isamp=1 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=4000, ps=T, bin=F /
+#&SNAP_DEF itd=4000, fields='V' /
+#&SNAP_PS  vectors =F, CpModel=.true., interpol = F ,ScaleField = 0.1d0 /

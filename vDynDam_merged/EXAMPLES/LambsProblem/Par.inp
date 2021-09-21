@@ -1,0 +1,44 @@
+# Lambs' problem, same as in Mercerat et al. 2006
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=9, fmax=25d0 , ndof=2 ,
+  title = "Lamb's problem", verbose='1111' , ItInfo = 200/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=0.d3,4.d3 ,zlim=-2.d3,0.d3 , nelem=40,20 /
+
+#---- Elastic material parameters --------------
+
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2000.d0, cp=3200.d0, cs=1847.5d0 /
+
+#----- Boundary conditions ---------------------
+# Assign tags and kinds to boundaries: (comment it if free) 
+#The default kind is FREE SURFACE
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F/
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F/
+
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+&BC_ABSORB  stacey=F/
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=1.5d0, Dt=0.5d-3 /,kind='newmark'/
+
+#---- Sources ----------------------------------
+
+# a point force
+&SRC_DEF stf= 'RICKER' ,coord= 1500.d0,-50.d0, mechanism= 'FORCE' /
+&STF_RICKER  f0= 10.d0, onset = 0.15d0, ampli = 1.d0 /
+&SRC_FORCE angle = 0d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 2 , field='D', first = 2200.d0,0d0, last = 2700.d0,0d0 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=5000, fields='V'/
+&SNAP_PS  vectors =F, color=T, interpol= T / 

@@ -1,0 +1,46 @@
+# This is an input file for SEM2DPACK, using the mesh: flatF_ang0.mesh2d 
+ 
+#----- General parameters ---------------- 
+&GENERAL iexec=1, ngll=3, fmax=4, ndof=2 , 
+  title = 'Slip-weakening dynamic rupture with off-fault damage', verbose='1011', ItInfo = 1 / 
+ 
+#----- Build the mesh --------------------------- 
+&MESH_DEF  method = 'MESH2D' / 
+&MESH_MESH2D file='flatF_ang0.mesh2d' / 
+ 
+#---- Material parameters -------------- 
+&MATERIAL tag=1, kind='DyDMG' / 
+&MAT_DYNDAMAGE fs=0.6, nu=0.27493, rho=2700, cs=3120 
+           cp=5600, vm=1583.2, Nv=0, beta=0.1 
+           omega=2, KicSS=1200000, a0=60, fitKicD=5000000000 
+           e0=-0.00083546, -0.00039791, 0.00037893 / 
+ 
+&MATERIAL tag=2, kind='DyDMG' / 
+&MAT_DYNDAMAGE fs=0.6, nu=0.27493, rho=2700, cs=3120 
+           cp=5600, vm=1583.2, Nv=1.6773e-07, beta=0.1 
+           omega=2, KicSS=1200000, a0=60, fitKicD=5000000000 
+           e0=-0.00083546, -0.00039791, 0.00037893 / 
+ 
+#----- Boundary conditions --------------------- 
+&BC_DEF  tags = 5,6 , kind = 'DYNFLT' / 
+&BC_DYNFLT friction='SWF',Szz=-60515209,Sxz=19918584,Sxx=-83515209,Tn=0.0d7,TtH='PWCONR' / 
+&DIST_PWCONR num=2, ref=0,0/ # Initial shear stress 
+   1500
+16426850  0.0d7
+&BC_DYNFLT_SWF Dc=1, MuS=0.6, MuD=0.1 / 
+&BC_DYNFLT_NOR kind=2, T=0.004 / 
+ 
+&BC_DEF  tag = 1 , kind = 'ABSORB' / 
+&BC_DEF  tag = 2 , kind = 'ABSORB' / 
+&BC_DEF  tag = 3 , kind = 'ABSORB' / 
+&BC_DEF  tag = 4 , kind = 'ABSORB' / 
+ 
+#---- Time scheme settings ---------------------- 
+&TIME  TotalTime=6, courant = 0.55d0, kind='leapfrog' / 
+ 
+#----- Receivers --------------------------------- 
+&REC_LINE  file='sensors.ini', isamp=1, field='V' / 
+ 
+#--------- Plots settings ---------------------- 
+&SNAP_DEF itd=200, fields='ESVA', ps=F / 
+ 

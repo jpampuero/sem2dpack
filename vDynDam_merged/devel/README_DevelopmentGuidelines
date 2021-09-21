@@ -1,0 +1,25 @@
+Please use the code development guidelines below while modifying the SEM2DPACK code.
+
+During the development of a new feature you can commit intermediate (incomplete) versions of the code 
+to allow collaborative development. However, to guarantee that this does not disrupt the existing 
+functionalities of the code, please use the following checklist before you do any "svn commit":
+
+1. run "svn update” very often and resolve conflicts in your working copy
+2. break down your developments into small sub-tasks, develop and commit sub-tasks one at a time
+3. respect the formatting style of the code, including the amount of indentation, capitalization of variable names, line spacing, etc
+4. isolate from the common user those sections that are still under development, adopting one or both of the following approaches:
+	a. create a module parameter (e.g. called FLAG_IN_PROGRESS) and use it in conditional statements 
+	   around your code portions in development. Set it to false whenever you commit the code.
+	b. add warning messages and clean stop commands for features that are not completely implemented yet
+5. keep your modifications well encapsulated, with minimal interference with existing features of the code
+6. if you modify something outside of your own modules, add explanatory comments in the code
+7. make sure the code compiles with ifort without errors or severe warnings
+8. make sure the code works without run-time errors when your new feature is not enabled 
+   (e.g. when FLAG_IN_PROGRESS=false) and/or aborts cleanly when a user tries to access a feature not yet fully implemented
+9. add a meaningful description message when you do “svn commit -m”
+
+At the end of development, once the new feature of the code has been tested:
+1. document it in the README_SPECFEM3D_FAULT file
+2. consider adding an example
+3. update the "ToDo" file accordingly
+

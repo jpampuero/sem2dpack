@@ -1,0 +1,530 @@
+\chapter{The solver SEM2D}
+\label{Cha:sem2d}
+
+\section{About the method}
+\label{Sec:semethod}
+
+Given a crustal model meshed with quadrilateral elements
+and a set of material properties, sources, receivers and boundary conditions,
+SEM2D solves the elastic wave equation applying 
+the Spectral Element Method (SEM) for the space discretization
+and a second-order explicit scheme for the time discretization.
+The range of physical problems solved by SEM2D
+(material constitutive equations and boundary conditions)
+is described in more detail in \charef{phys}.
+The SEM, introduced by \citeN{Pat84} in Computational Fluid Dynamics,
+can be seen as a domain decomposition version of the Spectral Method
+or as a high order version of the Finite Element Method.
+It inherits from its parent methods the accuracy (spectral 
+convergence), the geometrical flexibility 
+and the natural implementation of mixed boundary conditions.
+
+Introductory texts to the SEM can be found 
+at \url{www.math.lsa.umich.edu/~karni/m501/boyd.pdf} 
+(chapter draft, by J.P. Boyd), at
+\url{www.mate.tue.nl/people/vosse/docs/vosse96b.pdf}
+(a tutorial exposition of the SEM and its connection
+to other methods, by F.N. van de Vosse and P.D. Minev)
+and at \url{www.siam.org/siamnews/01-04/spectral.pdf} (a perspective paper).
+Details about the elastodynamic algorithm and study of some of its properties
+are presented by \shortciteN{Kom97}, \shortciteN{KoVi98}, \shortciteN{KoVi99},
+\citeN{KomTro99} and \shortciteN{VaCaSaKoVi99}.
+
+The implementation of fault dynamics is similar to that in FEM
+with the ``traction at split nodes" method explained by \citeN{And99}.
+More details can be found in the author's 
+Ph.D. dissertation \cite{Amp02}\footnote{
+\url{web.gps.caltech.edu/~ampuero/publications.html}},
+in Gaetano Festa's Ph.D. dissertation\footnote{\url{people.na.infn.it/~festa/}}
+and in \shortciteN{KanLapAmp08}.
+
+A more accesible tutorial code, SBIEMLAB written in Matlab, 
+can be downloaded from the author's website, at
+\url{web.gps.caltech.edu/~ampuero/software.html}.
+
+\section{Basic usage flow}
+
+In general, a simulation requires the following steps:
+\begin{senumerate}
+  \item Prepare the input file \texttt{Par.inp} (\secref{input} and \secref{inblo}).
+  \item Run the solver in ``check mode'' (\texttt{iexec=0} in the \texttt{GENERAL} input block of \texttt{Par.inp}):
+        \texttt{sem2dsolve > info \&}.
+  \item Verify the resolution, stability, estimated CPU cost and memory cost (\secref{check}).
+  \item If needed go back to step 1 and modify \texttt{Par.inp} (\secref{check}), else proceed to next step.
+  \item Run the solver in ``production mode'' (\texttt{iexec=1}): \texttt{sem2dsolve}.
+  \item Plot and manipulate the solver results (\secref{output}).
+\end{senumerate}
+Full details are given in the following sections.
+
+\section{General format of the input file}
+\label{Sec:input}
+
+The input file must be called \texttt{Par.inp}.
+Its typical structure is illustrated by two examples
+in \figref{ParInp1} and \figref{ParInp2}.
+Most of the file is made of standard FORTRAN 90 NAMELIST input blocks.
+Each block gives input for a specific aspect of the simulation:
+material properties, sources, receivers, boundary conditions, etc.
+
+The general syntax of a NAMELIST block can be found in any FORTRAN 90 textbook.
+In summary, a block named \texttt{STUFF}, with possible input arguments 
+\texttt{a}, \texttt{b} and \texttt{c}, must be given as
+\begin{verbatim}
+ &STUFF a=..., b=..., c=... /
+\end{verbatim}
+where \texttt{...} are user input values. 
+Line breaks and comments preceded by \texttt{!} are allowed within an input block.
+
+The complete Reference Guide of the input blocks is presented in \secref{inblo}.
+For each block the documentation includes its name, 
+possibly the name of a group of blocks to which it belongs,
+its purpose, its syntax, the list of its arguments with their description, and some important notes.
+In the syntax description, a vertical bar \texttt{|} between two arguments means ``one or the other''.
+In the argument list, each item is followed by two informations within brackets \texttt{[]}.
+The first bracketed information is the type of the argument: 
+double precision (\texttt{dble}), integer (\texttt{int}),
+logical (\texttt{log}), single character (\texttt{char}), 
+fixed length word (e.g. \texttt{char*6} is a 6 characters word),
+arbitrary length word (\texttt{name}) or vectors (e.g. \texttt{int(2)} is a two element integer vector).
+The second bracketed information is the default value of the argument.
+Some arguments are optional, or when absent they are automatically assigned the default values.
+
+Some arguments have a second version with a suffix \texttt{H}
+that allows to set values that are spatially non uniform.
+The \texttt{H}-version of the argument must be set to the name of any of the input blocks
+of the \texttt{DISTRIBUTIONS} group.
+The appropriate \texttt{\&DIST\_xxxx} block must follow immediately.
+For example, to set the argument \texttt{eta} to a Gaussian distribution:
+\begin{verbatim}
+&MAT_KV etaH='GAUSSIAN' /
+&DIST_GAUSSIAN length=1d6,100d0, ampli=0.1d0 /
+\end{verbatim}
+Arguments that accept an \texttt{H}-version are indicated in \secref{inblo}.
+When more than one \texttt{H}-version argument is present,
+the \texttt{\&DIST\_xxxx} blocks must appear in the same order as in
+the argument list of \secref{inblo}.
+
+In the next section, Input Block Reference Guide,
+you should get acquainted with the syntax of the blocks you are most likely to use.
+The mandatory or more important input blocks are:
+
+\begin{sitemize}
+\item \texttt{\&GENERAL}
+\item \texttt{\&MESH\_DEF}, followed by a \texttt{\&MESH\_Method} block
+\item \texttt{\&MATERIAL}, followed by a \texttt{\&MAT\_Material} block
+\item \texttt{\&BC\_DEF}, one for each boundary condition, each followed by a \texttt{\&BC\_Kind} block
+\item \texttt{\&TIME}
+\item \texttt{\&SRC\_DEF}, followed by \texttt{\&STF\_SourceTimeFunction} and \texttt{\&SRC\_Mechanism} blocks
+\item \texttt{\&REC\_LINE}
+\end{sitemize}
+
+\begin{figure}[p]
+\ImgC{Par.inp.ex1.ps}{0.95}
+\caption{\label{Fig:ParInp1} Input file \texttt{Par.inp} for an
+elementary example in \texttt{EXAMPLES/TestSH/}
+: a boxed region with a structured mesh.}
+\end{figure}
+
+\begin{figure}[p]
+\ImgC{Par.inp.ex2.ps}{0.95}
+\caption{\label{Fig:ParInp2} Input file \texttt{Par.inp} for a
+more realistic example: a sedimentary basin with an unstructured mesh generated
+by \texttt{EMC2}. Available in \texttt{EXAMPLES/UsingEMC2/}.}
+\end{figure}
+ 
+ \newpage
+\section{Input Blocks Reference Guide}
+\label{Sec:inblo}
+%\input{selfdoc_new.tex}
+\input{selfdoc.tex}
+ \newpage
+
+\section{Verifying the settings and running a simulation}
+\label{Sec:check}
+ 
+Once the code has been successfully compiled, the simulation
+can be started by typing \texttt{sem2dsolve} from your working directory, 
+which contains the file \texttt{Par.inp}.
+The computations can be run in background
+and the screen output saved in a file (e.g. \texttt{info}) by typing
+\texttt{sem2dsolve > info \&}.
+
+A typical screen output of SEM2D, corresponding
+to the first example, is shown on the following pages.
+The parameters of the simulation 
+and some verification information are reported there in a self-explanatory form. 
+You are advised to
+do a first run with \texttt{iexec=0} in the \texttt{GENERAL} input block
+and check all these informations prior to the real simulation.
+You should always verify the following:
+
+\begin{itemize}
+
+\item {\bf Stability:}
+the CFL stability number should be smaller than $0.55 \sim 0.60$ for second order time schemes,
+and much smaller for highly deformed meshes (see Section \ref{faq_sem2d} on
+``Instabilities in very distorted elements'').
+This number is defined at each computational node as $$\mbox{CFL} = c_P\ \Delta t /\Delta x$$
+where $\Delta t$ is the timestep, 
+$c_P$ the P-wave velocity and $\Delta x$ the local grid spacing. 
+Note that $\Delta x$ is usually much smaller than the element size $h$
+($\approx$ \texttt{Ngll}$^2$ times smaller)
+because SEM internally subdivides each element onto a non-regular
+grid of \texttt{Ngll$\times$Ngll} nodes clustered near the element edges
+(Gauss-Lobatto-Legendre nodes).
+If the computation is unstable, the maximum displacement,
+printed every \texttt{ItInfo} time steps, increases exponentially with time.
+Stability can be controlled by decreasing \texttt{Dt} 
+or \texttt{Courant} in \texttt{Par.inp}.
+
+\item {\bf Resolution:}
+the number of nodes per shortest wavelength $\lambda_{min}$ should be larger than $4.5 \sim 5$.
+The minimum wavelength is defined as
+$$\lambda_{min}=\min(c_S)/f_{max}$$ 
+where $c_S$ is the S-wave velocity and 
+$f_{max}$ the highest frequency you would like to resolve, 
+e.g. the maximum frequency at which the source spectrum has significant power
+(for a Ricker wavelet $f_{max} = 2.5\times f_0$).
+For an element of size $h$ 
+and polynomial order $p=\texttt{Ngll}-1$, the number of nodes per wavelength $G$
+is $$G = \frac{p\,\lambda_{min}}{h}.$$
+Typical symptoms of poor resolution are ringing and dispersion of the higher frequencies.
+However, in heterogeneous media
+these spurious effects might be hard to distinguish from a physically complex wavefield,
+so mesh resolution must be checked beforehand. 
+If resolution is too low the mesh might be refined by 
+increasing \texttt{Ngll} in \texttt{Par.inp} ($p$-refinement) 
+or by generating a denser mesh ($h$-refinement).
+If you were using EMC2 as a mesh generator,
+the script \texttt{PRE/href.csh} can be useful for $h$-refinement.
+
+\item {\bf Cost:}
+the total CPU time an memory 
+required for the simulation are as much as you can afford.
+Estimates of total CPU time are printed at the end of check mode.
+Details about memory usage can be found in \texttt{MemoryInfo\_sem2d.txt}.
+
+\end{itemize}
+
+\begin{figure}
+\ImgC{Stab_Reso_ex.eps}{1}
+\caption{\label{Fig:stabres} Checking the quality of a mesh
+with \texttt{PRE/ViewMeshQuality.m} for the example in \texttt{EXAMPLES/UsingEMC2/}.
+The balance of the stability and resolution properties of the mesh can be analyzed:
+logarithmic stability index (top) and logarithmic resolution index (bottom).
+Histograms of these indices (in number of elements) are shown on the right.}
+\end{figure}
+
+The quality of the mesh can be inspected with
+the Matlab script \texttt{PRE/ViewMeshQuality.m} which produces
+plots like Figure \ref{Fig:stabres}.
+The proper balance of the mesh with respect to the following
+two criteria can be analyzed:
+
+\begin{itemize}
+
+\item {\bf Stability criterion}, related to the largest stable timestep. 
+The stability of each element is quantified by
+$$ S = \min(\Delta x/c_P). $$
+We also define a stability index as 
+$$ SI = \log[ S / \text{median}(S) ].$$
+where the median value is taken over the whole mesh.
+Red elements (small SI) are relatively unstable
+and require small timesteps $\Delta t$.
+Because $\Delta t$ is constant over the whole mesh
+and the computational cost is inversely proportional to $\Delta t$,
+these red elements penalize the computational efficiency.
+The mesh should be redesigned to increase their size, as much as possible,
+while keeping them small enough to resolve the shortest wavelength (see next).
+%Conversely, elements with very high SI (blue) could in principle be smaller.
+
+\item {\bf Resolution criterion},
+related to the number of nodes per shortest wavelength. 
+The resolution of each element is quantified by
+$$ R = \min(c_S / h). $$
+We also define a resolution index as 
+$$ RI = \log[ R / \text{median}(R) ].$$
+where the median value is taken over the whole mesh.
+Red elements (small RI) have relatively poor resolution,
+in their vicinity the maximum frequency resolvable by the mesh is limited.
+The mesh should be redesigned to decrease their size, as much as possible.
+Conversely, elements with very high RI (blue) are smaller than required
+and might increase the computational cost.
+
+\end{itemize}
+
+To minimize the CPU and memory cost of a simulation
+an ideal mesh design should minimize the spread of the two indices above,
+by aiming at a ratio of element size to wave velocity, $h/c$, 
+as uniform as possible across the whole mesh.
+%Resolution and stability are sometimes competing constraints in mesh design,
+%trade-offs must be resolved through experience.
+%To improve the quality of your mesh 
+%try to use larger elements in the regions where very low stability was observed
+%but keep them large enough to resolve the shortest wavelength.
+However, in some cases a poorly balanced mesh is inevitable: in the example 
+of Figure \ref{Fig:stabres} the worst elements are near the edges of the
+sedimentary basin, at a sharp velocity contrast.
+Small element sizes on the rock side are inherited from the sediment mesh.\footnote{In 
+future releases of SEM2DPACK
+this penalty on computational efficiency will be reduced by 
+non-conformal meshing with mortar elements,
+by timestep subcycling or by implicit/explicit timestep partitioning.}
+
+Similar information is plotted by
+\texttt{gv Stability\_sem2d.ps} and \texttt{gv Resolution\_sem2d.ps}.
+The indices in these files are however not logarithmic and are
+not normalized by the median.\\\
+
+\input{info.ex1.ps.tex}
+ 
+\section{Outputs, their visualization and manipulation}
+\label{Sec:output}
+
+In addition to the screen output described above,
+\texttt{sem2dsolve} generates different
+files and scripts that allow the user
+to control the parameters of the simulation and to display the results.
+All the outputs files follow the naming convention \texttt{SomeName\_sem2d.xxx},
+where \texttt{xxx} is one of the following extensions:
+\texttt{tab} for ASCII data files, \texttt{txt} for other text files,
+\texttt{dat} for binary data files, etc.
+This makes it easy to clean a working directory with a single command like
+\texttt{rm -f *\_sem2d*}.
+
+\subsection{Spectral element grid}
+
+As explained in the previous section, 
+\texttt{sem2dsolve} generates two PostScript files for 
+mesh quality checking purposes:
+\texttt{Stability\_sem2d.ps} and \texttt{Resolution\_sem2d.ps}.
+The relevant information is contained
+in the files \texttt{Stability\_sem2d.tab} and \texttt{Resolution\_sem2d.tab}
+and can also be inspected with the Matlab script \texttt{PRE/ViewMeshQuality.m}.
+
+\subsection{Source time function}
+
+\texttt{sem2dsolve} generates a file called
+\texttt{SourcesTime\_sem2d.tab} containing
+the source time function sampled at the same rate as the receivers.
+It is important to verify that the spectrum of the source
+has little power at those high frequencies that are not well resolved by the mesh
+(those that correspond to less than 5 nodes per wavelength).
+If this is not the case you must be very cautious in the interpretation of 
+the seismograms in the high frequency range, or low-pass filter the results.
+
+\subsection{Snapshots}
+
+\texttt{sem2dsolve} generates snapshots
+at a constant interval defined, in number of solver timesteps, 
+by the input parameter \texttt{itd} of the \texttt{SNAP\_DEF} input block.
+An example is shown in \figref{snap}.
+Requested fields are exported in binary data files called \texttt{xx\_XXX\_sem2d.dat},
+where \texttt{xx} is the field code defined in the documentation of the \texttt{PLOTS} input block
+and \texttt{XXX} is the 3-digit snapshot number.
+The user is encouraged to inspect the Matlab s
+function \texttt{POST/sem2d\_snapshot\_read.m}
+to find more about the data formats and their manipulation.
+
+Snapshots can also be exported as PostScript files \texttt{xx\_XXX\_sem2d.ps}.
+These can be merged into an animated GIF (movie) file \texttt{movie.gif} 
+by the script \texttt{POST/movie.csh}
+and displayed by \texttt{xanim movie.gif} or \texttt{animate movie.gif}.
+An animated GIF can also be created by the 
+Matlab function \texttt{POST/sem2d\_snapshot\_movie.m}.
+
+\begin{figure} %[p]
+\ImgCL{snapshot.ps}{0.8}
+\caption{\label{Fig:snap} Sample snapshot from \texttt{EXAMPLES/UsingEMC2/}:
+an obliquely incident SH plane wave impinging on a sedimentary basin. 
+The unstructured mesh of spectral elements is plotted on background.}
+\end{figure}
+
+\subsection{Seismograms}
+
+The seismograms are stored using the SEP format, a simple
+binary block of single precision floats. The components 
+of the vector field (velocity by default) are stored
+in separate files \texttt{U*\_sem2d.dat},
+where \texttt{*} is \texttt{x} or \texttt{z} in P-SV 
+and \texttt{y} in SH.
+The seismograms header is in the file \texttt{SeisHeader\_sem2d.hdr}.
+Its second line contains the sampling timestep \texttt{DT}, the
+number of samples \texttt{NSAMP} and the number of stations \texttt{NSTA}.
+The stations coordinates, \texttt{XSTA} and \texttt{ZSTA}, are listed
+from the third line to the end of file.
+With this notations, \texttt{U*\_sem2d.dat} contains a 
+\texttt{NSAMP}$\times$\texttt{NSTA} single precision matrix.
+
+You can view the seismograms using any tool
+that is able to read the SEP format, which is the case of almost
+all the softwares able to deal with seismic data.
+\texttt{sem2dsolve} generates scripts for the 
+XSU-Seismic Unix visualization tool\footnote{Seismic Unix is freely available from the Colorado 
+School of Mines at \url{http://timna.mines.edu/cwpcodes}}:
+
+\begin{sitemize}
+\item \texttt{Xline\_sem2d.csh} displays all seismograms together on screen
+\item \texttt{PSline\_sem2d.csh} plots all seismograms
+on PostScript files \texttt{U*Poly\_sem2d.ps}
+\item \texttt{Xtrace\_sem2d.csh} prompts the user for a trace number
+(between 1 and \texttt{NSTA})
+and then displays this particular trace on screen
+\item \texttt{PStrace\_sem2d.csh} does the same as \texttt{Xtrace},
+but exports the traces as PostScript files \texttt{U*TraceXXX\_sem2d.ps} 
+where \texttt{XXX} is the number of that particular trace
+\end{sitemize}
+
+The program \texttt{post\_seis.exe} performs similar
+basic manipulation and plotting (through \texttt{gnuplot}) of the 
+seismograms. Its interactive menu is self-explanatory.
+It is usually called inside a script, as in \texttt{POST/seis\_b2a.csh}
+(converts all seismograms to ASCII) or \texttt{POST/seis\_plot.csh}
+(plots all seismograms together, an example is shown in \figref{seis}).
+
+The script \texttt{POST/sample\_seis.m} shows how
+to manipulate and plot seismogram data in Matlab.
+It uses the functions \texttt{POST/sem2d\_read\_seis.m} and \texttt{POST/plot\_seis.m}.
+
+\begin{figure} %[p]
+\ImgCL{Uy_sem2d.ps}{0.58}
+\caption{\label{Fig:seis} Sample seismograms from \texttt{EXAMPLES/UsingEMC2/}
+generated with \texttt{POST/seis\_plot.csh}.}
+\end{figure}
+
+\subsection{Fault outputs}
+
+Fault data from dynamic rupture simulations is stored
+in three files (where \texttt{XX} is the boundary tag of the first
+side of the fault, \texttt{tags(1)} of the \texttt{BC\_SWFFLT} input block):
+\begin{sitemize}
+  \item \texttt{FltXX\_sem2d.hdr} contains the information needed
+to read the other fault data files. Its format, line by line, is:
+\begin{enumerate}
+\item \texttt{NPTS NDAT NSAMP DELT} (name of parameters) 
+\item Value of parameters above
+\item Name of fields exported in \texttt{FltXX\_sem2d.dat}, separated by ``:"
+\item \texttt{XPTS ZPTS} (name of coordinate axis)
+\item from here to the end of file: a two-column table of coordinates
+of the output fault nodes
+\end{enumerate}
+
+  \item \texttt{FltXX\_sem2d.dat} contains the space-time distribution of fault data such as slip, slip rate, stress and strength. 
+Every \texttt{DELT} seconds a block of fault data values is written. The total number of blocks is \texttt{NSAMP}.
+Each block has \texttt{NDAT} lines (one per fault data field) 
+and \texttt{NPTS} columns (one per fault node)
+\footnote{The actual number of columns is \texttt{NPTS} +2:
+Fortran adds a one-word tag at the front and end of each record.}. 
+Stresses are relative to their initial values.
+
+  \item \texttt{FltXX\_init\_sem2d.tab} contains the spatial distribution of 
+initial shear stress, initial normal stress and initial friction (3 columns).
+
+  \item \texttt{FltXX\_potency\_sem2d.tab} contains time-series of seismic potency and potency rate. 
+The seismic potency tensor $p_{ij}$ is defined by the following integral along the fault:
+\begin{equation}
+p_{ij} = \frac{1}{2} \int_{fault} (n_i \Delta u_j + n_j \Delta u_i)  \ dx
+\end{equation}
+where $\Delta u$ is slip and $n$ is the local unit vector normal to the fault.
+The file contains one line per timestep.
+In SH (\texttt{ndof=1}) each line has $4$ columns: $2$ components of potency ($p_{13}$ and $p_{23}$)
+and $2$ components of potency rate ($\dot{p}_{13}$ and $\dot{p}_{23}$).
+In P-SV (\texttt{ndof=2}) each line has $3$ components of potency ($p_{11}$, $p_{22}$ and $p_{12}$)
+and $3$ components of potency rate ($\dot{p}_{11}$, $\dot{p}_{22}$ and $\dot{p}_{12}$).
+\end{sitemize}
+
+Some tools are available to manipulate the data in \texttt{FltXX\_sem2d.dat}:
+\begin{sitemize}
+\item The script \texttt{FltXX\_sem2d.csh} shows 
+how to extract ASCII time series of different 
+fields at given locations on the fault, using Seismic Unix tools.
+\item The program \texttt{post\_fault.exe} performs basic manipulations of the 
+fault data, including conversion to an ASCII file readable by \texttt{gnuplot}. 
+Its interactive menu is self-explanatory.
+\item The script \texttt{POST/sample\_fault.m} 
+and function \texttt{POST/sem2d\_read\_fault.m} show how
+to manipulate and plot fault data in Matlab.
+\end{sitemize}
+
+\subsection{Stress glut}
+
+For damage and plastic materials,
+the solver can export the plastic and damage components of the
+cumulative stress glut tensors 
+defined, respectively, as
+\eqa
+  s^p_{ij}(t) &=& -\iint 2\mu\, \epsilon^{p}_{ij}(t) \ dx\,dz\\
+  s^d_{ij}(t) &=& \iint [ \sigma_{ij}(t) - c^0_{ijkl} \epsilon^e_{kl}(t) ]  \ dx\,dz
+\ena
+where $\epsilon^p$ is the plastic strain, $\epsilon^e$ the elastic strain,
+$\sigma$ the absolute stress
+and $c^0$ the tensor of elastic moduli of the undamaged medium. 
+
+To enable this feature: set \texttt{COMPUTE\_STRESS\_GLUT = .true.} 
+in file \texttt{SRC/constants.f90}, then re-compile the code.
+The stress glut output is exported in the file \texttt{stress\_glut\_sem2d.tab}
+in 7 columns: time, $s^p_{11}$, $s^p_{22}$, $s^p_{12}$, $s^d_{11}$, $s^d_{22}$, $s^d_{12}$.
+
+\subsection{Energies}
+
+The solver can export the 
+cumulative plastic energy, the kinetic energy and the total change of elastic energy,
+defined respectively by
+\eqa
+ E^p(t) &=& \iiint_0^t \sigma_{ij}(t') \dot{\epsilon}^p_{ij}(t') \ dx\,dz\,dt'\\
+ E^k(t) &=& 1/2\ \iint \rho v_i^2(t) \ dx\,dz\\
+ E^e(t) &=& \iint U[\epsilon^e(t)] - U[\epsilon^e(0)] \ dx\,dz
+\ena
+where $U$ is the elastic potential and summation over subindices is implied.
+
+To enable this feature: set \texttt{COMPUTE\_ENERGIES = .true.}
+in file \texttt{SRC/constants.f90}, then re-compile the code.
+The energy output is exported in the file \texttt{energy\_sem2d.tab} 
+in 4 columns: time, $E^p$, $E^k$ and $E_e$.
+
+\subsection{Matlab utilities}
+\label{Sec:matlab}
+
+A range of functions and sample scripts for Matlab are available 
+to read, manipulate and plot output data.
+Add the directory \texttt{POST/} to your Matlab path (\texttt{addpath}).
+For an overview of existing utilities, type \texttt{help POST}:
+
+\begin{verbatim}
+   SEM2DPACK/POST provides Matlab utilities for the manipulation
+   and visualization of SEM2DPACK simulations results.
+
+   Reading simulation data:
+
+    SEM2D_READ_SPECGRID reads a spectral element grid
+    SEM2D_SNAPSHOT_READ reads snapshot data
+    SEM2D_READ_SEIS     reads seismogram data
+    SEM2D_READ_FAULT    reads fault data
+
+   Data manipulation:
+
+    SEM2D_EXTRACT_POINT extracts field values at an arbitrary point
+    SEM2D_EXTRACT_LINE  extracts field values along a vertical or horizontal line
+    ARIAS_INTENSITY     computes Arias Intensity and Significant Duration
+    RESPONSE_SPECTRUM   computes response spectra (peak dynamic response
+                        of single-degree-of-freedom systems)
+
+   Data visualization:
+
+    SEM2D_PLOT_GRID     plots a spectral element grid
+    SEM2D_SNAPSHOT_PLOT plots snapshot data
+    SEM2D_SNAPSHOT_GUI  interactively plots snapshot data
+    SEM2D_SNAPSHOT_MOVIE makes an animation of snapshot data
+    PLOT_MODEL          plots velocity and density model
+    PLOT_SEIS           plots multiple seismograms
+    PLOT_FRONTS         space-time plot of rupture front and process zone tail
+    SAMPLE_FAULT        example of visualization of fault data
+    SAMPLE_SEIS         example of visualization of seismogram data
+
+   Miscellaneous tools:
+
+    XCORRSHIFT          cross-correlation time-delay measurement
+    SPECSHIFT           signal time shift by non-integer lag via spectral domain
+    SPECFILTER          zero-phase Butterworth filter via spectral domain
+
+\end{verbatim}

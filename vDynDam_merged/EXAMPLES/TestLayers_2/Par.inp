@@ -1,0 +1,69 @@
+# Parameter file for SEM2DPACK 2.0 
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=6, fmax=20d0 , ndof=1 ,
+  title = 'Layered medium example 2', verbose='1111' , ItInfo = 1000/ 
+
+#----- Build the mesh ---------------------------
+
+&MESH_DEF method = "LAYERED" /
+&MESH_LAYERED xlim=-50.000000,50.000000, zmin=-234.600000, nx=67 , file="layers.tab" /
+
+#---- Elastic material parameters --------------
+
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=1200.000000, cp=1447.000000, cs=91.000000 /
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=1100.000000, cp=1447.000000, cs=30.000000 /
+&MATERIAL tag=3, kind='ELAST' /
+&MAT_ELASTIC rho=1100.000000, cp=1233.000000, cs=55.000000 /
+&MATERIAL tag=4, kind='ELAST' /
+&MAT_ELASTIC rho=1200.000000, cp=1267.000000, cs=80.000000 /
+&MATERIAL tag=5, kind='ELAST' /
+&MAT_ELASTIC rho=1400.000000, cp=1442.000000, cs=202.000000 /
+&MATERIAL tag=6, kind='ELAST' /
+&MAT_ELASTIC rho=1400.000000, cp=1472.000000, cs=131.000000 /
+&MATERIAL tag=7, kind='ELAST' /
+&MAT_ELASTIC rho=1500.000000, cp=1786.000000, cs=404.000000 /
+&MATERIAL tag=8, kind='ELAST' /
+&MAT_ELASTIC rho=1500.000000, cp=1588.000000, cs=253.000000 /
+&MATERIAL tag=9, kind='ELAST' /
+&MAT_ELASTIC rho=1700.000000, cp=1746.000000, cs=434.000000 /
+&MATERIAL tag=10, kind='ELAST' /
+&MAT_ELASTIC rho=1700.000000, cp=1965.000000, cs=666.000000 /
+&MATERIAL tag=11, kind='ELAST' /
+&MAT_ELASTIC rho=1700.000000, cp=1771.000000, cs=434.000000 /
+&MATERIAL tag=12, kind='ELAST' /
+&MAT_ELASTIC rho=1900.000000, cp=1935.000000, cs=929.000000 /
+&MATERIAL tag=13, kind='ELAST' /
+&MAT_ELASTIC rho=1800.000000, cp=1776.000000, cs=505.000000 /
+&MATERIAL tag=14, kind='ELAST' /
+&MAT_ELASTIC rho=1800.000000, cp=2084.000000, cs=677.000000 /
+&MATERIAL tag=15, kind='ELAST' /
+&MAT_ELASTIC rho=1400.000000, cp=2522.000000, cs=1132.000000 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+#&BC_DEF  tags =2,4 ,kind = 'PERIOD' /
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=2d0, courant = 0.5d0 /
+
+#---- Sources ----------------------------------
+
+# a point force
+&SRC_DEF stf= 'RICKER' ,coord= 0.d0,-230.d0, mechanism= 'FORCE' /
+
+&STF_RICKER  f0= 10.d0, onset = 0.11d0, ampli = 1.d9 /
+&SRC_FORCE angle = 0d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 23 , first = 0.d0,-220d0, last = 0d0,0d0, isamp=20 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields='V'/ #, components='a' /
+&SNAP_PS  vectors =F, color=T, interpol= T / 
+#,ScaleField = 1.d-2 /

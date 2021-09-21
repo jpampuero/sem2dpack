@@ -1,0 +1,49 @@
+
+#----- General parameters ----------------
+&GENERAL iexec=0, ngll=9, fmax=250d0 , ndof=2 ,
+  title = "Layered medium example 1", verbose='1111' , ItInfo = 500/ 
+
+#----- Build the mesh ---------------------------
+
+&MESH_DEF  method = 'LAYERED' /
+&MESH_LAYERED xlim=-100d0,300d0, zmin=-250d0, nx=40, nlayer=2 /
+
+&MESH_LAYER nz=20, ztopH='SPLINE' /
+&DIST_SPLINE file='surf1.tab'  /
+
+&MESH_LAYER nz=11, ztopH='LINEAR'/
+&DIST_LINEAR file='surf2.tab' /
+
+#---- Elastic material parameters --------------
+
+# homogeneous medium: rho, cp ,cs
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=920.d0, cp=3700.d0, cs=1820.d0 /
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=2000.d0, cp=5100.d0, cs=2900.d0 /
+
+#----- Boundary conditions ---------------------
+# Assign tags and kinds to boundaries: (comment it if free) 
+#The default kind is FREE SURFACE
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'ABSORB' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=0.3d0, dt=2.5d-5 / #, kind='symp_PEFRL' / #Courant=0.5d0 /
+
+#---- Sources ----------------------------------
+
+# a point force
+&SRC_DEF stf= 'RICKER' ,coord= 0.d0,-150.d0, mechanism= 'FORCE' /
+&STF_RICKER  f0= 100.d0, onset = 0.011d0, ampli = 1.d0 /
+&SRC_FORCE angle = 0d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE number=21, field='V', first=100d0,1d2, last=300d0,1d2, isamp=40 / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd = 500, fields='V'/
+&SNAP_PS  vectors =F, color=T, interpol= T / 
+#&SNAP_PS  vectors =T, background=T, color=T, interpol= T, mesh=T / 

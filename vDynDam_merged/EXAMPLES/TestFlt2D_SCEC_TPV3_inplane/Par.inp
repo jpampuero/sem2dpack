@@ -1,0 +1,59 @@
+# Test for the Slip Weakening Fault boundary condition
+
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=6, fmax=3.d0 , ndof=2 ,
+  title = 'SCEC Test#3 for slip weakening fault', verbose='1111' , ItInfo = 400/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+#&MESH_CART xlim=0d3,32.d3, zlim=0d3,50.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.6d3, zlim=0d3,40.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=102,160 /
+#&MESH_CART xlim=0d3,25.5d3, zlim=0d3,40.d3, nelem=51,80/
+
+#&MESH_CART xlim=0d3,35d3, zlim=-20d3,20.d3, nelem=70,80, ezflt= -1 /
+&MESH_CART xlim=0d3,35d3, zlim=0d3,20.d3, nelem=70,40/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST' ,'KV'  /
+&MAT_ELASTIC rho=2670.d0, cp=6000.d0, cs=3464.d0 /
+&MAT_KV etaH='GAUSSIAN' /
+&DIST_GAUSSIAN length=1d6,282.094, ampli=0.1d0 /
+
+#----- Boundary conditions ---------------------
+
+#&BC_DEF  tag = 1 , kind = 'ABSORB' /
+
+#&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
+&BC_DEF  tag = 1, kind = 'DYNFLT' /
+&BC_DYNFLT friction='SWF', Tn=-120.d6,TtH='PWCONR' , oxi=1,65,4 /
+&DIST_PWCONR num=2/ # Initial shear stress
+     1.5d3
+81.6d6 70.d6
+&BC_DYNFLT_SWF Dc=0.4d0, MuSH='PWCONR', MuD=0.525d0 /
+&DIST_PWCONR num=2/ # Static friction coefficient
+     15d3
+0.677d0  1d4
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /  
+
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+#---- Time scheme settings ----------------------
+
+#&TIME  TotalTime=16.d0, courant = 0.55d0, kind='leapfrog' /
+
+&TIME  TotalTime=16.d0, courant = 0.55d0, kind='newmark' /
+#&TIME_NEWMARK beta=0d0, gamma=0.5d0 /
+
+#&TIME  TotalTime=16.d0, courant = 0.55d0, kind='HHT-alpha' /
+#&TIME_HHTA rho=0.5d0 /
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 10 , first = 0d3,0.5d3, last = 15.d3,0.5d3, isamp=20, AtNode=F / 
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=200, fields ='V',bin=F,ps=T /
+&SNAP_PS  vectors =F, interpol = T, DisplayPts=6, ScaleField=2d0   /

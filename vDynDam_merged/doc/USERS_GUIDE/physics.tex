@@ -1,0 +1,474 @@
+\chapter{Physical background}
+\label{Cha:phys}
+
+This chapter summarizes the physical assumptions and notations in SEM2DPACK.
+Footnotes provide reference to the input arguments described in \charef{sem2d}.
+
+\section{General assumptions and conventions}
+
+The coordinate sytem is Cartesian (rectangular). 
+SEM2DPACK works in the two-dimensional $(x,z)$ plane,
+where $x$ is the horizontal coordinate, with positive direction pointing to the right, 
+and $z$ is the vertical coordinate, with positive direction pointing upwards.
+The coordinates $(x,y,z)$ will be also denoted as $(x_1,x_2,x_3)$.
+This notations carry also for subscripts. For instance,
+the $i$-th component of displacement is denoted as $u_i$, with $i=1,2,3$ or with $i=x,y,z$.
+
+The reference frame is Eulerian.
+Infinitesimal strain is assumed.
+The (symmetric) infinitesimal strain tensor $\varepsilon$ is defined as 
+\eq
+ \varepsilon_{ij} = \frac{1}{2} \left(\frac{\partial u_i}{\partial x_j} +\frac{\partial u_j}{\partial x_i}\right)
+\en
+%Dynamic fault boundary conditions assume also small displacements....?
+
+Material density is deonted $\rho(x,z)$.
+The displacements and stresses relative to an initial equilibrium configuration
+are denoted $u_i(x,z,t)$ and $\sigma_{ij}(x,z,t)$, respectively.
+External forces (sources) are denoted $f_i(x,z,t)$. 
+SEM2DPACK solves the following equations of motion to obtain
+the relative displacements $u_i(x,z,t)$:
+\eq
+  \rho\ \frac{\partial^2 u_i}{\partial t^2} = \frac{\partial\sigma_{ij}}{\partial x_j} + f_i
+\en
+where summation over repeated indices is assumed.
+The initial conditions are $u_i=0$ and $\partial u_i/\partial t = 0$.
+Stresses are related to strain, and possibly to other internal variables,
+by constitutive equations described in \secref{rheol}.
+The governing equations are supplemented by boundary conditions, described in \secref{bcs}. 
+SEM2DPACK actually solves the governing equations in variational (weak) form,
+as described in any textbook on the finite element method.
+
+Two types of 2D problems are solved\footnote{In the \texttt{\&GENERAL} input block,
+plane strain is selected by $\texttt{ndof=2}$ and antiplane shear by $\texttt{ndof=1}$.}: 
+\begin{sitemize}
+\item \emph{Plane strain}: 
+Also known in seismology as P-SV, and in fracture mechanics as inplane mode or mode II.
+It is assumed that $u_3=0$ and $\partial / \partial x_3 = 0$.
+Hence, $\varepsilon_{13}=\varepsilon_{23}=\varepsilon_{33}=0$
+and there are two degrees of freedom per node, $u_x$ and $u_z$.
+\item \emph{Antiplane shear}: 
+Also known in seismology as SH, and in fracture mechanics as antiplane mode or mode III.
+It is assumed that $u_1=u_2=0$ and $\partial / \partial x_3 = 0$. 
+Hence, only $\varepsilon_{13}$ and $\varepsilon_{23}$ are non-zero
+and there is one degree of freedom per node, $u_y$.
+\end{sitemize}
+
+\section{Material rheologies}
+\label{Sec:rheol}
+
+We describe here the constitutive equations implemented in SEM2DPACK,
+relating stress ($\sigma_{ij}$), strain ($\varepsilon_{ij}$) and internal variables.
+
+\subsection{Linear elasticity}
+
+\subsubsection{Linear isotropic elasticity}
+
+Stress and strain are linearly related by Hooke's law, 
+$\sigma_{ij} = c_{ijkl} \varepsilon_{ij}$,
+where $c_{ijkl}$ is the tensor of elastic moduli.
+In particular, for isotropic elasticity:
+\eq
+  \sigma_{ij} = \lambda \varepsilon_{kk} \delta_{ij} + 2\mu \varepsilon_{ij}
+\en
+where $\lambda$ and $\mu$ are Lam\'e's first and second parameters, respectively.
+In 2D plane strain the only relevant stress components are $\sigma_{11}$, $\sigma_{22}$ and $\sigma_{12}$.
+The intermediate stress $\sigma_{33}$, although not null, does not enter in the equations of motion.
+The S and P wave speeds are $c_S = \sqrt{\mu/\rho}$ and $c_P = \sqrt{(\lambda+2\mu)/\rho}$, respectively.
+In 2D antiplane shear only the stress components $\sigma_{13}$ and $\sigma_{23}$ are relevant,
+and only S waves are generated.
+
+\subsubsection{Linear anisotropic elasticity}
+
+Transverse anisotropy with vertical symmetry axis (VTI)
+is implemented for 2D P-SV \shortcite{KoBaTr00b}. % and SH modes.
+The stress-strain constitutive relation for P-SV in Voigt notation is:
+\eq
+  \left( \begin{array}{c}
+    \sigma_{xx} \\ \sigma_{zz} \\ \sigma_{xz}
+  \end{array} \right)
+  = 
+  \left( \begin{array}{ccc}
+    c_{11} & c_{13} & 0 \\
+    c_{13} & c_{33} & 0 \\
+    0      & 0      & c_{55}
+  \end{array} \right) \ 
+  \left( \begin{array}{c}
+    \varepsilon_{xx} \\ \varepsilon_{zz} \\ 2\varepsilon_{xz}
+  \end{array} \right)
+\en
+where the $c_{ij}$ are elastic moduli. 
+For SH:
+\eq
+  \left( \begin{array}{c}
+    \sigma_{yz} \\ \sigma_{xy} 
+  \end{array} \right)
+  = 
+  \left( \begin{array}{cc}
+    c_{55} & 0 \\
+    0 & c_{66} 
+  \end{array} \right) \ 
+  \left( \begin{array}{c}
+    2 \varepsilon_{yz} \\ 2\varepsilon_{xy}
+  \end{array} \right)
+\en
+
+
+\subsection{Linear visco-elasticity}
+
+\subsubsection{Generalized Maxwell material}
+\emph{Not implemented yet.}
+
+\subsubsection{Kelvin-Voigt material}
+
+Kelvin-Voigt damping can be combined with any of the other constitutive equations
+by replacing the elastic strain $\varepsilon$ by $\varepsilon^* = \varepsilon + \eta\,\partial\varepsilon/\partial t$,
+where $\eta$ is a viscosity timescale.
+
+The resulting quality factor $Q$ is frequency-dependent, $Q^{-1}(f) = 2\pi\eta f$.
+This rheology is not approriate to model crustal attenuation with constant $Q$, 
+unless the source has a narrow frequency band
+and $\eta$ is selected to achieve a given $Q$ value at the dominant frequency of the source.
+
+The main application of Kelvin-Voigt viscosity is the artificial damping of high-frequency
+numerical artifacts generated by dynamic faults.
+Dynamic source simulations using methods that discretize the bulk, such as
+finite difference, finite element and spectral
+element methods, are prone to high frequency numerical noise 
+when the size of the process zone is not well resolved.
+Efficient damping is typically achieved
+by a thin layer of Kelvin-Voigt elements surrounding the fault,
+with thickness of 1 or 2 elements on each side of the fault
+and $\eta/\Delta t_{fault} = 0.1$ to $0.3$, where $\Delta t_{fault}$ 
+is the critical time step size based on the size of the spectral elements along the fault
+(not necessarily equal to the critical time step over the whole mesh).
+The value of $\Delta t_{fault}$ can be obtained with 
+the Matlab function \texttt{PRE/critical\_timestep.m}.
+
+%Methods to control this problem were presented in the author's
+%Ph.D. dissertation \cite{Amp02}\footnote{Available in French at 
+%\url{http://web.gps.caltech.edu/~ampuero/publications.html}}
+%and in Gaetano Festa's Ph.D. dissertation\footnote{\url{http://people.na.infn.it/~festa/}},
+%%In particular the method of Appendix 4.A, a high/low frequency 
+%%decomposition with hybrid and consistent asymptotic/SEM treatment of friction,
+%%has been tested by Gaetano Festa and J.-P. Vilotte
+%and will be implemented in a forthcoming version of SEM2DPACK.
+
+\subsection{Coulomb plasticity and visco-plasticity}
+
+\subsubsection{Perfect plasticity}
+
+Perfect plasticity with a Coulomb yield function is implemented
+for 2D plane strain, as in \citeN{And05}.
+
+The total strain is the sum of an elastic and a plastic contribution,
+$\varepsilon = \varepsilon^e + \varepsilon^p$.
+The plastic strain is assumed to be purely deviatoric ($\varepsilon^p_{kk} = 0$).
+Plastic yield occurs when
+the maximum shear stress over all orientations,
+\eq
+  \tau_{max} = \sqrt{ \sigma_{xz}^2 + (\sigma_{xx}-\sigma_{zz})^2/4},
+\en
+reaches the yield strength,
+\eq
+  Y = c\,\cos(\phi) - (\sigma_{xx}+\sigma_{zz}) \, \sin(\phi)/2,
+\en
+where $c$ is the cohesion and $\phi$ is the internal friction angle.
+
+\subsubsection{Visco-plasticity}
+
+In classical Duvaut-Lions visco-plasticity the (visco-)plastic strain rate is proportional
+to the excess of stress over the yield strength:
+\eq
+  \dot{\varepsilon}^p_{kl} = \frac{1}{2\mu\ T_v} \langle\tau_{max} - Y\rangle\ \frac{\tau_{ij}}{\tau_{max}}
+\en
+where $T_v$ is the visco-plastic relaxation time,
+$\langle x\rangle \doteq (x+|x|)/2$ is the ramp function
+and $\tau_{ij} = \sigma_{ij} - \frac{1}{3}\sigma_{kk}\ \delta_{ij}$ 
+is the deviatoric part of the stress tensor.
+
+Visco-plasticity is often employed as a regularization of plasticity
+to avoid or delay the occurrence of strain localization features,
+such as shear bands, that are mesh-dependent.
+For that particular application, $T_v$ is typically set to 
+the average P wave traveltime across a few grid points, 
+i.e. a few times the average spacing between GLL nodes divided by the P wave speed.
+
+%----------------------------------------------------------
+\subsection{Attenuation}
+Following \shortciteN{Mocetal04}, we incorporate attenuation 
+by adding viscoelastic terms in the stress-strain relations.
+For the sake of simplicity, we present here the formulation in terms of scalar stress and strain:
+\eqa
+\sigma(t) &=& M_u \varepsilon(t)-\sum_{l=1}^n M_u Y_l \zeta_l(t) \\
+\dot{\zeta}_l(t)+\omega_l \zeta_l(t) &=& \omega_l \varepsilon_l(t)
+\label{Eq:Qf}
+\ena
+where $M_u$ is the unrelaxed modulus, $n$ is the number of anelastic mechanisms
+and $Y_l$, $\zeta_l(t)$ and $\omega_l$ are the anelastic coefficient, 
+anelastic state variable and relaxation frequency of the $l^{th}$ viscoelastic mechanism, respectively. 
+
+The material parameters $Y_l$ and $\omega_l$ are determined to achieve
+a prescribed constant $Q$ value within a prescribed frequency band $[\omega_1,\omega_2]$.
+The quality factor of this viscoleastic material, as a function of angular frequency $\omega$, is
+implicitely given by the solution of the following equation:
+\eq
+Q^{-1}(\omega)- \sum_{l=1}^n \frac{\omega_l \omega +\omega_l^2 Q^(-1)(\omega)}{\omega_l^2+\omega^2 } Y_l = 0
+\en
+The relaxation frequencies $\omega_l$ are distributed uniformly in logarithmic scale
+within $[\omega_1,\omega_2]$.
+The anelastic coefficients $Y_l$ are determined by satisfying Equation~\ref{Eq:Qf} with prescribed $Q$ 
+in a least squares sense at $2n-1$ frequencies 
+distributed uniformly in logarithmic scale within $[\omega_1,\omega_2]$.
+The unrelaxed moduli $M_u$ are derived from the anelastic coefficients, 
+following equations 166 and 167 of \shortciteN{Mocetal04}),
+by constrainging the phase velocity at the reference frequency $\omega_r=\sqrt{\omega_1 \omega_2}$
+to equal the prescribed elastic wave velocity.
+
+For $n=3$, an almost constant $Q$ is achieved, with less than $5\%$ error, 
+over a frequency band with maximum to minimum frequency ratio $\sim 100$. 
+A benchmark of our attenuation implementation is presented in section 5.1 of \shortciteN{Huaetal14b}.
+
+%----------------------------------------------------------
+\subsection{Continuum damage}
+
+The continuum damage formulation by \shortciteN{Lyaetal97a}, 
+including damage-related plasticity as introduced by \shortciteN{Hametal04},
+is implemented with modifications for 2D plane strain.
+%and XXX $\beta$ as introduced by \shortciteN{Hametal04}.
+
+The first and second invariants of the 2D elastic strain tensor are defined as
+$I_1 = \varepsilon^e_{kk}$ and $I_2 = \varepsilon^e_{ij}\varepsilon^e_{ij}$, respectively. 
+A strain invariant ratio is defined as $\xi = I_1/\sqrt{I_2}$.
+The following non-linear stress-strain relation is assumed
+\shortcite[eq. 12]{Lyaetal97a}:
+\eq
+  \sigma_{ij} = ( \lambda - \gamma/\xi )\ I_1 \delta_{ij} 
+              + ( 2\mu - \gamma \xi )\ \varepsilon^e_{ij}
+\en
+where $\gamma$ is an additional elastic modulus.
+The elastic moduli depend
+on a scalar damage variable, $0\le\alpha\le1$, through \shortcite[eq. 19]{Lyaetal97a}: 
+%(\shortciteN[eq. 19]{Lyaetal97a} and \shortciteN[eq. 3]{Hametal04}): % for beta>0
+\eqa
+  \lambda &=& \lambda_0 \\
+  \mu &=& \mu_0 + \gamma_r \xi_0\ \alpha \\
+  %\gamma &=& \gamma_r\ \frac{\alpha^{1+\beta}}{1+\beta}
+  \gamma &=& \gamma_r\ \alpha
+\ena
+where $\lambda_0$ and $\mu_0$ are Lam\'e's parameters for the intact material ($\alpha=0$).
+The parameter $\xi_0$ is the threshold value of the strain invariant ratio $\xi$
+at the onset of damage.
+It is related to the internal friction angle $\phi$ in
+a cohensionless Mohr-Coulomb yield criterion by 
+the 2D plane strain version of \shortciteN[eq. 37]{Lyaetal97a}:
+\eq
+  \xi_0 = \frac{-\sqrt{2}}{\sqrt{1+ (\lambda_0/\mu_0 +1)^2\ \sin^2\phi}} % in 2D
+  %\xi_0 = \frac{-\sqrt{3}}{\sqrt{ 2q^2 (\lambda_0/\mu_0 +2/3)^2 +1}}    % in 3D
+\en
+%where
+%\eq
+%  q = \frac{\sin(\phi)}{1-\sin(\phi)/3}
+%\en
+%The parameter $0<\beta<1$ was introduced by \shortcite{Hametal04}.
+The scaling factor $\gamma_r$ is chosen such that convexity is lost
+at $\alpha=1$ when $\xi=\xi_0$.
+It is derived from the 2D plane strain version of \shortciteN[eq. 15]{Lyaetal97a}:
+\eq
+ \gamma_r = p+\sqrt{p^2 +2\mu_0 q}
+\en
+where
+\eqa
+ q & =& (2\mu_0+2\lambda_0)/(2-\xi_0^2) \\  % in 2D
+ %q & =& (2\mu_0+3\lambda_0)/(3-\xi_0^2) \\ % in 3D
+  p &=& \xi_0 (q + \lambda_0)/2 
+\ena
+The evolution equation for the damage variable is
+\shortcite[eq. 20]{Lyaetal97a}
+%(\shortciteN[eq. 20]{Lyaetal97a} and \shortciteN[eq. 7]{Hametal04})
+\eq
+  \dot{\alpha} = 
+   \left\{
+   \begin{array}{ll}
+     %C_d I_2 (\alpha^\beta \xi - \xi_0)& \mbox{if $\xi>\xi_0/\alpha^\beta$} \\
+     C_d I_2 (\xi - \xi_0)& \mbox{if $\xi>\xi_0$} \\
+     0  & \mbox{otherwise}
+   \end{array}
+  \right.
+\en
+No healing is assumed below $\xi_0$.
+The evolution of the plastic strain $\varepsilon^p_{ij}$ is 
+driven by the damage variable $\alpha$ 
+\shortcite[eq. 9]{Hametal04}:
+\eq
+  \dot{\varepsilon}^p_{ij} = 
+   \left\{
+   \begin{array}{ll}
+     \tau_{ij} C_v \dot{\alpha} & \mbox{if $\dot{\alpha}\ge 0$} \\
+     0  & \mbox{otherwise}
+   \end{array}
+  \right.
+\en
+where $\tau_{ij} = \sigma_{ij} - \frac{1}{3}\sigma_{kk}\ \delta_{ij}$ 
+is the deviatoric part of the stress tensor.
+The parameter $C_v$ is of order $1/\mu_0$
+and\footnote{In \texttt{\&MAT\_DMG}, the input argument \texttt{R} is defined as $R=\mu_0 C_v$.}
+is related to the seismic coupling coefficient $0<\chi<1$ by 
+\cite{BZLya06}
+\eq
+  C_v = \frac{1-\chi}{\chi}\ \frac{1}{\mu_0}
+\en
+%and the factor $R = \mu_0 C_v$ is related to the seismic coupling coefficient $0<\chi<1$ by $\chi=1/(1+R)$
+%$\chi=1/(1+\mu_0 C_v)$
+
+%----------------------------------------------------------
+%----------------------------------------------------------
+\section{Boundary conditions}
+\label{Sec:bcs}
+
+\subsection{Absorbing boundaries}
+
+Two approximate absorbing boundary conditions (ABC)
+are implemented to model the outwards propagation of waves 
+at the boundaries of the computational domain.
+Both conditions are of paraxial type. Their performance is appropriate at normal incidence
+but degrades at grazing incidence. 
+
+\subsubsection{Clayton-Engquist ABC}
+
+In the local coordinate frame $(t,n)$ related to the tangential ($t$)
+and outgoing normal ($n$) directions to the boundary, the
+first-order accurate ABC proposed by \citeN{ClaEng77} reads:
+\eqa
+  \dot{u}_t &=& - c_S \frac{\partial u_t}{\partial x_n} \\
+  \dot{u}_n &=& - c_P \frac{\partial u_n}{\partial x_n}
+\ena
+The implementation is based on an equivalent formulation 
+as a mixed boundary condition
+that relates tractions $T$ to displacements $u$:
+\eqa
+  T_t &=& - \rho c_S\ \dot{u}_t \\
+  T_n &=& - \rho c_P\ \dot{u}_n
+\ena
+The formulation above is for P-SV mode. 
+In SH mode the ABC is $T_y= - \rho c_S\ \dot{u}_y$.
+
+\subsubsection{Stacey ABC}
+
+The second-order accurate ABC introduced by \citeN{Sta88} 
+under the name ``P3'' is:
+\eqa
+  \dot{u}_t &=& - c_S \frac{\partial u_t}{\partial x_n}
+                - (c_P-c_S) \frac{\partial u_n}{\partial x_t}\\
+  \dot{u}_n &=& - c_P \frac{\partial u_n}{\partial x_n}
+                - (c_P-c_S) \frac{\partial u_t}{\partial x_t}
+\ena
+Its formulation as a mixed boundary condition is:
+\eqa
+  T_t &=& - \rho c_S\ \dot{u}_t + \rho c_S (2 c_S-c_P)\ \frac{\partial u_n}{\partial x_t}\\
+  T_n &=& - \rho c_P\ \dot{u}_n - \rho c_S (2 c_S-c_P)\ \frac{\partial u_t}{\partial x_t}
+\ena
+This ABC is only implemented in P-SV mode.
+
+\section{Fault interface conditions}
+
+\subsection{Linear slip law}
+Represents a compliant fault zone with elastic contact.
+See \shortciteN{Hanetal07}.
+[...]
+
+\subsection{Normal stress response}
+
+\subsubsection{Unilateral contact}
+
+No interpenetration during contact, free stress during opening.
+[...]
+
+\subsubsection{Modified Prakash-Clifton regularization}
+
+Regularization of the normal stress response, as required for
+bimaterial rupture problems, is implemented following \citeN{RubAmp07}.
+The frictional strength is proportional to a modified normal stress $\sigma^*$,
+related to the real fault normal stress, $\sigma$,
+by either of the following evolution laws:
+\begin{sitemize}
+ \item Version with a regularization \emph{time} scale:
+\eq
+  \dot{\sigma^*} = \frac{1}{T_\sigma}\ (\sigma - \sigma^*)
+\en
+where $T_\sigma$ is a constitutive parameter\footnote{In \texttt{\&BC\_DYNFLT\_NOR},
+this law is set by \texttt{kind=2}, and the relevant parameter is \texttt{T}.}.
+ \item Version with a regularization \emph{slip} scale:
+\eq
+  \dot{\sigma^*} = \frac{|V| + V^*}{L_\sigma}\ (\sigma - \sigma^*)
+\en
+where $V$ is slip rate, 
+and $V^*$ and $L_\sigma$ are constitutive parameters\footnote{In \texttt{\&BC\_DYNFLT\_NOR},
+this law is set by \texttt{kind=3}, and the two relevant parameters are \texttt{V} and \texttt{L}.}.
+\end{sitemize}
+
+\subsection{Friction}
+
+\subsubsection{Slip-weakening friction}
+Slip occurs when the fault shear stress reaches the shear strength $\tau = \mu\sigma$ 
+(or $\tau=\mu\sigma^*$ if the Prakash-Clifton law is assumed). [...]
+The friction coefficient $\mu$ is a function of the cumulated slip $D$,
+given by one of the following laws:
+\begin{sitemize}
+  \item Linear slip-weakening law:
+\eq
+  \mu = \max\left[ \mu_d , \mu_s - \frac{\mu_s-\mu_d}{D_c}\ D \right]
+\en
+  \item Exponential slip-weakening law:
+\eq
+  \mu = \mu_s - (\mu_s-\mu_d)  \exp(-D/D_c)
+\en
+\end{sitemize}
+
+\subsubsection{``Fast'' rate-and-state-dependent friction}
+
+Friction with fast (power law) velocity weakening at fast slip speed
+is a first order proxy for physical weakening processes that operate
+on natural fault zones at coseismic slip velocities.
+A rate-and-state dependent friction law with fast velocity-weakening is implemented in SEM2DPACK,
+similar to that adopted e.g. by \citeN{AmpBZ08}.
+The friction coefficient depends on slip velocity ($V$) and a state variable ($\theta$):
+\eq
+  \mu_f = \mu_s +a\ \frac{V}{V+V_c} - b\ \frac{\theta}{\theta+D_c}.
+  \label{Eq:muf}
+\en
+The state variable has units of slip and is governed by the evolution equation
+\eq
+  \dot{\theta} = V-\theta V_c/D_c.
+\label{Eq:th}
+\en
+The friction law is defined by the following constitutive parameters:
+$\mu_s$ is the static friction coefficient,
+$a$ and $b$ are positive coefficients of a direct effect and an evolution effect, respectively,
+$V_c$ is a characteristic velocity scale\footnote{\texttt{vstar} in \texttt{\&BC\_DYNFLT\_RSF}},
+and $D_c$ is a characteristic slip scale.
+
+The steady-state ($\dot{\theta}=0$) friction coefficient 
+\eq
+  \mu_f = \mu_s +(a-b)\ \frac{V}{V+V_c}
+\en
+weakens asymptotically as $1/V$ when $V\gg V_c$,
+if $a<b$, approaching its dynamic value ($\mu_d = \mu_s + a-b$)
+over a relaxation timescale $D_c/V_c$.
+The value of the relaxation time $D_c/V_c$ tunes the weakening mechanism between two limit cases:
+slip-weakening and velocity-weakening.
+If $D_c/V_c$ is much longer than the typical time scale of fluctuation of the
+state variable ($\approx \theta/\dot{\theta}$),
+\Eqref{th} becomes $\dot{\theta} \approx V $,
+implying that $\theta$ is proportional to slip
+and that the evolution term of the friction coefficient
+is effectively slip-weakening, with characteristic slip-weakening distance $D_c$.
+Conversely, if $D_c/V_c$ is short the relaxation to steady state is fast,
+$\theta/D_c \approx V/V_c$
+and the friction is effectively velocity-weakening,
+with characteristic velocity scale $V_c$.
+
+\subsubsection{Logarithmic rate-and-state friction}
+\emph{Not implemented yet.}
+
+Dieterich and Ruina classical rate-and-state laws, with aging or slip state evolution law.

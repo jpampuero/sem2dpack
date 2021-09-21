@@ -1,0 +1,401 @@
+\chapter{Mesh generation}
+\label{Cha:meshing}
+
+\section{General guidelines}
+
+The Spectral Element Method (SEM) requires an initial decomposition 
+of the space domain into quadrilateral elements (a quad mesh).
+Obtaining the best performance (accuracy/cost) out of the SEM imposes constraints
+on the mesh design:
+\begin{sitemize}
+\item The interfaces between different materials, 
+at which sharp contrasts of material properties occur,
+should {\it preferably} coincide with faces of the elements. 
+This is sometimes called an {\it adapted mesh} 
+and is the only way to preserve spectral accuracy at material interfaces.
+\item Fault planes, across which displacement discontinuities occur,
+{\it must} coincide with element faces. 
+Faults are implemented with a {\it split node} formulation.
+\item Elements can be deformed, but extremely small and extremely large 
+angles between faces of a same element must be avoided. 
+This would penalize both accuracy and stability.
+\item The linear size of the elements must be small enough, so that each element
+contains enough computational nodes per minimum wavelength,
+and each fault boundary element contains enough nodes per rupture process zone.
+\item Unnecessarily small elements should be avoided, 
+they penalize the stability of the method. 
+\end{sitemize}
+Generating high quality quad meshes for complicated geological models
+is not yet a fully automated process, and can be very time-consuming.
+Iterations between mesh generation and mesh quality check are sometimes required.
+The last two constraints above are addressed more quantitatively in \secref{check}.
+Mesh quality assessment tools are also presented in \secref{check}.
+
+The remainder of this chapter describes three possible ways to generate quad meshes,
+by order of complexity:
+\begin{senumerate}
+\item If the geometrical structure of the model is simple
+or if the user prefers to sacrifice accuracy by using a non-adapted structured mesh,
+i.e. a logically cartesian mesh 
+where the element faces do not necessarily follow the material interfaces,
+the basic built-in meshing capabilities of the solver SEM2D, described
+in \secref{mesh_inc}, are sufficient.
+\item Moderately complicated meshes can be generated with the included Matlab tools,
+described in \secref{mesh2d}.
+\item Adapted meshes for more complicated geological models 
+must be generated with some external software.
+As an illustration, the usage of the freely available 2D mesh generation software EMC2 
+is described in \secref{emc2}.
+\end{senumerate}
+
+SEM2DPACK provides only basic meshing capabilities
+and does not include an unstructured mesh generator 
+for complicated, realistic geological models. 
+This chapter describes how to achieve that task with an external software, EMC2.
+
+Generating a high quality unstructured quad mesh can be a time-consuming task.
+Let's note that, for wave propagation problems without dynamic faults, 
+if the acceptable accuracy is low
+(or large computational resources are available to work with a very fine mesh)
+a structured mesh in which the element faces do not necessarily follow the material interfaces
+can be generated with the basic built-in meshing capabilities of SEM2D.
+
+\section{Meshing features included in the solver}
+\label{Sec:mesh_inc}
+
+The solver itself has very limited meshing capabilities.
+It can only generate a structured mesh for a single quadrilateral domain,
+possibly with curved sub-horizontal boundaries and curved sub-horizontal layer interfaces.
+The domain can be cut in the horizontal direction by a single fault, possibly curved or kinked.
+
+For further details see the Reference Guide for the input blocks
+\texttt{MESH\_CART} and  \texttt{MESH\_LAYERED} in \secref{inblo}.
+
+\section{Meshing with the MESH2D Matlab utilities}
+\label{Sec:mesh2d}
+
+A number of Matlab functions for 2D meshing are provided in \texttt{POST/mesh2d}.
+These can generate structured meshes for quadrilateral domains
+with curved boundaries, and merge several such meshes to generate
+a more complicated, globally unstructured mesh.
+Functions for manipulating, visualizing and exporting these meshes are included.
+Here is an overview of available tools:
+
+\begin{verbatim}
+  SEM2DPACK/PRE/mesh2d provides Matlab utilities for the generation, manipulation 
+  and visualization of structured 2D quadrilateral meshes, and unstructured 
+  compositions of structured meshes.
+ 
+  The mesh database is stored in a structure described in MESH2D_TFI's help.
+ 
+  Mesh generation:
+ 
+   MESH2D_TFI     	generates a structured mesh by transfinite interpolation
+   MESH2D_QUAD    	generates a structured mesh for a quadrilateral domain
+   MESH2D_CIRC_HOLE	generates a mesh for a square domain with a circular hole 
+   MESH2D_WEDGE		generates a mesh for a triangular wedge domain
+   MESH2D_EX0		mesh for a vertical fault
+   MESH2D_EX1		mesh for a shallow layer over half-space with dipping fault
+ 
+  Mesh manipulation:
+ 
+   MESH2D_ROTATE   	rotates the node coordinates 
+   MESH2D_TRANSLATE	translates the node coordinates
+   MESH2D_MERGE    	merges several meshes into a single mesh
+   MESH2D_WRITE  	writes a 2D mesh database file (*.mesh2d)
+   MESH2D_READ 		reads a 2D mesh database from a *.mesh2d file 
+ 
+  Reading mesh files from other mesh generation software:
+ 
+   READ_DCM 		reads a 2D mesh in the DCM format of EZ4U (http://www-lacan.upc.es/ez4u.htm)
+   READ_INP		reads a 2D mesh in the INP format of ABAQUS exported by CUBIT
+ 
+  Mesh visualization:
+ 
+   MESH2D_PLOT        	plots a 2D mesh
+ 
+  Miscellaneous tools:
+ 
+   SAMPLE_SEGMENTS	generates points that regularly sample multiple segments of a line
+\end{verbatim}
+
+The functions \texttt{MESH2D\_TFI} and \texttt{MESH2D\_MERGE} are the core tools.
+The script \texttt{MESH2D\_EXAMPLE1} is a good starting point.
+The syntax of the mesh database file, \texttt{*.mesh2d}, is described
+in \secref{inblo}.
+
+\section{Generating a mesh with EMC2}
+\label{Sec:emc2}
+
+\subsection{The mesh generator EMC2}
+
+EMC2 is one of the few public domain 2D mesh generation softwares 
+that includes quadrilateral elements and a Graphical User Interface. 
+Its C code sources and executables can be freely downloaded from\\
+%\url{http://www-c.inria.fr/gamma/cdrom/www/emc2/eng.htm}.
+\centerline{\url{http://www.ann.jussieu.fr/~hecht/ftp/emc2/}.}\\
+We show here an example featuring the most useful functionalities of EMC2.
+For further details you should refer to the complete documentation of
+the EMC2 package,
+
+Before starting you must prepare files containing in 2-column data 
+the coordinates (X,Z)
+of all the points needed to define the geometry of the model 
+(topography, sediment bottom). 
+%An example is given in \texttt{SEM2DPACK/EMC2SEM/palosgrandes.dat}.
+
+Once installed, you can run EMC2 by typing \texttt{emc2}.
+
+\subsection{Notations}
+
+The following notations are assumed in the next section:
+\begin{itemize}
+\item  \textsf{(XXX)} = click XXX on top menu bar 
+\item  \textsf{(xxx)} = click xxx on bottom menu bar
+\item  \textsf{$<$XXX$<$} = click XXX on left menu bar
+\item  \textsf{$>$XXX$>$} = click XXX on right menu bar
+\item  \textsf{\$xxx\$} = enter xxx from keyboard or from the calculator in the right panel
+\item  \textsf{"xxx"} = type xxx in bottom prompt
+\item  \textsf{\{xxx\}} = perform action xxx
+\item  \textsf{*xxx}  = do xxx as many times as needed
+\item  \textsf{n*xxx} = do xxx n times
+\end{itemize}
+
+\subsection{Basic step-by-step}
+
+A typical EMC2 session has three steps:
+
+\begin{enumerate}[STEP I:]
+\item CONSTRUCT\label{cons}, defines the geometry of the model
+
+\begin{enumerate}[1.]
+\item Switch to the construction tool:\\
+      \textsf{$<$CONSTRUCTION$<$}
+\item Load the points:\\
+      \textsf{(POINT) (xy file) "palosgrandes.dat"}\\
+   You must give the full path to your points-file,
+   the root directory being the one where you launched \texttt{emc2}.
+   \label{loadpoints} 
+
+\item Reset the figure window to fit all points: \\
+	\textsf{$>$SHOW ALL$>$}\\
+
+The original data has some geometrical features 
+that are too complex to be meshed by quadrilaterals, for instance
+the corners at the N and S ends of the basin, you may
+want to smooth out these features. 
+You also need to define the extreme 
+boundaries of the region to be modelled (N,S and bottom
+absorbing boundaries) and some additional points on
+the free surface outside the basin.
+You must modify the data set (add and delete points):
+
+\item Add new points:
+
+  \begin{enumerate}[a.]
+  \item with the mouse:\\
+	\textsf{(POINT) (mouse) *\{click in figure window\}}
+
+  \item by coordinates:\\
+	\textsf{(POINT) (xy pt) *\{ \$x=y=\$ \}}\\
+     This is the safest way to get really vertical and
+     horizontal boundaries needed for the absorbing conditions
+     in SPECFEM90. You probably need to get
+     the coordinates of an existing reference point:\\
+        \textsf{(POINT) $<$QUERY$<$ (point) *\{click on point\}}
+
+  \item you can also reload another point-file (\ref{loadpoints})
+
+  \end{enumerate}
+
+\item Delete points, \\
+	\textsf{(POINT) $<$DESTRUCT$<$ (point) *\{click on point\}}\\
+
+Now you must define the geometry of the domains. These
+macro-blocks are intended to be internally meshed by 
+deformed quadrilaterals. Their geometry follows the geometry
+of the geological model (one domain per material).
+Each domain must be bounded by segments or splines:
+
+\item Segments:\\
+	\textsf{(SEGMENT) (point) 2*\{click extreme point\}}
+
+\item Splines:\\
+        \textsf{(SPLINE) (point) *\{click point\}}\\
+   You will see the spline evolve as you click points.
+
+\end{enumerate}
+
+
+\item PREPARE, defines the properties of the discrete spectral element mesh
+
+  \begin{enumerate}[1.]
+
+  \item Switch to the preparing mesh tool:\\
+	\textsf{$<$PREP MESH$<$}
+
+  \item Define domains with rock n:\\
+	\textsf{(DOMAIN REF) \$n=\$ (any) *\{click inside domain\}}\\
+   You will see the domains edges get colored and the 
+   domains get numbered with n.
+
+  \item At any moment you can decide to show or not the
+domain decomposition:\\ 
+  To hide the domain decomposition:\\
+        \textsf{$>$REFRESH$>$}\\
+  Show the domain decomposition:\\
+	\textsf{(SHOW) (ALL)}
+
+  \item Remove a domain definition:\\
+	\textsf{(REMOVE) (DOMAINE) (any) \{click inside domain\}}\\
+   WARNING: corrections to the domain decomposition are
+   sometimes displayed only after refreshing the figure window.
+
+  \item Now you must define the subdivision of each 
+   domain in quadrilateral finite elements. 
+   Define the number $n$ of elements on each edge:\\
+	\textsf{(NB INTERVAL) \$n=\$ (any) \{click edge\} }\\
+   You will see the intermediate points appear.
+   The number of intervals $n$ is mainly dictated by the resolution criterion: 
+   elements should be smaller than the smallest wavelength you want to propagate.
+   Moreover, {\bf a domain can be quadrangulated only if
+   the total number of intervals along its perimeter is even} 
+   (the sum of all $n$ along its boundaries).
+   However, a quality mesh is not always guaranteed
+   and you need to proceed by trial and error (emc2 allows you
+   to jump back and forth between the different steps of the
+   meshing procedure).
+
+\item Finally you must define the external boundaries of 
+the modelled region which will have a special treatment.
+You must associate a tag (a number) to each absorbing boundary.
+No convention is assumed but you should remember those tags later
+when setting the boundary conditions in SEM2D. It is also useful
+to assign a tag to the free surface boundary, that will be eventually
+used by SEM2D to locate the receivers or sources.
+
+   Define a boundary with index n:\\
+	\textsf{(LINE REF) \$n=\$ (any) *\{click edge\}}\\ 
+   Of course each boundary can be composed of many 
+   domain edges.
+   Refresh the display to better see the boundaries.
+   \emph{The same procedure applies to define split-node interfaces such as faults and cracks: 
+   you must assign a different tag to each side of the fault.}
+
+  \item Save your work in EMC2 format: \\
+	\textsf{$<$SAVE$<$ "name"}\\
+   The resulting file is \texttt{name.emc2\_bd}
+   
+  \end{enumerate}
+
+\item EDIT, generates the mesh
+
+  \begin{enumerate}[1.]
+
+  \item Switch to the edit mesh tool: \\
+	\textsf{$<$EDIT\_MESH$<$} \\
+   Press ENTER 4 times.
+
+A triangles mesh appears. You must convert it to a quad mesh:
+
+  \item Convert the triangle mesh to a quad mesh: \\
+	\textsf{$<$QUADRANGULATE$>$ $<$ALL$>$} \\
+   You can smooth the mesh with:
+	\textsf{$<$REGULARIZE$>$ *$<$ALL$>$}	 \\
+
+The final mesh is displayed. 
+If there remain some triangles come back to the previous step
+and figure out how to modify the points per edge to help
+the mesher. Some experience is needed here.
+
+  \item Renumber the mesh, in order to optimize computations: \\
+	\textsf{*$<$RENUMBER$>$}
+
+  \item Define the boundary condition for the 4 corner nodes of the model:
+   (these nodes belong to 2 external boundaries so they were given
+   a reference number =0) \\
+        \textsf{(MODIF\_REF) \$n=\$ (corner) \{click close to corner, inside element\}} \\
+   Where n is the reference number of one of the 2 boundaries containing
+   the corner node. Zooming can be useful.
+   The same operation must be performed for the corner nodes of the 
+   subdomains belonging to an external boundary, and for the
+   the crack tip nodes. \emph{However, as a special case, crack tip nodes must 
+   be assigned the -1 tag.}
+ 
+  \item Export the mesh: \\
+	\textsf{$<$SAVE$<$} \\
+   Two questions are asked in the bottom prompt:
+   \begin{itemize}
+    \item Format of the file, you must select: \\
+	\textsf{"ftq"}
+    \item Prefix name for the file \\
+        \textsf{"name"}\\
+          The resulting file name will be \texttt{name.ftq}
+   \end{itemize}
+  
+  \end{enumerate}
+
+\end{enumerate}
+
+
+\subsection{Further tips}
+\begin{itemize}
+\item Whenever possible it is better to mesh a domain with a \emph{structured}
+   mesh (a deformed cartesian grid). This can be done with \textsf{(QUADRANGULATE)},
+   during the PREPARE step. 
+   See our FAQ for further details.
+%   Check the EMC2 user's guide for a description of this feature.
+%   FURTHER DOC IS NEEDED HERE.
+
+\item To load an existing project, in the construction tool
+   or in the preparation mesh tool:\\
+	\textsf{$<$RESTORE$<$ "name"}\\ 
+   EMC2 will look for the file \texttt{name.emc2\_bd}.
+   Beware: the project loaded will replace the actual 
+   project if any, there is no superposition.
+
+\item BUG WARNING (13/07/01): the Sun release of EMC2 has a bug
+   with the reference indices in the ftq format
+   This bug is fixed in the 2.12c version.
+   If you work on a Sun station, download the most recent version of the sources,
+   rather than the executable, and compile it yourself.
+
+\item To densify (h-refinement) an existing mesh use the script 
+   \texttt{SEM2DPACK/POST/href.csh}.
+   It edits the \texttt{*.emc2\_bd} file. 
+   You can then restore it in EMC2 and save it in \texttt{*.ftq} format.
+%   That is how the example \texttt{SEM2DPACK/EMC2SEM/ex2} was obtained 
+%   from \texttt{SEM2DPACK/POST/ex1}. 
+
+\item To create a fault, in \textsf{EDIT\_MESH} mode:
+  \begin{enumerate}[a.]
+    \item Crack an existing edge:\\
+	\textsf{(CRACK) (segment)}
+    \item Give a reference number to each side of the fault :\\
+	\textsf{(MODIF\_REF) \$n=\$ (segment)}
+    \item Give the tag "-1" to crack tip nodes:\\
+        \textsf{(MODIF\_REF) \$-1=\$ (corner) *\{click close to crack tip node, inside element\}} \\
+  \end{enumerate}
+
+\item Note that only Q4 elements (4 control nodes) are supported. For a smoother
+description of boundaries Q9 would be desirable.
+
+\section{Generating a mesh with CUBIT}
+
+An example CUBIT "journal file" is provided in \texttt{POST/mesh2d/dipping\_fault\_2d.jou}.
+It exports a mesh file \texttt{dipping\_fault\_2d.inp} in ABAQUS' INP format.
+This file must then be translated into SEM2DPACK's MESH2D format following the 
+instructions in the next section.
+
+\section{Importing a mesh from CUBIT, EZ4U or other mesh generation software}
+
+The most convenient way of doing this is by writing 
+a Matlab function that reads the external mesh file,
+performs mesh manipulations if required
+and exports a mesh file with the MESH2D format introduced in \secref{mesh2d}.
+Two examples of mesh file reading functions are provided in \texttt{POST/mesh2d}.
+\texttt{READ\_DCM} reads a mesh in the DCM format of EZ4U (http://www-lacan.upc.es/ez4u.htm).
+\texttt{READ\_INP} reads a mesh in the INP format of ABAQUS exported by CUBIT.
+The mesh is exported from Matlab in MESH2D format by the functionq \texttt{MESH2D\_WRITE}.
+
+\end{itemize}

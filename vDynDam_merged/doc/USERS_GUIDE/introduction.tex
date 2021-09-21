@@ -1,0 +1,257 @@
+\chapter{Introduction}
+
+\section{Overview}
+
+The SEM2DPACK package is a set of software tools for the simulation
+and analysis of 2D wave propagation and dynamic fracture,
+with emphasis on computational seismology and earthquake dynamics.
+The core of the package is SEM2D, a solver 
+for the 2D elastic wave equations and dynamic earthquake rupture 
+based on the Spectral Element Method (SEM) with explicit time stepping.
+\charef{phys} of this User's Guide summarizes the range of problems
+that can be solved with SEM2DPACK.
+\secref{semethod} provides some background on the SEM.
+The essential properties of the method are its high order accuracy, 
+affordable at competitive computational cost, 
+its geometrical flexibility to treat realistic, complicated crustal structures,
+and its natural treatment of mixed boundary conditions 
+such as fault friction.
+
+SEM2DPACK provides tools for each step
+of the general flow of a simulation project:
+\begin{enumerate}
+  \item {\bf Mesh generation}: partition the domain into (deformed) quadrilateral elements.
+Whereas no general mesh generation code is included,
+SEM2DPACK contains basic meshing utilities for structured and semi-structured grids
+and can import unstructured quadrilateral meshes generated externally.
+These features are described in \charef{meshing}.
+  \item {\bf Mesh quality verification}: check the accuracy, stability and computational cost, applying tools described in \secref{check}.
+Return to previous step if needed. 
+  \item {\bf Numerical simulation}: run the SEM2D solver.
+\charef{sem2d} explains its usage.
+  \item {\bf Post-processing}: visualization and analysis of the output.
+A number of post-processing and graphic tools are included,
+as decribed in \secref{output}.
+Outputs are in the form of binary data files, ASCII data files and PostScript figure files.
+Scripts are provided for graphic display and analysis on Seismic Unix, Gnuplot and Matlab.
+We recommend the usage of the Matlab functions included (see \secref{matlab}).
+\end{enumerate}
+
+This is a research code, constantly under development and provided ``as is'', 
+and therefore it should {\em not\/} be considered by the user
+as a $100\%$ bug-free software package.
+We welcome comments, suggestions, feature requests, bug reports (see \secref{support})
+and contributions to the code itself (see \secref{contrib}).
+
+\section{History and credits}
+
+The main part of the elastic-isotropic solver was written by
+Dimitri Komatitsch as part of his Ph.D. thesis \cite{Kom97} 
+under the direction of Prof. Jean-Pierre Vilotte
+at the Institut de Physique du Globe de Paris (IPGP).
+The elastic-anisotropic solver and several significant
+improvements were added by D. Komatitsch
+later as part of a research contract with DIA Consultants.
+Further functionalities were added by Jean-Paul Ampuero, 
+as part of a Ph.D. thesis \cite{Amp02} also directed by Prof. Vilotte at IPGP.
+Most of these additional features were motivated by an ECOS-NORD/FONACYT 
+research project for the study of the 
+seismic response of the valley of Caracas, Venezuela.
+That became the version 1.0 of the SEM2DPACK, released in April 2002.
+
+For version 2.0, most of the solver was rewritten 
+in preparation for the implementation of higher level functionalities.
+%such as multigrid, subcycling, adaptivity and multiscale coupling.
+%While the extensive use of object-oriented features of FORTRAN 9x can degrade performance
+%this is not critical in 2D simulations. The emphasis has been 
+%rather in facilitating code reuse and extension.
+Developments for the simulation of earthquake dynamics \cite{Amp02} 
+were included in the main branch of SEM2DPACK in October 2003 (version 2.2). 
+Spontaneous rupture along multiple non-planar faults can be currently modelled,
+with a range of friction laws.
+
+Non-linear, inelastic materials were introduced in March 2008 (version 2.3). 
+Damage and visco-plastic rheologies are included especially
+for the modeling of earthquake rupture with off-fault dissipation.
+
+The development of SEM2DPACK has been supported
+by the SPICE Research and Training Network of the European Commission,
+the National Science Foundation (grant EAR-0944288),
+the Southern California Earthquake Center
+(funded by NSF Cooperative Agreements EAR-0106924, EAR-0529922, 
+and USGS Cooperative Agreements 02HQAG0008, 07HQAG0008)
+and URS Corporation.
+
+\section{Application examples}
+\label{sec:appli}
+
+SEM2DPACK has been utilized in a variety of applications in Earth sciences.
+It has contributed to more than 20 publications in seismic wave propagation:
+
+\begin{sitemize}
+  \item wave propagation in anisotropic TTI media \shortcite{Dewetal06}
+  \item fault reflections from fluid-infiltrated faults \shortcite{Hanetal07}
+  \item benchmark for anisotropic wave propagation \shortcite{Pueetal07}
+  \item non-linear wave propagation in damaged rocks \shortcite{Lyaetal09} 
+  \item modeling marine seismic profiles \shortcite{RobWhiChr09}
+  \item surface wave propagation \shortcite{VigCas10,Vigetal11,Vig12,Boa12,Boa13,Boa14} 
+  \item wave propagation around a prototype nuclear waste storage tunnel \shortcite{SmiSni10} 
+  \item benchmark for wave propagation in heterogeneus media \shortcite{ObrBea11}
+  \item structure effects on the wavefield induced by chemical explosions of the Source Physics Experiment \shortcite{Patetal12}
+  \item source estimation using seismic interferometry \shortcite{BehSni13}
+\end{sitemize}
+and in earthquake rupture dynamics:
+\begin{sitemize}
+  \item rupture on non-planar faults and seismic wave radiation \shortcite{MadAmpAdd06} 
+  \item rupture with rate-and-state friction \shortcite{KanLapAmp08} 
+  \item benchmark for dynamic earthquake rupture simulation \shortcite{Pueetal09} 
+  \item rupture with off-fault plasticity \shortcite{Haretal11,Gabetal13,XuBZAmp12a,XuBZAmp12b,XuBZ13} 
+  \item rupture with off-fault continuum damage \shortcite{Xuetal14} 
+  \item rupture in heterogeneous media with low velocity fault zones \shortcite{HuaAmp11,Huaetal14b,Huaetal15} 
+  \item dynamic rupture model of the 2011 Tohoku earthquake \shortcite{HuaAmp13,Huaetal14a} 
+  \item dynamic rupture model of the 2012 off-Sumatra earthquake \shortcite{MenAmp12} 
+  \item rupture with velocity-and-state-dependent friction \shortcite{Gabetal12} 
+  \item rupture on branched fault systems \shortcite{Xuetal15} 
+\end{sitemize}
+
+\section{Download and updates}
+
+SEM2DPACK is hosted by SourceForge at\\
+\centerline{\url{http://sourceforge.net/projects/sem2d/}.}\\
+All versions of the code can be downloaded from the package repository at\\
+\centerline{\url{http://sourceforge.net/projects/sem2d/files/sem2dpack/}.}
+
+Taking full advantage of the convenient features offered by SourceForge 
+(subscribe to new release announcements, submit and track bug reports)
+requires a SourceForge.net account, which can be created at\\
+\centerline{\url{http://sourceforge.net/account/registration/}.}
+
+SEM2DPACK is updated regularly, typically every few months.
+To receive email notifications about new releases you must
+sign up for the ``Update Notifications" in the project's main page (scroll down a bit):\\
+\centerline{\url{http://sourceforge.net/projects/sem2d/}.}
+
+\section{Requirements}
+
+Compiling the solver code requires the \texttt{make} utility
+and a Fortran 95 compiler.
+The code is being developed with the Intel compiler for Linux.
+It works properly with the Intel compiler starting with
+version 8.0.046\_pe047.1, so make sure you have a recent version of \texttt{ifort}. 
+Other compilers are not being tested on a regular basis,
+so please report any related problems.
+
+The solver runs under the Linux operating system. 
+In particular, input/output file name conventions are specific to Linux.
+Other operating systems have not been tested.
+
+Pre-processing and post-processing tools, including graphic visualization,
+are provided for Seismic Unix, Gnuplot, GMT and Matlab.
+The included Matlab tools are by far the most complete,
+so a Matlab license is highly recommended.
+Matlab ``clone'' softwares have not been tested.
+
+\section{Installation}
+
+\begin{enumerate}
+\item Uncompress and expand the SEM2DPACK package:
+\texttt{tar xvfz sem2dpack.tgz}
+\item Go to the source directory: \texttt{cd SEM2DPACK/SRC} 
+\item Edit the \texttt{Makefile} according to your FORTRAN 95 compiler,
+following the instructions therein.
+\item Modify the optimization parameters declared and described in \texttt{SRC/constant.f90}.
+\item Compile: \texttt{make}
+\item Move to the \texttt{SEM2DPACK/POST} directory, edit the \texttt{Makefile} and compile.
+\end{enumerate}
+On normal termination you should end up with a set of executable files, among which
+\texttt{sem2dsolve}, in \texttt{/home/yourhome/bin/}.
+
+\section{Documentation}
+\label{Sec:docs}
+
+Documentation is available through the following resources:
+\begin{sitemize}
+  \item This User's Manual
+  \item The \texttt{EXAMPLES} directory contains several examples, some have a \texttt{README} file
+  \item The pre-processing and post-processing tools for Matlab are documented 
+through Matlab's help. For instance \texttt{help mesh2d} provides an overview of
+the MESH2D utilities, and \texttt{help mesh2d\_wedge} provides detailed documentation
+for the wedge meshing function
+  \item The \texttt{ToDo} file contains a list of known issues
+\end{sitemize}
+
+
+\section{Support}
+\label{Sec:support}
+
+Support for users of SEM2DPACK is available through a {\it tracking system} at \\
+\centerline{\url{http://sourceforge.net/tracker/?group_id=182742},}\\
+Three separate {\it tracker lists} deal with the following aspects:
+\begin{sitemize}
+  \item {\it Feature Requests}: requests for implementation of new features
+  \item {\it Support Requests}: questions related to the usage of SEM2DPACK
+  \item {\it Bugs}: bug reports
+\end{sitemize}
+Before submitting an issue make sure that: 
+\begin{senumerate}
+\item you have read the documentation (see \secref{docs}), 
+including the Frequently Asked Questions (\charef{faq}).
+Suggestions on how to improve the documentation are also welcome.
+\item you are running the most recent version of SEM2DPACK. 
+Your issue might have been already fixed in a more recent version.
+\item you understand the changes listed in SEM2DPACK's \texttt{ChangeLog} file,
+especially changes in the format of the input files
+\item your problem has not been treated in previous submissions.
+You can browse the tracker message titles or search for keywords.
+%By default the browser shows only pending issues, 
+%to see the complete list (including resolved issues) set ``Status" to ``Any".
+\end{senumerate}
+A new submission must include the input files needed to reproduce your problem 
+(\texttt{Par.inp}, \texttt{*.ftq}, \texttt{*.mesh2d}, etc). 
+You will receive email notifications of any update of your submitted item, until it is closed.
+If the item is declared ``Pending'' you are expected to reply to the last message
+of the developer within two weeks, otherwise the item will be closed.
+For more instructions see\\
+\centerline{{\url{http://sourceforge.net/support/getsupport.php?group_id=182742}.}}
+
+\section{Contributions}
+\label{Sec:contrib}
+
+Contributions to SEM2DPACK by experienced programmers are always welcome and encouraged.
+Although the code is stable for typical applications in computational seismology and
+earthquake dynamics, there is still a number of missing features.
+Their implementation could make SEM2DPACK interesting for a broader audience in mechanical engineering, 
+geotechnical engineering, applied geophysics and beyond. 
+
+The solver code is written in FORTRAN 95.
+Resources available for programmers include:
+\begin{sitemize}
+  \item A \texttt{ToDo} file included with SEM2DPACK
+contains a wish list that ranges from basic functionalities to complex code re-engineering.
+  \item \charef{add} gives some guidelines for programmers.
+  \item A ``Developers Forum" to discuss the implementation of new features is available at \\
+\centerline{\url{http://sourceforge.net/forum/forum.php?forum_id=635737},}
+\end{sitemize}
+
+We acknowledge the following contributions:
+\begin{sitemize}
+  \item Shiqing Xu (USC): contributed to the damage material module
+  \item Yihe Huang (Caltech): Gaussian source time function, visco-elastic material (attenuation)
+  \item Trevor Currie (Caltech): rate-and-state friction and earthquake cycle solver 
+% Alice : matlab scripts?
+\end{sitemize}
+
+\section{Citing SEM2DPACK in your publications}
+
+If you use SEM2DPACK in academic publications, please properly acknowledge it in your article.
+Cite the information below or this user’s manual in the references list, main text, 
+acknowledgements section or methods section, according to the journal policies:
+
+"SEM2DPACK - A Spectral Element Method tool for 2D wave propagation and earthquake source dynamics, 
+version xxxx, by J. P. Ampuero, \url{http://sourceforge.net/projects/sem2d/}". 
+
+In addition, cite \cite{Amp02} or
+one of the articles co-authored by J. P. Ampuero listed in section \ref{sec:appli}.
+
+\section{License}
+\input{../../LicenseNotice}

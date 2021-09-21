@@ -1,0 +1,67 @@
+#----- Some general parameters ----------------
+&GENERAL Iexec =1 , NGLL = 5 , fmax = 1d0 , ndof=2, 
+      Title = 'Dip slip fault with MESH2D' ,
+      Verbose='1111', ItInfo = 100/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  Method = 'MESH2D' /
+&MESH_MESH2D File= 'ex1_splitted_h1.mesh2d'  / # for dynamic fault
+#&MESH_MESH2D File= 'ex1_welded.mesh2d'  / # for point source
+
+#---- Elastic material parameters --------------
+
+# half-space
+&MATERIAL tag=1, kind='ELAST' /
+&MATERIAL tag=3, kind='ELAST','KV' /
+&MAT_ELASTIC rho=2800.d0, cp=6400.d0, cs=3700.d0/
+&MAT_KV eta=0.25d0 /
+
+# shallow layer
+&MATERIAL tag=2, kind='ELAST' /
+&MATERIAL tag=4, kind='ELAST','KV' /
+&MAT_ELASTIC rho=2500.d0, cp=5200.d0, cs=3000.d0/
+&MAT_KV eta=0.25d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  Tag = 1, Kind = 'ABSORB' /
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /  
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+
+# dynamic fault 
+&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
+&BC_DYNFLT friction='SWF','TWF', Tn=-120.d6, Tt=-70d6 /
+# SWF = slip weakening friction
+&BC_DYNFLT_SWF Dc=0.4d0, MuS=0.677d0 , MuDH='LINEAR' /
+# The dynamic friction coefficient (MuD) is spatially heterogeneous, 
+# piecewise linear depth-dependent (from bottom to top):
+&DIST_LINEAR n=4, dim=2 /
+-60d3   0.9d0
+-32d3   0.9d0
+-30d3   0.525d0
+  0d3   0.525d0
+# TWF = a propagating time-weakening front to trigger rupture
+&BC_DYNFLT_TWF MuS=0.677d0, MuD=0.525d0, Mu0=0.5833d0, X=15.6d3, Z=-22.83d3, V=2d3, L=1d3, T=3d0 /
+#   X,Z = hypocenter
+#   V = propagation speed
+#   T = duration
+#   L = front width
+
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=20.d0, Courant = 0.5d0, kind='leapfrog' /
+
+#---- Sources ----------------------------------
+# use point sources only with the "welded" mesh
+#&SRC_DEF  stf='RICKER', Mechanism='FORCE' Coord= 16000.d0,-22830.d0 /
+#&STF_RICKER  f0 = 0.4d0 , Onset = 2.5d0 ,Ampli = 1.d0 /  
+#&SRC_FORCE Angle = 90. /
+
+#----- Receivers ---------------------------------
+&REC_LINE Number = 61 , First = -20d3,0d3, Last = 40d3,0d3, AtNode=F / 
+# if AtNode=T (the default) receivers are relocated at the nearest computational node 
+
+#--------- Snapshots settings ----------------------
+&SNAP_DEF itd=100, fields='Vdc', components='x', ps=F /
+&SNAP_PS  Mesh=F,Vectors=F,Color=T, Interpol = F, DisplayPts=7 /
+#          ScaleField=0.2d0 /

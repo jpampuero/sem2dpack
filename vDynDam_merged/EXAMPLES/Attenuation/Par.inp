@@ -1,0 +1,37 @@
+#----- General parameters ----------------
+&GENERAL iexec=1, ngll=6, fmax=10d0 , ndof=2 ,
+  title = 'Ricker pulse in viscoelastic medium', verbose='1011' , ItInfo = 100 /
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART  xlim=-1000d0,1000d0, zlim=-1000d0,1000d0, nelem=44,44 / #h=0.1
+
+#---- Material parameters --------------
+
+# HOST ROCK
+&MATERIAL tag = 1, kind='VISCO' /
+&MAT_VISCO rho=2000d0, cp=3000d0, cs=2000d0, QP=30d0, QS=20d0, Nbody=5,fmin=1.8d0,fmax=180d0 /
+
+#----- Boundary conditions ---------------------
+
+&BC_DEF  tag = 1,  kind='ABSORB'/
+
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+
+&BC_DEF  tag = 3 , kind = 'ABSORB' /
+
+&BC_DEF  tag=4 , kind= 'ABSORB' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=0.75d0, courant = 0.42d0, kind='leapfrog' / 
+
+#---- Sources -----------------------------------
+&SRC_DEF stf= 'RICKER' ,coord=0d0,0d0 , mechanism= 'FORCE' /
+&STF_RICKER f0=18d0, onset=0.06d0, ampli=0.5d0 /
+&SRC_FORCE angle=0d0/
+
+#----- Receivers ---------------------------------
+&REC_LINE number = 1 , first = 500d0,500d0, last = 500d0,500d0, isamp=1, field='D' /
+
+#--------- Snapshot output settings ----------------------
+&SNAP_DEF itd=10000, fields ='V', components='x', ps=F /
