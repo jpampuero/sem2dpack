@@ -1,7 +1,6 @@
 module bc_dynflt_rsf
 
 ! BC_DYNFLT_RSF: rate and state dependent friction for dynamic faults
-! DEVEL: module in progress ... add theta, write friction solver
 
   use distribution_cd
   use stdio, only: IO_abort
@@ -64,11 +63,13 @@ contains
 ! ARG: vplate   [dble] [1d0] plate rate used for 'back-slip' loading
 ! ARG: vmaxS2D  [dble] [5d-3] max slip velocity for switch from static to dynamic 
 ! ARG: vmaxD2S  [dble] [2d-3] max slip velocity for switch from dynamic to static
+! ARG: vmaxD2S_VS  [dble] [1d-2] max slip rate to switch dynamic to static in velocity strengtening region
 ! ARG: vEQ      [dble] [10d-3] threshold slip velocity for earthquake event 
 ! ARG: minGap   [dble] [10 s] minimum time gap between two earthquake events
 ! ARG: NRTol    [dble] [1.0d-4] relative tolerance for NR solver 
 ! ARG: NRMaxIter [Int] [200] maximum interation number for NR solver 
 ! ARG: minStep [Int]  [50] minimum step before another switch 
+! ARG: vmaxPZ [dble] maximum slip rate to control the process zone size 
 !
 ! END INPUT BLOCK
 
