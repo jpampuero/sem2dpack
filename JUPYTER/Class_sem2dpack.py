@@ -812,15 +812,15 @@ class sem2dpack(object):
   ###
 
 
+
   def plot_cycles_time_step(self, savefig=False):
-      plt.figure(figsize=(6,4))
-      plt.xlabel('Iteration')
-      plt.ylabel('Time step (s)')
-      plt.plot(self.fault['it'], self.fault['dt'], marker='.')
-  #     plt.plot(self.fault['t'], self.fault['dt'], marker='.')
-  #     plt.xlabel('Simulation time (s)')    
-      print ('Min time step (s): ', min(self.fault['dt']))    
-      print ('Max time step (s): ', max(self.fault['dt']))        
+
+      plt.figure(figsize=(4,3))
+      plt.xlabel('Simulation time (s)')    
+      plt.ylabel('Time step dt (s)')      
+      plt.semilogy(self.fault['t'], self.fault['dt'], 'k', marker='.')
+      plt.grid()
+      plt.tight_layout()
       if savefig: fig.savefig('/Users/elifo/Desktop/timestep.png', dpi=300)      
       plt.show()
   ###
@@ -828,14 +828,12 @@ class sem2dpack(object):
   def plot_cycles_cumulative_slip(self,VW_halflen=9.5,savefig=False,jump_sta=1,jump_dyn=1,
                                       col_sta='gray',col_dyn='tomato'):
 
-      # in case simulation is stopped manually, below cdt helps.
-      shape = min( self.fault['Slip'].shape[1], self.fault['isDyn'].shape[0])
-      print ('shape', shape)
-      slip = self.fault['Slip'][:, :shape]
-      isDyn = self.fault['isDyn'][:shape]
+      size = min(self.fault['Slip'].shape[1], self.fault['isDyn'].shape[0] )
+      slip = self.fault['Slip'][:, :size]
+      isDyn = self.fault['isDyn'][:size]
 
-      sta = slip[:, self.fault['isDyn'] == False][:, ::jump_sta]
-      dyn = slip[:, self.fault['isDyn'] == True][:, ::jump_dyn]
+      sta = slip[:, isDyn == False][:, ::jump_sta]
+      dyn = slip[:, isDyn == True][:, ::jump_dyn]
 
       print ('WARNING: If weird output, try a smaller jump!')
       print ('shape of slip,sta,dyn: ', slip.shape,sta.shape,dyn.shape)
@@ -891,9 +889,9 @@ class sem2dpack(object):
       if is_normalisation: 
           data = V/ Vpl
           data = np.log10(data)
-  #         print ('After normal. max : ', max (data.flatten()))
+          # print ('After normal. max : ', np.amax(data) )
           # xx = t* VS_LVFZ/ Lnuc
-          # yy = z_coord/ Lnuc  
+          # yy = self.fault['x'] / Lnuc  
           xx = t
           yy = self.fault['x']     
 
@@ -940,7 +938,102 @@ class sem2dpack(object):
       if savefig: fig.savefig('/Users/elifo/Desktop/event_'+str(int(eq))+'.png', dpi=300)        
       print('*')
   ###
+
+  def get_static_iteration(self, eq=0):
+      # Find the earthquake
+      cdt_beg = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], 1)==False)
+      cdt_end = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], -1)==False)
+      index = np.arange(0, len(self.fault['isDyn']))
+      print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))
+      # choose the dynamic event range
+      if eq==0: 
+          cdt1 = 0
+          cdt2 = index[cdt_beg][eq]
+      else:
+          cdt1, cdt2 = index[cdt_end][eq-1], index[cdt_beg][eq]
+      ###
+      print ('Before eq', eq)
+      print ('Between iterations: ', cdt1, cdt2)
+      return cdt1, cdt2
+  ###
+
+  def get_dynamic_iteration(self, eq=0):
+      # Find the earthquake
+      cdt_beg = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], 1)==False)
+      cdt_end = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], -1)==False)
+      index = np.arange(0, len(self.fault['isDyn']))
+      print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))
+      # choose the dynamic event range
+      cdt1, cdt2 = index[cdt_beg][eq], index[cdt_end][eq]
+      ###
+      print ('Before eq', eq)
+      print ('Between indices: ', cdt1, cdt2)
+      return cdt1, cdt2
+  ###
+  
+  def animate_cycles(self, cdt1, cdt2, jump=3, VW_halflen=1900.0, sleep=0.00001, it_cut=0,_alpha=0.1,_alphainc=0.1):
+      import time
+      import pylab as pl
+      from IPython import display      
     
+      Vf = self.fault['Slip_Rate'][:, cdt1:cdt2]    
+      Vf_max = np.array( [max(abs(v))  for v in Vf.T] )      
+      slip = self.fault['Slip'][:, cdt1:cdt2]      
+      it = self.fault['it'][cdt1:cdt2]
+      dt = self.fault['dt'][cdt1:cdt2]
+      x = self.fault['x']
+      dum = self.fault['Shear_Stress'][:, cdt1:cdt2]
+      stress = dum+ self.fault['st0'][:, None]
+      isDyn = self.fault['isDyn'][cdt1:cdt2]    
+
+      if it_cut==0: it_cut=max(it)
+      print ('Max it: ', it_cut)  
+      
+      fig = plt.figure(figsize=(12, 8))    
+
+      ax1 = plt.subplot(131)
+      plt.title('Stress (MPa)')
+      plt.grid()
+      ax1.set_xlim(50.0, 120.0)
+      ax1.set_ylim(-2*VW_halflen, 2*VW_halflen)
+      ax1.axhline(y=VW_halflen, linestyle=':')
+      ax1.axhline(y=-VW_halflen, linestyle=':')                
+      
+      # subplot: slip rate
+      ax2 = plt.subplot(132)
+      plt.grid()
+      plt.title('Slip rate (m/s)')
+      ax2.set_xlim(1e-20, 15.0)
+      ax2.set_ylim(-2*VW_halflen, 2*VW_halflen)
+      ax2.axhline(y=VW_halflen, linestyle=':')
+      ax2.axhline(y=-VW_halflen, linestyle=':')
+            
+      # subplot: slip rate
+      ax3 = plt.subplot(133)
+      plt.grid()
+      plt.title('Slip (m)')
+      ax3.set_ylim(-2*VW_halflen, 2*VW_halflen)
+      ax3.axhline(y=VW_halflen, linestyle=':')
+      ax3.axhline(y=-VW_halflen, linestyle=':')         
+            
+      ii=0
+      for v,d, _it,_dt, _stress, _isDyn in zip(Vf.T[::jump], slip.T[::jump], it[::jump], dt[::jump], stress.T[::jump], isDyn):
+          ii += 1
+          print ('Step and index: ', _it, ii)
+          ax2.semilogx(v, x, 'peru', alpha=min(_alpha+_alphainc*ii, 1.0))
+          ax1.plot(_stress/1e6, x,   alpha=min(_alpha+_alphainc*ii, 1.0), c='k')
+          ax3.plot(d, x, 'brown', alpha=min(_alpha+_alphainc*ii, 1.0))
+          display.clear_output(wait=True)          
+          # re-drawing the figure
+          fig.canvas.draw()
+          # to flush the GUI events
+          fig.canvas.flush_events()        
+          display.display(pl.gcf())
+          time.sleep(sleep)          
+          if _it >=it_cut: break
+      ###
+  #
+
 
   def plot_2D_slip_rate(self,  save=False, figname='2d_fault', cmap='magma', **kwargs):
     ''' Spatio-temporal plot for slip rate along the fault line.
@@ -988,43 +1081,8 @@ class sem2dpack(object):
 
     if save: plt.savefig(figname+'.pdf', dpi=300)
     plt.show(); plt.close()
-
-
-
-    # print ('Plotting the spatiotemporal graph of slip rate...')
-    # fig = plt.figure(figsize=(8,6)); sns.set_style('white')
-    # ax = fig.add_subplot(111)
-    # ax.set_xlabel('Time ()',fontsize=16)
-    # ax.set_ylabel('Distance ($L_{c}$)', fontsize=16)
-
-    # # Data mesh - x
-    # time = self.fault['Time']; x = time
-    # # Data mesh - y
-    # xcoord = self.fault['x']
-    # jj = np.ravel(np.where(xcoord >= 0.0))
-    # y = xcoord[jj] ;  ylim = [0.0, max(y)]
-    # if 'ylim' in kwargs: ylim = kwargs['ylim']
-    # ext = [min(x), max(x), ylim[0], ylim[1]]   
-    # # Data
-    # z = self.fault['Slip_Rate'][jj,:]  
-    # index = np.where( (y >= ylim[0]) & (y <= ylim[1]) )[0]
-    # vmin = 1.e-2; vmax = z[index].max() # for LogNormal scale
-    # if 'vmax' in kwargs: vmax = kwargs['vmax']    
-    # print ('Min and Max of data: ', z.min(), z.max())
-    # print ('Min and Max of chosen domain: ', z[index].min(), z[index].max())
-    # z [z < vmin] = vmin
-
-    # tit = 'Max = '+ str('%.2f' %  z[index].max())
-    # tit += ' at distance = '+ str('%.2f' %  y[np.where(z == z[index].max()) [0] ] )
-    # ax.set_title(tit, fontsize=16)
-    # im = ax.imshow(z, extent=ext, cmap= cmap, origin='lower',\
-    #              norm=LogNorm(vmin=vmin, vmax=vmax), interpolation='bicubic')
-
-    # c = plt.colorbar(im, fraction=0.046, pad=0.1, shrink=0.4)
-    # c.set_clim(vmin, vmax); c.set_label('Slip rate ()', fontsize=16)
-    # if save: plt.savefig(figname+'.png', dpi=300)
-    # plt.show(); plt.close()
 #
+
 
   def plot_slip_rate(self, dist=1., save=False, figname='fault_data'):
 
@@ -1080,7 +1138,8 @@ class sem2dpack(object):
 
 
   def plot_snapshot_tests(self,fname,interval, vmin=-1.e-10, vmax=1.e-10, save=False,outdir='./',
-            show=False, nsample=500, cmap='seismic'):
+            show=False, nsample=500, cmap='seismic',\
+            ylabel='Width / $L_{c}$',xlabel='Length / $L_{c}$'):
     ''' very slow... needs optimisation ! '''
 
     print ('Plotting snapshots...')
@@ -1102,6 +1161,8 @@ class sem2dpack(object):
     x,z = np.meshgrid(np.linspace(ext[0],ext[1],nsample),np.linspace(ext[2],ext[3],nsample))
     y = gd((xcoord,zcoord),field,(x,z),method='nearest')
 
+    print ('Min, Max of Field: ', np.amin(field), np.amax(field))
+
     print('flipud ...')
     y = np.flipud(y)
 
@@ -1116,17 +1177,18 @@ class sem2dpack(object):
       vmin=vmin, vmax=vmax, cmap=cmap)
 
 
-
     # Adding rectangle to restrain the fault area (optional)
     # ax.add_patch(Rectangle((-15.0, -1.5),30., 3.,alpha=1,linewidth=1,edgecolor='k',facecolor='none'))
 
-    plt.ylabel('Width / $L_{c}$')
-    plt.xlabel('Length / $L_{c}$')
+    plt.ylabel(ylabel); plt.xlabel(xlabel)
     c = plt.colorbar(im, fraction=0.046, pad=0.1,shrink=0.4)
     c.set_clim(vmin, vmax)
     c.set_label('Amplitude')
     tit = 'Snapshot at t (s)= '+ str(interval)
-    tit += '   Max vel. amplitude = '+ str('%.2f' % (max(abs(field))))
+    if interval < 0: tit = 'File: '+ fname    
+    tit += '   Min- Max vel. amplitude = '+ str('%.2f' % (min(abs(field))))
+    tit += '   '+ str('%.2f' % (max(abs(field))))
+
     plt.title(tit); plt.tight_layout()
     if save: plt.savefig(fname+'.png',dpi=300) # save into current directory
     if show: plt.show()
@@ -1135,19 +1197,27 @@ class sem2dpack(object):
 
 
   def animate_fault(self, compo='x', field='v', t_total=10.01, itd=500,\
-                      vmin=-2.5, vmax=2.5, ready=False, digit=2,cmap='seismic' ):
+                      vmin=-2.5, vmax=2.5, ready=False, digit=2,cmap='seismic',\
+                      ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel=''):
     ''' Preparing snapshots and their gif in the current path. '''
     # Make snapshots from binary files
-    interval = round(self.dt, digit)* float(itd)
-    total = int(t_total/interval)+ 1
-    print ('*** interval and total number: ', interval, total)
+
+    if iend < 0:
+      interval = round(self.dt, digit)* float(itd)
+      iend = int(t_total/interval)+ 1
+      print ('*** interval and total number: ', interval, total)
+    if interval <0 :
+      print ('Provide interval: interval*i is time of snapshots!')
+      print ('*')
+
     files = []
-    for i in np.arange(total):
+    for i in range(ibeg, iend, jump):
       n = str('%03d' % i)
       fname = field+compo+'_'+n+'_sem2d.dat'
       if not ready:
         # self.plot_snapshot(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False) 
-        self.plot_snapshot_tests(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False, cmap=cmap) 
+        self.plot_snapshot_tests(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False, cmap=cmap,\
+                                    xlabel=xlabel, ylabel=ylabel) 
       files.append(fname+'.png')
     # Animate the plot_snapshot_testspshots
     create_gif(files, 1.5)
