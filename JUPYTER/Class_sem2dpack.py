@@ -102,6 +102,31 @@ def make_colors():
 #
 
 
+def write_station_file(filename='',lims=None, dx=None, dz=None,sep='\t',info=False):
+  import numpy as np
+
+  with open(filename, 'w') as f:
+    count=0
+    for z in np.arange(lims[2], lims[3]+dz, dz):
+      for x in np.arange(lims[0], lims[1]+dx, dx):
+        if info: print ('x, z: ', x, z)
+        line = '%.1f' % (x)+sep
+        line+= '%.1f' % (z)+'\n'
+        f.write(line)
+        count+=1
+        #
+      #
+  ##
+  f.close()
+  print ('*')
+  print ('Filename: ', filename)
+  print ('Number of stations: ', count)
+  print ('Done!')
+  print ('*')
+  return
+#
+
+
 def compute_backbone_curve(gref=0.0, mu=0.0, Nspr=10):
    
     x0 = -6e0
@@ -971,7 +996,8 @@ class sem2dpack(object):
       return cdt1, cdt2
   ###
   
-  def animate_cycles(self, cdt1, cdt2, jump=3, VW_halflen=1900.0, sleep=0.00001, it_cut=0,_alpha=0.1,_alphainc=0.1):
+  def animate_cycles(self, cdt1, cdt2, jump=3, VW_halflen=1900.0, sleep=0.00001, it_cut=0,
+                        _alpha=0.1,_alphainc=0.1, t0_index=None):
       import time
       import pylab as pl
       from IPython import display      
@@ -981,6 +1007,9 @@ class sem2dpack(object):
       slip = self.fault['Slip'][:, cdt1:cdt2]      
       it = self.fault['it'][cdt1:cdt2]
       dt = self.fault['dt'][cdt1:cdt2]
+      t = self.fault['t'][cdt1:cdt2]
+      t0 = self.fault['t'][0]
+      if t0_index != None: t0 = self.fault['t'][t0_index]
       x = self.fault['x']
       dum = self.fault['Shear_Stress'][:, cdt1:cdt2]
       stress = dum+ self.fault['st0'][:, None]
@@ -989,7 +1018,8 @@ class sem2dpack(object):
       if it_cut==0: it_cut=max(it)
       print ('Max it: ', it_cut)  
       
-      fig = plt.figure(figsize=(12, 8))    
+      fig = plt.figure(figsize=(12, 8))   
+
 
       ax1 = plt.subplot(131)
       plt.title('Stress (MPa)')
@@ -1017,9 +1047,11 @@ class sem2dpack(object):
       ax3.axhline(y=-VW_halflen, linestyle=':')         
             
       ii=0
-      for v,d, _it,_dt, _stress, _isDyn in zip(Vf.T[::jump], slip.T[::jump], it[::jump], dt[::jump], stress.T[::jump], isDyn):
+      for v,d, _it,_dt,_t, _stress, _isDyn in zip(Vf.T[::jump], slip.T[::jump], it[::jump], dt[::jump], t[::jump],stress.T[::jump], isDyn):
           ii += 1
+
           print ('Step and index: ', _it, ii)
+          ax2.set_title('t, t-to ='+ '%.2f' %(_t)+ '   '+'%.2f' %(_t-t0))
           ax2.semilogx(v, x, 'peru', alpha=min(_alpha+_alphainc*ii, 1.0))
           ax1.plot(_stress/1e6, x,   alpha=min(_alpha+_alphainc*ii, 1.0), c='k')
           ax3.plot(d, x, 'brown', alpha=min(_alpha+_alphainc*ii, 1.0))
@@ -1138,7 +1170,7 @@ class sem2dpack(object):
 
 
   def plot_snapshot_tests(self,fname,interval, vmin=-1.e-10, vmax=1.e-10, save=False,outdir='./',
-            show=False, nsample=500, cmap='seismic',\
+            show=False, nsample=500, cmap='seismic', lims=None, lvfz=None,\
             ylabel='Width / $L_{c}$',xlabel='Length / $L_{c}$'):
     ''' very slow... needs optimisation ! '''
 
@@ -1154,14 +1186,13 @@ class sem2dpack(object):
     # x,z = np.meshgrid(np.linspace(ext[0],ext[1],50),np.linspace(ext[2],ext[3],50))
     # print('grid data ...')
     # y = gd((xcoord,zcoord),field,(x,z),method='linear')
-
-
     # Test for Nepal simulations
     # nearest is much faster than linear !
     x,z = np.meshgrid(np.linspace(ext[0],ext[1],nsample),np.linspace(ext[2],ext[3],nsample))
     y = gd((xcoord,zcoord),field,(x,z),method='nearest')
 
     print ('Min, Max of Field: ', np.amin(field), np.amax(field))
+    print ('Model extent: ', ext)
 
     print('flipud ...')
     y = np.flipud(y)
@@ -1170,16 +1201,16 @@ class sem2dpack(object):
     fig = plt.figure()
     sns.set_style('whitegrid')
     ax = fig.add_subplot(111)
-    # ax.set(xlim=(10e3, 30e3), ylim=(-2e3, max(zcoord)))
+    if lims==None: lims=ext
+    ax.set(xlim=(lims[0], lims[1]), ylim=(lims[2],lims[3]) )
+    if lvfz !=None: ax.axhline(y=lvfz, c='gray',linestyle=':',lw=0.5)
 
     # Fault rupture outputs
     im = ax.imshow(y, extent=[min(xcoord), max(xcoord), min(zcoord), max(zcoord)], \
       vmin=vmin, vmax=vmax, cmap=cmap)
 
-
     # Adding rectangle to restrain the fault area (optional)
     # ax.add_patch(Rectangle((-15.0, -1.5),30., 3.,alpha=1,linewidth=1,edgecolor='k',facecolor='none'))
-
     plt.ylabel(ylabel); plt.xlabel(xlabel)
     c = plt.colorbar(im, fraction=0.046, pad=0.1,shrink=0.4)
     c.set_clim(vmin, vmax)
@@ -1198,7 +1229,7 @@ class sem2dpack(object):
 
   def animate_fault(self, compo='x', field='v', t_total=10.01, itd=500,\
                       vmin=-2.5, vmax=2.5, ready=False, digit=2,cmap='seismic',\
-                      ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel=''):
+                      ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel='',lims=None,lvfz=None):
     ''' Preparing snapshots and their gif in the current path. '''
     # Make snapshots from binary files
 
@@ -1217,7 +1248,7 @@ class sem2dpack(object):
       if not ready:
         # self.plot_snapshot(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False) 
         self.plot_snapshot_tests(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False, cmap=cmap,\
-                                    xlabel=xlabel, ylabel=ylabel) 
+                                    xlabel=xlabel, ylabel=ylabel,lims=lims,lvfz=lvfz) 
       files.append(fname+'.png')
     # Animate the plot_snapshot_testspshots
     create_gif(files, 1.5)
