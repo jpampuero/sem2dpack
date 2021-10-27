@@ -16,7 +16,7 @@ module plot_gen
   logical, save :: selected_comps(nb_comps)
   character(nb_comps), parameter :: comp_names='xyza'
 
-  integer, save :: ITD,IT1
+  integer, save :: ITD,IT1,IT2
   logical, save :: plot_snap,visual3,avs,ps,bin,gmt
 
   public :: read_plot_gen,PLOT_FIELD, PLOT_init
@@ -30,10 +30,11 @@ contains
 ! NAME   : SNAP_DEF
 ! GROUP  : SNAPSHOT_OUTPUTS
 ! PURPOSE: Set preferences for exporting snapshots
-! SYNTAX : &SNAP_DEF it1, itd, fields, components, bin, visual3, avs, ps, gmt /
+! SYNTAX : &SNAP_DEF it1, it2, itd, fields, components, bin, visual3, avs, ps, gmt /
 !          Followed by a &SNAP_PS block if ps=T.
 !
 ! ARG: it1      [int] [0]   Time step of first snapshot output
+! ARG: it2      [int] [0]   Time step of last snapshot output
 ! ARG: itd      [int] [100] Number of timesteps between snapshots
 ! ARG: fields   [char*] ['V'] fields to export in snapshots (the prefix of the 
 !                output file names is given in parenthesis):
@@ -68,10 +69,11 @@ contains
   character(nb_comps) :: components
   integer :: i
 
-  NAMELIST / SNAP_DEF / visual3,avs,gmt,ps,bin,fields,components,ITD,IT1
+  NAMELIST / SNAP_DEF / visual3,avs,gmt,ps,bin,fields,components,ITD,IT1,IT2
 
   ITD        = 100
   IT1        = 0
+  IT2        = 10000
   visual3    = .false.
   avs        = .false.
   gmt        = .false.
@@ -105,7 +107,7 @@ contains
   plot_snap = (visual3 .or. avs .or. ps .or. bin) &
             .and. any(selected_comps) .and. any(selected_fields)
 
-  if (echo_input) write(iout,200) IT1,ITD, &
+  if (echo_input) write(iout,200) IT1,IT2,ITD, &
                                   ps,gmt,avs,visual3,bin, &
                                   selected_fields(:),selected_comps(:)
 
@@ -115,6 +117,7 @@ contains
 
   200 format(//1x,'S n a p s h o t   O u t p u t s',/1x,31('='),//5x,&
   'Timestep of first snapshot output  . . . . . . (it1) = ',I0/ 5x, &
+  'Timestep of last snapshot output  . . . . . . .(it2) = ',I0/ 5x, &
   'Number of timesteps between snapshots. . . . . (itd) = ',I0/ 5x, &
   'Save results in PS file or not . . . . . . . . .(ps) = ',L1/5x, &
   'Save grid triangulation for GMT. . . . . . . . (gmt) = ',L1/5x, &
@@ -168,7 +171,7 @@ contains
   if (.not.plot_snap) return
 
   ! debug mode writeStep is true, this step is written
-  if (mod(it-IT1,ITD) > 0 .or. it<IT1) return
+  if (mod(it-IT1,ITD) > 0 .or. it<IT1   .or.  it>IT2) return
    
   write(tag,'(i3.3)') (it-IT1)/ITD
 
