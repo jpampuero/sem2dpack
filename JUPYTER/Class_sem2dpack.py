@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-
 """
-@Authors :: Elif Oral & Flomin Tchawe
-
-Class for processing SEM2DPACK outputs.
+@Authors :: Elif Oral 
+initial scripts before 2017 by Flomin Tchawe
+Class for prepation/processing SEM2DPACK inputs/outputs.
 """
 
 
@@ -37,8 +36,6 @@ from matplotlib.colors import LogNorm, Normalize
 import imageio, datetime, decimal
 from matplotlib.patches import Rectangle
 import matplotlib.colors as mcolors
-
-
 warnings.filterwarnings("ignore",category=DeprecationWarning)
 
 
@@ -73,8 +70,6 @@ def make_colormap():
             cdict['blue'].append([item, b1, b2])
     return mcolors.LinearSegmentedColormap('CustomMap', cdict)
 ###
-
-
 
 
 def set_style(whitegrid=False, scale=0.85):
@@ -144,6 +139,7 @@ def compute_backbone_curve(gref=0.0, mu=0.0, Nspr=10):
     return gamma, R, G
 ###
 
+
 def compute_backbone_curve_GGmax1(gref=0.0, mu=0.0, Nspr=10):
    
     x0 = -6e0
@@ -162,15 +158,12 @@ def compute_backbone_curve_GGmax1(gref=0.0, mu=0.0, Nspr=10):
 ###
 
 
-
-
 def find_tpeak(time, sr, Vbeta):
 
   # ATTENTION !!!
   # I ignore the mini pulse with peak amplitude less
   # than sr.max()/ xxx
   # but this may not work for other cases !
-
 
   multiple_pulse= False
   t_peak =  time [ np.where( sr == sr.max() ) [0] ]
@@ -203,8 +196,7 @@ def find_tpeak(time, sr, Vbeta):
     multiple_pulse = True
 
   return t_peak, multiple_pulse
-
-
+#
 
 
 # Interpolating SEM results
@@ -214,7 +206,7 @@ def interp(x,y,z):
     xi, yi = np.linspace(500, 1500, Nx), np.linspace(0, 50, Ny)
     zi = griddata(x, y, z, xi, yi, interp='linear')
     return xi, yi, zi
-
+#
 
 
 def read_binary (self, filename, ff):
@@ -234,7 +226,8 @@ def read_binary (self, filename, ff):
                 output[:,i] = array[limit1:limit2]
         fid.close()   
     return output
-###
+#
+
 
 def interpg(field,coord, inc=100):
     """
@@ -252,6 +245,7 @@ def interpg(field,coord, inc=100):
     y =np.flipud(y)
     return y
 #
+
 
 def create_gif(filenames, duration):
     images = []
@@ -322,12 +316,8 @@ class sem2dpack(object):
            OR no SeisHeader_sem2d.hdr file!')
     #
     print ('*')
-    ###
-    
-
-
-
 #
+
 
   def __readSpecgrid(self):
     print ('Reading grid information...')
@@ -370,13 +360,8 @@ class sem2dpack(object):
     The method broadcasts the simulation parameters and
     receiver coordinates instances.
     """
-
-    # These for loops are consuming a lot of energy !
-    # optimise it...!
-
     print ('Reading header file...')
     fname = self.directory + '/SeisHeader_sem2d.hdr'
-
     self.dt = data['dt'].values[0]
     self.npts = int(data['npts'].values[0])
     self.nsta = int(data['nsta'].values[0])
@@ -403,15 +388,16 @@ class sem2dpack(object):
       except:
         print ('--- No extra station ---')
         pass
-  ###
-
+#
 
   @staticmethod
   def readField(fname):
+
     with open(fname,'rb') as f:
       field = np.fromfile(f,np.float32)
     return field
 #
+
 
   def read_seismo(self,component='x'):
     if component == 'z': filename = self.directory + '/Uz_sem2d.dat'
@@ -441,7 +427,8 @@ class sem2dpack(object):
 
     self.time = np.arange(self.velocity.shape[0])*self.dt
     return self.velocity
-    ### 
+# 
+
 
   def read_stress_strain(self, aktif=False):   
     ff = np.float32
@@ -471,6 +458,7 @@ class sem2dpack(object):
     for sta in np.arange(self.nsta_extra):
         self.max_strain [sta] = max( abs(self.strain[ :, sta]) )    
         self.max_aktif [sta] = max( abs(self.aktif[ :, sta]) )    
+# 
 
 
   def read_nonlinear_backbone_data_tocorrect(self):
@@ -500,12 +488,7 @@ class sem2dpack(object):
       self.nonlinear_curve[:,1] = _z[:]
       self.nonlinear_curve[:,2] = gref[:]
       self.nonlinear_curve[:,3] = Gmod[:]
-  ###
-        
-        
-        
-  ###
-    
+#
 
 
   @staticmethod
@@ -525,8 +508,8 @@ class sem2dpack(object):
     return y
 #
 
+
   def plot_wiggle(self,stats=None,sf=None,compo='x',save_dir=False,**kwargs):
-    
     if not isinstance(stats,(tuple,list)):
       # msg = 'stats must be a tuple of size 2, for indices. Ex: (0,101)'
       # raise Exception(msg)
@@ -565,7 +548,6 @@ class sem2dpack(object):
 #
 
 
-
   @staticmethod
   def rinterp(x,y,z):
     # Set up a regular grid of interpolation points
@@ -577,6 +559,7 @@ class sem2dpack(object):
     return xi, yi, zi
 #
 
+
   def plot_meshnode(self):
     filename = self.directory + '/MeshNodesCoord_sem2d.tab'
     nel = self.mdict["nel"]
@@ -584,6 +567,7 @@ class sem2dpack(object):
     with open(filename,'r') as f:
       nodes = np.genfromtxt(f)
 #
+
 
   def plot_source(self,savefile=None,source_name=None,tap=0.025,fmax=10.0, tmax=2.0):
     from matplotlib import style
@@ -665,8 +649,7 @@ class sem2dpack(object):
       for sta in np.arange(self.nsta):
           self.velocity[:,sta] = highpass(self.velocity[:,sta],fmin, df=1.0/self.dt)
 
-  ###
-
+#
 
 
   def plot_Vs(self,vs_br):
@@ -696,6 +679,7 @@ class sem2dpack(object):
     plt.show()
     db.set_trace()
 #
+
 
   def read_fault(self, ff=np.float32, LENTAG=1, is_rate_and_state=False):
       
@@ -832,9 +816,8 @@ class sem2dpack(object):
       cdt_end = (self.fault['isDyn']==True) & (np.roll(self.fault['isDyn'], -1)==False)
       index = np.arange(0, len(self.fault['isDyn']))
       print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))      
-      return 
-      
-  ###
+      return      
+#
 
 
 
@@ -848,7 +831,8 @@ class sem2dpack(object):
       plt.tight_layout()
       if savefig: fig.savefig('/Users/elifo/Desktop/timestep.png', dpi=300)      
       plt.show()
-  ###
+#
+
 
   def plot_cycles_cumulative_slip(self,VW_halflen=9.5,savefig=False,jump_sta=1,jump_dyn=1,
                                       col_sta='gray',col_dyn='tomato'):
@@ -877,7 +861,7 @@ class sem2dpack(object):
       plt.hlines(-VW_halflen, xmin=_xmin, xmax=_xmax, linestyle=':', color='g')
       if savefig: fig.savefig('/Users/elifo/Desktop/cumslip.png', dpi=300)  
       plt.show()    
-  ###
+#
 
 
   def plot_cycles_slip_rate(self, eq=1, is_normalisation=False, VW_halflen=9.5, _vmin=0.0, _vmax=2.0, 
@@ -962,7 +946,8 @@ class sem2dpack(object):
 
       if savefig: fig.savefig('/Users/elifo/Desktop/event_'+str(int(eq))+'.png', dpi=300)        
       print('*')
-  ###
+#
+
 
   def get_static_iteration(self, eq=0):
       # Find the earthquake
@@ -980,7 +965,8 @@ class sem2dpack(object):
       print ('Before eq', eq)
       print ('Between iterations: ', cdt1, cdt2)
       return cdt1, cdt2
-  ###
+#
+
 
   def get_dynamic_iteration(self, eq=0):
       # Find the earthquake
@@ -994,7 +980,8 @@ class sem2dpack(object):
       print ('Before eq', eq)
       print ('Between indices: ', cdt1, cdt2)
       return cdt1, cdt2
-  ###
+#
+
   
   def animate_cycles(self, cdt1, cdt2, jump=3, VW_halflen=1900.0, sleep=0.00001, it_cut=0,
                         _alpha=0.1,_alphainc=0.1, t0_index=None):
@@ -1019,8 +1006,6 @@ class sem2dpack(object):
       print ('Max it: ', it_cut)  
       
       fig = plt.figure(figsize=(12, 8))   
-
-
       ax1 = plt.subplot(131)
       plt.title('Stress (MPa)')
       plt.grid()
@@ -1063,8 +1048,7 @@ class sem2dpack(object):
           display.display(pl.gcf())
           time.sleep(sleep)          
           if _it >=it_cut: break
-      ###
-  #
+#
 
 
   def plot_2D_slip_rate(self,  save=False, figname='2d_fault', cmap='magma', **kwargs):
@@ -1081,7 +1065,6 @@ class sem2dpack(object):
     if 'ylimits' in kwargs: 
       ylimits = kwargs['ylimits']
       ax.set_ylim(ylimits[0], ylimits[1])
-
 
     # Data mesh - x
     time = self.fault['Time']; x = time
@@ -1136,7 +1119,6 @@ class sem2dpack(object):
     sigma = self.fault['Normal_Stress'][jj,:]
     sigma_0 = abs(self.fault['sn0'][jj])
     tau_0 = self.fault['st0'][jj]
-
 
     # Slip-time function
     ax = fig.add_subplot(221)
@@ -1255,7 +1237,6 @@ class sem2dpack(object):
 #   
 
 
-
   def plot_fronts(self, Dc=1.0, Veps=1.e-10, head=True, tail=True, diff=False,\
                   eps=1.e-3, d_elem=0.25, sigma_gaussian=3, \
                   save=False, fname='fronts' , debug=False, **kwargs):
@@ -1327,7 +1308,6 @@ class sem2dpack(object):
     jj = np.where (abs(xx) < eps)[0]
     diff0 = Tproz[jj] - Trupt[jj]
 
-
     # get rupture speed by derivative
     kk = np.where( (Trupt  > 0.0) ) [0]
     V = np.diff(xx[kk])/ np.diff(Trupt[kk])
@@ -1336,7 +1316,6 @@ class sem2dpack(object):
     self.fault['Vrupt'] = Vrupt
     # self.fault['Vdum'] = V
     
-
     # Critical distance computation
     fnc = scipy.interpolate.griddata(Tproz, xx, \
               Trupt[np.where( (Trupt > Tproz[0]) & (Trupt < Tproz.max()) )], method='linear')
@@ -1344,9 +1323,6 @@ class sem2dpack(object):
     Lc  = xxx - fnc
     Lplot = True
     self.fault['Lc'] = Lc
-
-
-
 
     # Plot
     print ('Plotting the rupture fronts...')
@@ -1392,7 +1368,7 @@ class sem2dpack(object):
     # ax.plot(xx[kk][:-1], V, color='gray', alpha=0.5)
     if save: plt.savefig(fname+'.png',dpi=300) # save into current directory
     plt.show(); plt.close()
-###
+#
 
 
 
