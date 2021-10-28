@@ -57,7 +57,7 @@ module bc_gen
             bc_select_kind, bc_trans, bc_update_dfault, &
             bc_has_dynflt, bc_update_bcdv, BC_build_transform_mat, &
             bc_GetIndexDofFix, bc_nDofFix, bc_GetIndexDofFree, BC_reset,&
-            BC_Update_Pre
+            BC_Update_Pre, bc_nnodeActive_DYNFLT
 
 contains
 
@@ -819,6 +819,20 @@ subroutine bc_GetIndexDofFree(bc, indexDofFree, indexDofFix, ndoffix, ndof, npoi
   end do
 
 end subroutine
+
+function bc_nnodeActive_DYNFLT(bc) result(n)
+  type(bc_type), pointer :: bc(:)
+  integer :: i, n
+
+  n = 0
+  do i = 1,size(bc)
+      select case (bc(i)%kind)
+      case (IS_DYNFLT)
+        n = BC_DYNFLT_nnodeActive(bc(i)%dynflt) 
+      end select
+  enddo
+end function 
+
 
 function bc_nDofFix(bc, ndof) result(n)
   type(bc_type), pointer :: bc(:)

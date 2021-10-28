@@ -11,7 +11,7 @@ module solver
   use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_apply, bc_apply_kind, &
-                      bc_trans, bc_update_dfault, &
+                      bc_trans, bc_update_dfault, bc_nnodeActive_DYNFLT, &
                       bc_update_bcdv, bc_reset, bc_has_dynflt, bc_update_pre
   use fields_class, only: FIELD_SetVecFromField, FIELD_SetFieldFromVec, &
                       FIELDS_reset, FIELDS_Update_Pre
@@ -19,7 +19,7 @@ module solver
   implicit none
   private
 
-  public :: solve
+  public :: solve, solve_GF_DYNFLT
 
 contains
 
@@ -101,27 +101,10 @@ subroutine solve_adaptive(pb, petobj)
   isw = id2 .and. (.not. id1)
   ! switch from static to dynamic
   if (isw) then
-     ! keep only velocity on the boundaries as zero
-  !   tmp=0d0
-!     write(*, *)"HERE, switching!"
-   !  call bc_select_kind(pb%bc, pb%fields%veloc,tmp, IS_DYNFLT)
-   ! switch from static to dynamic
      pb%fields%veloc = 0d0
      pb%fields%veloc_pre = 0d0
- !    write(*, *)"Done setting velocity!"
   end if
 
-! switch from dynamic to static
-!  isw = id1 .and. (.not. id2)
-!  if (isw) then
-!      ! switch from dynamic to static
-!  !    pb%fields%displ = 0d0 
-!      pb%fields%accel = 0d0
-!      if (rank==0) then
-!!          call BC_D2S_ReInit(pb%bc, pb%fields%veloc)
-!      end if
-!  end if
-  
 end subroutine solve_adaptive
 
 ! update time step 
@@ -135,6 +118,170 @@ subroutine update_adaptive_step(pb)
   call BC_timestep(pb%bc,pb%time, vgmax)
   
 end subroutine update_adaptive_step
+
+!
+! a solver to compute the DYNFLT static Green's function
+! from fault slip to fault shear w/o normal stress using petsc
+!
+! Algorithm:
+!   1. do i = 1, number_of_active_nodes_on_dynflt 
+!   2. For each active node, set slip of one node to 1 and others to zeros.
+!   3. Solve global linear system to obtain solution, d, f
+!   4. evaluate stresses on the fault and set values of one row of Green's function
+!   5. end do !i
+!
+
+subroutine solve_GF_DYNFLT(pb, petobj)
+#include <petsc/finclude/petscksp.h>
+  use petscksp
+  type(problem_type), intent(inout) :: pb
+  type(petsc_objects_type), intent(inout) :: petobj
+  double precision, dimension(:,:), pointer :: d, f
+  
+  integer :: i, nnode
+
+  integer :: IS_DIRNEU = 1, & 
+             IS_KINFLT = 2, & 
+             IS_DYNFLT = 6, &
+             IS_DIRABS = 7
+         
+  integer :: IS_DIR    = 2, IS_NEU = 1
+  PetscErrorCode :: ierr
+  PetscScalar, pointer :: xx_d(:)
+  PetscScalar, pointer :: xx_b(:)
+  KSPConvergedReason :: reason
+  logical :: print_time
+  integer :: rank
+  double precision :: start_time, end_time, elapse_time
+  character(160):: outputString
+  
+  call MPI_Comm_rank( PETSC_COMM_WORLD, rank, ierr)
+  print_time = rank==0 .and. mod(pb%time%it, ItInfo) == 0
+  has_dynflt  = pb%has_dynflt
+  
+  if (rank==0 .and. (.not. has_dynflt)) then
+      call IO_Abort('No DYNFLT defined! Stop!')
+  end if
+
+  if (rank==0) nnode = bc_nnodeActive_DYNFLT(pb%bc)
+  call MPI_Bcast(nnode, 1, MPI_INTEGER, 0, PETSC_COMM_WORLD, ierr)
+
+  if (rank==0) then
+      ! points to displacement
+      d => pb%fields%displ
+      f => pb%fields%accel
+  end if
+
+  do i = 1, nnode
+    
+    pb%time%pcg_iters = 0
+    if (rank==0) then 
+
+    ! set d to zero
+    d  = 0d0 
+    ! apply dirichlet boundary condition and kinematic boundary condition
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_DIR)
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRABS, IS_DIR)
+
+    ! transform fields, apply half slip rate on side -1 and then transform back
+    ! different from dynamic, update displacement as well.
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_KINFLT)
+    end if
+   
+    if (rank==0) then
+        ! change the this subroutine so that fault slip is updated
+        ! on i-th active node on DYNFLT to 1 and others zero
+!    call bc_update_dfault(pb%bc, d_pre, d, (v + v_pre)/2d0, dt)
+
+    f=0d0
+    ! apply newmann if there's any, used to solve dofs in the medium
+    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DIRNEU, IS_NEU) 
+
+    ! transform d to X*d, f to Xinv*f
+    call BC_trans(pb%bc, d,  1)
+    call BC_trans(pb%bc, f, -1)
+    end if
+
+    start_time = MPI_Wtime()
+    call FIELD_SetVecFromField(petobj%d, d, ierr)
+    call FIELD_SetVecFromField(petobj%b, f, ierr)
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+
+    if (print_time) then 
+    write(*, *) 'Elapse Time for setting d b from local vectors =', elapse_time, 's'
+    end if
+
+    ! scatter d to b
+    start_time = MPI_Wtime()
+    call VecScatterBegin(petobj%bd_fix_ctx,petobj%d,petobj%b,INSERT_VALUES,SCATTER_FORWARD,ierr)
+    call VecScatterEnd(petobj%bd_fix_ctx,petobj%d,petobj%b,INSERT_VALUES,SCATTER_FORWARD,ierr)
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+
+    ! solve the linear system for d
+    start_time = MPI_Wtime()
+    call KSPSolve(petobj%ksp, petobj%b, petobj%d, ierr)  
+    CHKERRQ(ierr) 
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then 
+    write(*, *) 'Elapse Time for KspSolve =', elapse_time, 's'
+    end if
+    
+    ! return the number of iterations
+    call KSPGetIterationNumber(petobj%ksp, pb%time%pcg_iters(i), ierr)
+
+    ! return converged reason 
+    call KSPGetConvergedReason(petobj%ksp, reason, ierr)
+    pb%time%reasons(i) = reason
+
+    if (reason<0 .and. rank==0) then
+        write(*, *) "KSP solver diverges, with reason = ", reason
+    end if
+
+    ! copy the displacement from converged solution in petsc to d
+    start_time = MPI_Wtime()
+    call VecScatterBegin(petobj%d_ctx,petobj%d,petobj%d0,INSERT_VALUES,SCATTER_FORWARD,ierr);
+    call VecScatterEnd(petobj%d_ctx,petobj%d,petobj%d0,INSERT_VALUES,SCATTER_FORWARD,ierr);
+
+    if (rank==0) then
+        call FIELD_SetFieldFromVec(d, petobj%d0, ierr)  
+    end if 
+    
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then
+!    write(*, *) 'Elapse Time for copy petsc vec d to local d0 =', elapse_time, 's'
+    end if
+
+    if (rank==0) then
+
+    ! transfer the d' to d
+    call BC_trans(pb%bc, d,  -1)
+
+    end if
+
+    start_time = MPI_Wtime()
+
+    ! compute stress on the fault and update one row of Green's function
+    ! in BYNFLT_FAULT
+    if (rank==0) then
+    call compute_Fint(f, d, pb%fields%veloc, pb, .false.)
+
+    ! bc_set_gf_iactive_dynflt(pb%bc, f, i)
+!    call bc_apply_kind(pb%bc, pb%time, pb%fields, f, IS_DYNFLT)
+    end if
+
+    end_time   = MPI_Wtime()
+    elapse_time = end_time - start_time
+    if (print_time) then
+    write(*, *) 'Elapse Time for compute_Fint=', elapse_time, 's'
+    end if
+
+  end do !i
+  
+end subroutine solve_GF_DYNFLT
 
 !=====================================================================
 ! a wrapper over all dynamic solver
@@ -370,7 +517,6 @@ subroutine solve_quasi_static_petsc(pb, petobj)
   KSPConvergedReason :: reason
   logical :: isUpdateDMG
   logical :: print_time
-  logical :: unstable
   integer :: rank
   double precision :: start_time, end_time, elapse_time
   character(160):: outputString

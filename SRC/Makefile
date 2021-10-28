@@ -82,7 +82,7 @@ OPT      = -O3 -Wall
 
 include ${PETSC_DIR}/lib/petsc/conf/variables
 # comment the "clean: " line in the rules file
-include rules
+include rule
 #include ${PETSC_DIR}/lib/petsc/conf/rules
 include ${PETSC_DIR}/lib/petsc/conf/test
 

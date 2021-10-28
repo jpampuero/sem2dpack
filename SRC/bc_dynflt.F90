@@ -34,6 +34,11 @@ module bc_dynflt
     ! Tp: fault totol traction at time = time_p (latest static step)
     ! Dp: back fault slip at time_p relative to time=0 
 
+    ! add boundary Green's function only for the active nodes
+    double precision, dimension(:, :), pointer :: GF_SS=>null(), GF_SN=>null() 
+    ! GF_SS: green's function from slip to shear stresses
+    ! GF_SN: green's function from slip to normal stresses
+
     double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
     double precision, dimension(:), pointer:: hnode=>null(), MuStar=>null() 
     type(swf_type), pointer :: swf => null()
@@ -44,12 +49,14 @@ module bc_dynflt
     type(bnd_grid_type), pointer :: bc1 => null(), bc2 => null()
     type(bc_dynflt_input_type) :: input
 
-   ! for outputs:
+   ! for input/outputs:
     double precision :: ot1, odt, odtD, odtS, ot, otV
     integer :: oit,oitd,ounit,oix1,oixn,oixd,ou_pot,ou_time
     integer :: ot_mode
     integer, pointer, dimension(:) :: oix_export => null()
     logical :: osides
+    logical :: compute_GF, use_GF
+    character(160)::GF_SS_File, GF_SN_File, GF_meta_File
   end type bc_dynflt_type
 
   public :: BC_DYNFLT_type, BC_DYNFLT_read, BC_DYNFLT_init,  & 
@@ -57,7 +64,8 @@ module bc_dynflt
             BC_DYNFLT_select, BC_DYNFLT_timestep, BC_DYNFLT_trans, &
             BC_DYNFLT_set_array, BC_DYNFLT_update_disp,BC_DYNFLT_update_BCDV, &
             BC_DYNFLT_nnode, BC_DYNFLT_node, BC_DYNFLT_AppendDofFix, BC_DYNFLT_nDofFix,&
-            BC_DYNFLT_reset, BC_DYNFLT_Update_Pre, BC_DYNFLT_get_rotate_mat
+            BC_DYNFLT_reset, BC_DYNFLT_Update_Pre, BC_DYNFLT_get_rotate_mat, &
+            BC_DYNFLT_nnodeActive
 
 contains
 
@@ -147,14 +155,16 @@ contains
                   ,dt_txt,oxi2_txt, cohesionH, VH, vlockH
   character(3) :: friction(2)
   integer :: i,oxi(3) 
-  logical :: opening, osides
+  logical :: opening, osides, use_GF, compute_GF
+  character(160):: GF_SS_File, GF_SN_File, GF_meta_File
   double precision:: hnodeFix,hnodeScale
 
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH, vlock, vlockH &
                          ,ot1,otd,oxi,osides, friction, opening &
                          ,cohesion, cohesionH, V, VH, &
-                         otdD, otdS, otV,hnodeFix,hnodeScale
+                         otdD, otdS, otV,hnodeFix,hnodeScale, &
+                         use_GF, compute_GF, GF_SS_File, GF_SN_File, GF_meta_File
 
   Tt = 0d0
   Tn = 0d0
@@ -196,6 +206,11 @@ contains
   hnodeFix = 0d0
   hnodeScale = 1d0
   opening = .true.
+  use_GF = .false.
+  compute_GF  = .false.
+  GF_SS_File = ''
+  GF_SN_File = ''
+  GF_meta_File = ''
 
   read(iin,BC_DYNFLT,END=100)
 
@@ -211,8 +226,13 @@ contains
   bc%oixn = oxi(2) 
   bc%oixd = oxi(3) 
   bc%osides = osides
-  bc%hnodeFix = hnodeFix
-  bc%hnodeScale = hnodeScale
+  bc%hnodeFix    = hnodeFix
+  bc%hnodeScale  = hnodeScale
+  bc%use_GF      = use_GF
+  bc%compute_GF  = compute_GF
+  bc%GF_SS_File  = GF_SS_File
+  bc%GF_SN_File  = GF_SN_File
+  bc%GF_meta_File  = GF_meta_File
 
   call DIST_CD_Read(bc%input%cohesion,cohesion,cohesionH,iin,cohesionH)
   call DIST_CD_Read(bc%input%N,Tn,TnH,iin,TnH)
@@ -595,6 +615,8 @@ contains
       bc%V(bc%iactive, 1) = bc%V(bc%iactive, 1) + rsf_vplate(bc%rsf)
   end if
 
+  ! initialize Green's function
+  call  BC_DYNFLT_init_GF(bc)
   
 !-- Open output files -----
 ! Set output parameters
@@ -794,80 +816,63 @@ contains
 
   end subroutine BC_DYNFLT_init
 
-! Reset the initial condition for static solver from switching from dynamic to static
-! This is to make sure the fields on the domain is consistent with
-! slip and slip velocity on the boundary.
-! use slip and slip velocity on the boundary to update global fields inside the domain
-!
+! initialize the Green's function
+  subroutine BC_DYNFLT_init_GF(bc)
+  use stdio, only: IO_abort,IO_new_unit
+  type(bc_dynflt_type), intent(inout) :: bc
+  integer :: nactive, nside
+  logical :: meta_exist, ss_exist, sn_exist
+  logical :: need_sn, need_ss
 
-!  subroutine BC_DYNFLT_D2S_ReInit(bc, v)
-!  type(bc_dynflt_type), intent(inout) :: bc
-!  double precision, intent(inout) :: v(:,:)
-!  double precision :: vtmp(size(v,1), size(v,2))
-!  double precision :: dV(size(bc%V,1), size(bc%V, 2))
-!  integer :: ndof, i, j
-!
-!  if (.not. associated(bc%rsf)) return
-!
-!  ndof = size(v, 2)
-!
-!  ! Print out some information
-!  write(*, *) "BC_DYNFLT_D2S_ReInit for debugging..."
-!
-!  ! max and min value for velocity on the active section of the fault
-!  write(*, *) "max, min particle velocity on node1"
-!  do i = 1, ndof
-!      write(*, *) "component = ", i
-!      write(*, *) "active nodes:"
-!      write(*, *) maxval(v(bc%node1(bc%iactive), i)), minval(v(bc%node1(bc%iactive), i)) 
-!      write(*, *) "locked nodes:"
-!      write(*, *) maxval(v(bc%node1(bc%ilock), i)), minval(v(bc%node1(bc%ilock), i)) 
-!  end do
-!
-!  if (associated(bc%node2)) then
-!      write(*, *) "max, min particle velocity on node2"
-!      do i = 1, ndof
-!          write(*, *) "component = ", i
-!          write(*, *) "active nodes:"
-!          write(*, *) maxval(v(bc%node2(bc%iactive), i)), minval(v(bc%node2(bc%iactive), i)) 
-!          write(*, *) "locked nodes:"
-!          write(*, *) maxval(v(bc%node2(bc%ilock), i)), minval(v(bc%node2(bc%ilock), i)) 
-!      end do
-!  end if
-!
-!  write(*, *) "max, min slip rate on fault"
-!  do i = 1, ndof
-!      write(*, *) "component = ", i
-!      write(*, *) "active nodes:"
-!      write(*, *) maxval(bc%V(bc%iactive,i)), minval(bc%V(bc%iactive, i))
-!      write(*, *) "locked nodes:"
-!      write(*, *) maxval(bc%V(bc%ilock,i)), minval(bc%V(bc%ilock, i))
-!  end do
-!
-!  dV   = bc%V
-!  dV(bc%iactive, 1) = dV(bc%iactive, 1) - rsf_vplate(bc%rsf)
-!  dV(bc%ilock, :)   = 0d0
-!
-!  ! rotate back to x-z frame
-!  if (ndof==2) dV  = rotate(bc, dV, -1)      
-!
-!  ! note the global d and v are relative to initial condition
-!!  v = 0d0 ! zero out the velocity, quench the wave fields.
-!!  vtmp = v
-!!  vtmp(bc%node1,:) = 0d0 
-!!  if (associated(bc%node2)) vtmp(bc%node2, :) = 0d0 
-!!  v   = v - vtmp
-!
-!  ! set all nodes except fault to zero
-!  ! do not set the creeping section to zero.
-!  ! transform global velocity
-!  call BC_DYNFLT_trans(bc, v, 1) 
-!  ! update global velocity, consistent with slip velocity on the fault
-!  v(bc%node1, :) = dV/2d0 
-!  call BC_DYNFLT_trans(bc, v, -1) 
-!
-!  end subroutine
+  meta_exist = .false.
+  ss_exist   = .false.
+  sn_exist   = .false.
+  need_sn    = bc%ndof==2 .and. nside==2
+  need_ss    = bc%compute_GF .or. bc%use_GF
   
+  call inquire(FILE=bc%GF_meta_File, EXIST=meta_exist) 
+  call inquire(FILE=bc%GF_SS_File, EXIST=ss_exist) 
+  call inquire(FILE=bc%GF_SN_File, EXIST=sn_exist) 
+
+  nside = 1
+  if (associated(bc%node2)) nside = 2
+  nactive = size(bc%iactive)
+
+  if (bc%compute_GF .or. bc%use_GF) then
+      bc%GF_SS = allocate(nactive, nactive)
+      bc%GF_SS = 0d0
+      
+      ! mode2, asymmetic problem could have changes
+      ! in fault normal stress due to fault slip
+      if (need_sn) then
+          bc%GF_SN = allocated(nactive, nactive)
+          bc%GF_SN = 0d0
+      end if
+  end if
+
+  ! read Green's function from file if not compute_GF
+  if (bc%use_GF .and. (.not. bc%compute_GF)) then
+      if (.not. (meta_exist .and. ss_exist)) then
+          call IO_abort('meta data or GF_SS data do not exist! Abort!')
+      end if
+
+      ! read in the meta data and GF_SS
+      ! call BC_DYNFLT_Read_GF_SS(bc%GF_SS_File, bc%GF_meta_File, bc%GF_SS)
+
+      if (need_sn) then
+        if (.not. sn_exist) call IO_abort('Need GF_SN file but found none! Abort!')
+      ! call BC_DYNFLT_Read_GF_SN(bc%GF_SN_File, bc%GF_SN)
+      end if
+  end if
+
+  end subroutine BC_DYNFLT_init_GF
+  
+  subroutine BC_DYNFLT_Read_GFSS(bc)
+
+
+
+  end subroutine
+
 ! update the pre fields 
   subroutine BC_DYNFLT_Update_Pre(bc)
   type(bc_dynflt_type), intent(inout) :: bc
@@ -1268,6 +1273,14 @@ subroutine BC_DYNFLT_apply_dynamic(bc,MxA,V,D,time)
 
   deallocate(dV_tmp)
   end subroutine BC_DYNFLT_apply_dynamic
+
+
+! return the number of active nodes in DYNFLT
+function BC_DYNFLT_nnodeActive(bc) result(n)
+    type(bc_dynflt_type), intent(in) :: bc
+    integer:: n
+    n = size(bc%iactive)
+end function
 
 
 function BC_DYNFLT_nDofFix(bc, ndof) result(n)
