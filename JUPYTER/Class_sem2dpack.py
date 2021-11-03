@@ -351,11 +351,13 @@ class sem2dpack(object):
 
     print ('Reading header file...')
     fname = self.directory + '/SeisHeader_sem2d.hdr'
-
-    self.dt = data['dt'].values[0]
-    self.npts = int(data['npts'].values[0])
-    self.nsta = int(data['nsta'].values[0])
-    # print (self.dt, self.npts, self.nsta)
+    data = pd.read_csv(fname, header=0, nrows=1, dtype=str, delim_whitespace=True)
+                      
+                      
+    self.dt = float(data['DT'].values[0])
+    self.npts = int(data['NSAMP'].values[0])
+    self.nsta = int(data['NSTA'].values[0])
+    print (self.dt, self.npts, self.nsta)
 
     self.rcoord  = np.zeros( (self.nsta, 2) )
     with open(fname, 'r') as f:
