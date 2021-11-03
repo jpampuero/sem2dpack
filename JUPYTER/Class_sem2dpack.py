@@ -346,9 +346,6 @@ class sem2dpack(object):
     receiver coordinates instances.
     """
 
-    # These for loops are consuming a lot of energy !
-    # optimise it...!
-
     print ('Reading header file...')
     fname = self.directory + '/SeisHeader_sem2d.hdr'
     data = pd.read_csv(fname, header=0, nrows=1, dtype=str, delim_whitespace=True)
@@ -419,6 +416,18 @@ class sem2dpack(object):
     self.time = np.arange(self.velocity.shape[0])*self.dt
     return self.velocity
     ### 
+
+
+
+  def read_seismos_rsf(rep='./', nsta=2, ff=np.float32):
+    with open(rep+'Seismos_rsf.dat', 'rb') as fid:
+      whole = np.fromfile(fid, ff) 
+      data = whole.reshape(int(len(whole)/(nsta+1)), nsta+1)
+      print ('data shape: ', data.shape)
+    return data[:,0], data[:,1:]
+    ###
+
+
 
   def read_stress_strain(self, aktif=False):   
     ff = np.float32
