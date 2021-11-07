@@ -29,6 +29,7 @@ module mat_gen
 
   use prop_mat
   use memory_info
+  !$ use OMP_LIB
 
 !! List here all material modules:
   use mat_mass
@@ -213,7 +214,7 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
   type(sem_grid_type), intent(in) :: grid
 
   double precision :: celem(grid%ngll,grid%ngll)
-  integer :: e,tag
+  integer :: e,tag, icol, ie
   integer :: ngll,cpunit,csunit,rhounit,cpunit2,csunit2,rhounit2,iol
 
   if (echo_init) then
@@ -230,13 +231,19 @@ subroutine MAT_init_prop(mat_elem,mat_input,grid)
     if (all(grid%tag<tag)) write(iout,*) 'WARNING: material ',tag,' is not assigned to any element'
   enddo
 
-  do e=1,grid%nelem
-    tag = grid%tag(e)
-    if ( tag > size(mat_input) .or. tag<1 ) &
-      call IO_abort('ELAST_init: element tag does not correspond to a material number')
-    call MAT_setProp(mat_elem(e),mat_input(tag))
-    call MAT_init_elem_prop(mat_elem(e), SE_elem_coord(grid,e))
-  enddo
+  ! parallel initialization, first touch
+  do icol = 1, size(grid%fem%colors)
+      !$OMP PARALLEL DO SCHEDULE(STATIC)
+      do ie = 1, grid%fem%colors(icol)%nelem
+!  do e=1,grid%nelem
+        e = grid%fem%colors(icol)%elem(ie)
+        tag = grid%tag(e)
+        if ( tag > size(mat_input) .or. tag<1 ) &
+          call IO_abort('ELAST_init: element tag does not correspond to a material number')
+        call MAT_setProp(mat_elem(e),mat_input(tag))
+        call MAT_init_elem_prop(mat_elem(e), SE_elem_coord(grid,e))
+      enddo !ie
+  enddo !icol
   if (echo_init) write(iout,fmtok)
 
  ! report memory allocations
@@ -333,7 +340,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   integer, intent(in) :: ndof
   double precision, intent(in) :: dt
   integer, pointer :: elist(:)
-  integer :: e,e1
+  integer :: e, e1, icol, ie
   logical :: flat_grid
 
   if (echo_init) write(iout,fmt1,advance='no') 'Defining material work arrays'
@@ -343,9 +350,16 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
  ! for memory optimization in box grids with homogeneous materials:
  ! get the list of the first element of each material
   flat_grid = SE_isFlat(grid)
+
+  ! an array that contains the first element of the tag
   elist => SE_firstElementTagged(grid)
 
-  do e=1,grid%nelem
+  ! replace the following loop with parallel loop 
+  do icol = 1, size(grid%fem%colors)
+      !$OMP PARALLEL DO SCHEDULE(STATIC)
+      do ie = 1, grid%fem%colors(icol)%nelem
+          e = grid%fem%colors(icol)%elem(ie)
+!  do e=1,grid%nelem
 
    ! KV is the only non-exclusive material (it can be combined with other materials)
    ! so we put it on a separate 'if'
@@ -392,7 +406,8 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
   !! if required, pass additional arguments to MAT_init_work 
     endif
 
-  enddo
+  enddo !ie
+  enddo !icol
 
   deallocate(elist)
 

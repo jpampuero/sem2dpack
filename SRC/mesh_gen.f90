@@ -9,7 +9,7 @@ module mesh_gen
   use mesh_layers
   use mesh_emc2
   use mesh_mesh2d
-  use fem_grid, only : fem_grid_type
+  use fem_grid, only : fem_grid_type, FE_GreedyColoring 
 
   implicit none
   private
@@ -132,6 +132,9 @@ subroutine MESH_build(grid,mesh)
       call MESH2D_build(mesh%mesh2d,grid)
   end select
 
+  ! Color the fem grid
+  call FE_GreedyColoring(grid%knods, grid%colors, grid%colorsA)
+
   if (echo_init) then 
     write(iout,fmtok)
     write(iout,fmt1,advance='no') 'Saving node coordinates in file MeshNodesCoord_sem2d.tab'
@@ -155,6 +158,12 @@ subroutine MESH_build(grid,mesh)
   do e=1,grid%nelem
     write(ounit,fmt) grid%knods(:,e)
   enddo
+  close(ounit)
+  
+  ! write out the element coloring
+  ounit = IO_new_unit()
+  open(ounit,file='ElmtColors_sem2d.tab')
+  write(ounit,'(i6)') grid%colorsA
   close(ounit)
 
   if (echo_init) write(iout,fmtok)
