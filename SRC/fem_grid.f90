@@ -29,13 +29,22 @@ module fem_grid
   use elem_q9
   use bnd_grid
   use constants
-
+! use openmp library, but code still works if there's no openmp
+!$ use OMP_LIB
   implicit none
   private
 
   type VertexConn_type
     integer, pointer :: elem(:)=>null(), node(:)=>null()
   end type VertexConn_type
+
+  ! FEM coloring data
+  type color
+      integer :: nelem = 0
+      integer, pointer :: elem(:) => null()
+  end type color
+  
+  integer, parameter :: max_neighbor = 50
 
 !---- Finite element mesh (Q4, Q8h or Q9)
 !     npoin = total number of control nodes
@@ -56,13 +65,22 @@ module fem_grid
 ! edge connectivity data :
 !     EdgeConn_elem(n,e) = element that shares edge#n of element#e
 !     EdgeConn_edge(n,e) = edge# on matching element
+!
+! color data (used in OPENMP parallelization):
+! colors(k)%nelem   = number of fem elements in color k 
+! colors(k)%elem(:) = element indices in color k
+!
+! colorsA(ielem)    = color index for each element ielem
+!
 
   type fem_grid_type
     integer :: npoin=0, ngnod=0, nelem=0
     double precision, pointer :: coord(:,:) =>null()
     integer, pointer :: knods(:,:) =>null(), &
                         tag(:)     =>null(), &
-                        ref(:)     =>null()
+                        ref(:)     =>null(), &
+                        colorsA(:) =>null()
+    type(color), pointer :: colors(:)=>null()
     type(bnd_grid_type), pointer :: bnds(:) =>null()
     logical :: flat = .false.
     integer, dimension(:,:), pointer :: EdgeConn_elem =>null(), &
@@ -93,7 +111,7 @@ module fem_grid
           , FE_SetConnectivity, FE_UnsetConnectivity, FE_GetEdgeConn, FE_GetVertexConn &
           , FE_find_point, FE_GetElementSizes, FE_reorder &
           , edge_D,edge_R,edge_U,edge_L &
-          , side_D,side_R,side_U,side_L
+          , side_D,side_R,side_U,side_L, FE_GreedyColoring
 
 contains
 
@@ -517,6 +535,197 @@ end subroutine FE_GetVertexConn
   enddo
 
   end subroutine FE_reorder
+
+!=====================================================================
+! Subroutines for Greedy Graph Coloring
+!
+! Coloring wrapper subroutine
+!
+! Default nthreads = 1
+!
+! when OMP is used, nthreads = OMP_NUM_THREADS
+! OMP_NUM_THREADS is set as an environment variable when 
+! compiling and launching the omp program
+!
+
+      subroutine FE_GreedyColoring(knods, Colors, ColorsA)
+         implicit none
+         Integer, intent(in) :: knods(:,:)
+         Type(color), intent(out), pointer :: Colors(:)
+         INTEGER, dimension(max_neighbor, size(knods, 2)) :: NEB
+         INTEGER :: nthreads = 1, NColor, ColorsA(size(knods, 2))
+         
+!        get the total number of threads if OMP is used
+!$       nthreads  = OMP_GET_NUM_THREADS()
+         call FindNeighbors(knods, NEB)
+		 call ColorByNeighbors(NEB, nthreads, ColorsA, NColor, Colors)
+      end subroutine FE_GreedyColoring
+
+!=====================================================================
+! Subroutines for Greedy Graph Coloring
+!
+! find the neighbors using connectivity array knod
+! ELEM: [NNODE_PER_ELEMENT, NEL], the knodes array in the fem grid
+! NEB:  [max_neighbor, NEL], neighboring elements for each element, -1 are to be ignored 
+!
+      subroutine FindNeighbors(ELEM, NEB)
+         implicit none
+          INTEGER, INTENT(IN):: ELEM(:, :)
+          INTEGER, INTENT(INOUT):: NEB(:,:)
+          ! the first dimension of NEB must be large than 
+          ! maximum number of neighbors, I set it to be max_neighbor
+          INTEGER :: i, j, k, NEL, i_node, cnt_i, n2e(size(NEB, 1))
+          INTEGER :: e_i, e_j,nnode
+          INTEGER, allocatable :: node2el(:,:), cnt1(:)
+          Integer, allocatable :: tmp(:)
+          Integer :: cnt2(size(ELEM, 2)), nodes(size(ELEM, 1))
+
+          NEL     = size(ELEM, 2)
+          nnode   = maxval(ELEM) ! maximum node index  
+          
+		  ! max_neighbor are parameters defined in the module
+
+          allocate(node2el(max_neighbor, nnode), cnt1(nnode))
+          node2el = 0
+          cnt1    = 0
+          NEB     = -1
+          cnt2    = 0
+
+          ! build the array node2el
+          do i = 1, NEL
+              nodes = ELEM(:, i)
+              do j = 1, size(nodes)
+                  i_node = nodes(j)
+                  ! (i, i_node) should be included in node2el
+                  ! if not included then update both count and nodel2el
+                  if (allocated(tmp)) deallocate(tmp)
+                  tmp  = findloc(node2el(:, i_node),i)
+                  if (size(tmp)==1 .and. tmp(1)==0) then
+                      ! update the count of elements for each node 
+                      cnt1(i_node) = cnt1(i_node) + 1
+                      node2el(cnt1(i_node),i_node) = i
+                  end if
+              end do
+          end do
+
+          ! find the neighboring elements
+          do i = 1, nnode
+              n2e = node2el(:,i)
+              cnt_i = cnt1(i) !# elements for each node
+              do k = 1, cnt_i
+                  e_i = n2e(k)
+                  do j = k+1, cnt_i
+                      e_j = n2e(j)
+                      ! check if e_i, e_j has already been included
+                      if (allocated(tmp)) deallocate(tmp)
+                      tmp  = findloc(NEB(:, e_i), e_j)
+                      if (size(tmp)==1 .and. tmp(1)==0) then
+                          ! if not, include pair
+                          cnt2(e_i) = cnt2(e_i) + 1
+                          cnt2(e_j) = cnt2(e_j) + 1
+                          NEB(cnt2(e_i), e_i) = e_j
+                          NEB(cnt2(e_j), e_j) = e_i
+                      end if
+                  end do
+              end do
+          end do
+          deallocate(node2el, cnt1, tmp)
+      end subroutine FINDNeighbors
+
+!=====================================================================
+! Subroutines for Greedy Graph Coloring
+!
+! Color the FEM mesh by neighbors 
+! NEB:  [max_neighbor, NEL], neighboring elements for each element, -1 are to be ignored 
+! color the mesh for nthreads, return ColorsA and number of colors
+! 
+! ColorsA is an array of size [NEL]
+!
+      subroutine ColorByNeighbors(NEB, nthreads, ColorsA, NColor, Colors)
+         implicit none
+         INTEGER, INTENT(IN)  :: NEB(:,:), nthreads
+         INTEGER, INTENT(OUT) :: NColor, ColorsA(size(NEB, 2))
+ 		 TYPE(color), POINTER, INTENT(OUT):: Colors(:)
+         INTEGER :: NEL, i, j, ColorCount(size(NEB, 2)), ci, ei
+         INTEGER :: BlockedColorsA(size(NEB,1)), Neighbors(size(NEB,1))
+         LOGICAL :: isfree
+         INTEGER, allocatable :: tmp(:)
+
+          NEL        = size(NEB, 2)
+          ColorsA     = 0
+          ColorsA(1)  = 1
+          NColor     = 1
+          ColorCount = 0
+          ColorCount(1) = 1
+
+          ! loop through the second to the last element
+          do i = 2, NEL
+              BlockedColorsA = -1
+              Neighbors = NEB(:, i)
+              do j = 1, max_neighbor
+                  if (Neighbors(j)<=0) cycle ! skip the jloop
+
+                  ! check if the element has be colored
+                  if (ColorsA(Neighbors(j)) /= 0) then
+                      ! add this color to blocked
+                      BlockedColorsA(j) = ColorsA(Neighbors(j))
+                  end if
+
+              end do !j
+
+              ! loop through existing number of colors
+              do j = 1, NColor
+                  ! check if colorcount has reached nthreads
+                  if (ColorCount(j) /= nthreads) then
+                      if (allocated(tmp)) deallocate(tmp)
+                      tmp  = findloc(BlockedColorsA, j)
+                      isfree = size(tmp)==1 .and. tmp(1)==0
+                      if (isfree) then
+                          ! color elemment i with Color j
+                          ColorsA(i) = j
+                          ColorCount(j) = ColorCount(j) + 1
+                          exit
+                      end if
+                  end if
+              end do
+
+              ! element i has not been colored
+              ! either color(i) being blocked or have reached nthreads
+              ! Color element i by a new color
+              if (ColorsA(i)==0) then
+                  NColor = NColor + 1
+                  ColorsA(i) = NColor
+                  ColorCount(NColor) = 1
+              end if
+          end do ! i
+
+      deallocate(tmp)
+      
+      ! allocate memory for Colors
+	  allocate(Colors(NColor))
+      
+      do i = 1, NColor 
+          j = ColorCount(i)
+		  Colors(i)%nelem = j 
+		  allocate(Colors(i)%elem(j))
+          ! parallel initialization, first touch
+          !$OMP PARALLEL DO SCHEDULE(STATIC) 
+          do ei =1, j
+              Colors(i)%elem(ei) = 0
+          end do
+      end do
+      
+      ColorCount = 0
+      ! populate Color(i)%elem with elements 
+      do i = 1, NEL
+         ! ci, color of the i-th element
+         ci  = ColorsA(i)
+         ! index of i-th element in the elements of color ci
+  		 ColorCount(ci) = ColorCount(ci) + 1
+         ei  = ColorCount(ci) 
+         Colors(ci)%elem(ei) = i
+      end do
+      end subroutine ColorByNeighbors
 
 end module fem_grid
 

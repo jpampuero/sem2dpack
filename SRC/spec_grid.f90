@@ -4,6 +4,7 @@ module spec_grid
   use constants
   use fem_grid
   use bnd_grid
+!$ use OMP_LIB  
 
   implicit none
   private
@@ -207,6 +208,7 @@ contains
   integer, dimension(se%ngll,4) :: iedg,jedg,iedgR,jedgR
   integer, dimension(4) :: ivtx,jvtx
   integer :: i,j,k,e,n,ii,jj,ee,nn,ngll,npoin,iol,ounit
+  integer :: icol, ie
   integer, pointer :: ees(:),nns(:)
 
 !-----------------------------------------------------------------------
@@ -223,10 +225,20 @@ contains
   se%tag => se%fem%tag
 
 ! global numbering table
-  allocate(se%ibool(ngll,ngll,se%nelem))
+  allocate(ibool(ngll,ngll,se%nelem))
   call storearray('ibool',size(se%ibool),iinteg)
+  
   ibool => se%ibool
-  ibool = 0
+  ! parallel initialize ibool using first touch principle
+  do icol = 1, size(se%fem%colors)
+      !$OMP PARALLEL DO SCHEDULE(STATIC)
+      do ie = 1, se%fem%colors(icol)%nelem
+          e = se%fem%colors(icol)%elem(ie)
+          ibool(:,:,e) = 0
+      end do
+  end do
+
+!  ibool = 0
 
 !---- start numbering
   if (echo_init) write(iout,fmt1,advance='no') 'Numbering GLL points'
@@ -248,7 +260,6 @@ contains
 
   do e = 1,se%nelem
 
-
    !-- interior nodes are unique
     do j=2,ngll-1
     do i=2,ngll-1
@@ -267,7 +278,6 @@ contains
         if (ee>0) ibool(iedgR(k,nn),jedgR(k,nn),ee) = npoin
       enddo
     enddo
-
 
    !-- vertex nodes
     do n = 1,4
@@ -846,6 +856,7 @@ end subroutine BC_set_bulk_node
 
   allocate(elist(ntags))
   do k=1,ntags
+
     do e=1,grid%nelem
       if (grid%tag(e)==tags(k)) exit
     enddo
