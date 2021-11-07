@@ -137,6 +137,6 @@
 
   call ECHO_banner('Program  S E M 2 D P A C K :  end',iout)
 
-  stop
+  !stop
 200 format("Timestep #",I8,"  t = ",EN12.3,"  vmax = ",EN12.3,"  dmax = ",EN12.3)
   end program main
