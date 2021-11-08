@@ -45,13 +45,13 @@ EXEC = sem2dsolve
 # GNU 
 #F90 = g95
 #OPT = 
-F90 = gfortran
-OPT = -O3 -Wall -Wno-tabs
+#F90 = gfortran
+#OPT = -O3 -Wall -Wno-tabs
 #OPT = -O0 -Wall -g -fbacktrace -fbounds-check
 
 # GNU with openmp
-#F90 = gfortran
-#OPT = -O3 -Wall -Wno-tabs -fopenmp 
+F90 = gfortran
+OPT = -O3 -Wall -Wno-tabs -fopenmp 
 
 #-- Intel Fortran --
 #F90 = ifort
