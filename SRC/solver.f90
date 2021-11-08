@@ -296,14 +296,15 @@ subroutine compute_Fint(f,d,v,pb)
   sgpt = pb%energy%sgp
 
   do icol = 1, size(pb%grid%fem%colors)
-
-      !$OMP PARALLEL DO SCHEDULE(STATIC) &
+      !$OMP PARALLEL DO SCHEDULE(STATIC) PRIVATE(e, dloc, vloc, floc, E_ep, E_el, sg, sgp) &
       !$OMP REDUCTION(+: E_elt, E_ept, sgt, sgpt)
       do ie = 1, pb%grid%fem%colors(icol)%nelem
+          floc = 0d0
           e = pb%grid%fem%colors(icol)%elem(ie)
-!      do e = 1,pb%grid%nelem
+      !do e = 1,pb%grid%nelem
           dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
           vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+          
           call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
                          pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
                          E_ep,E_el,sg,sgp)

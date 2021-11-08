@@ -10,6 +10,7 @@
   use bc_gen, only : BC_write
   use energy, only : energy_compute, energy_write, stress_glut_write
   use constants, only : COMPUTE_ENERGIES, COMPUTE_STRESS_GLUT
+  !$ use OMP_LIB
 
   implicit none
 
@@ -19,6 +20,7 @@
   integer, parameter :: NT_CHECK=10
 
   call CPU_TIME(cputime0)
+   !$ cputime0 = OMP_GET_WTIME()
 
   call ECHO_banner('Program  S E M 2 D P A C K : start',iout)
 
@@ -46,6 +48,7 @@
   write(iout,200) 0,0d0,maxval(abs(pb%fields%veloc)),maxval(abs(pb%fields%displ))
 
   call CPU_TIME( cputime1 )
+   !$ cputime1 = OMP_GET_WTIME()
   cputime0 = cputime1-cputime0
 
   it = 1
@@ -59,6 +62,7 @@
 
     if (it == NT_CHECK) then
       call CPU_TIME(cputime2)
+   !$ cputime2 = OMP_GET_WTIME()
       cputime2=(cputime2-cputime1)/dble(NT_CHECK)
       write(iout,'(/A,5(/2X,A,EN12.3),/)')   &
         '---  CPU TIME ESTIMATES (in seconds) :', &
@@ -120,6 +124,7 @@
 
    !-- CPU TIME INFO
     call CPU_TIME(cputime3)      
+   !$ cputime3 = OMP_GET_WTIME()
     cputime3 = cputime3-cputime1
     write(iout,'(//A,5(/2X,A,EN12.3),/)')   &
         '---  CPU TIME INFORMATION (in seconds) :', &

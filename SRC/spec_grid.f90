@@ -225,20 +225,21 @@ contains
   se%tag => se%fem%tag
 
 ! global numbering table
-  allocate(ibool(ngll,ngll,se%nelem))
+  allocate(se%ibool(ngll,ngll,se%nelem))
   call storearray('ibool',size(se%ibool),iinteg)
   
   ibool => se%ibool
-  ! parallel initialize ibool using first touch principle
-  do icol = 1, size(se%fem%colors)
-      !$OMP PARALLEL DO SCHEDULE(STATIC)
-      do ie = 1, se%fem%colors(icol)%nelem
-          e = se%fem%colors(icol)%elem(ie)
-          ibool(:,:,e) = 0
-      end do
-  end do
+  ! does not gain much by first touch
+!  ! parallel initialize ibool using first touch principle
+!  do icol = 1, size(se%fem%colors)
+!      !$OMP PARALLEL DO SCHEDULE(STATIC) private(e)
+!      do ie = 1, se%fem%colors(icol)%nelem
+!          e = se%fem%colors(icol)%elem(ie)
+!          ibool(:,:,e) = 0
+!      end do
+!  end do
 
-!  ibool = 0
+  ibool = 0
 
 !---- start numbering
   if (echo_init) write(iout,fmt1,advance='no') 'Numbering GLL points'

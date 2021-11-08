@@ -17,6 +17,7 @@ module mesh_gen
   type mesh_type
     private
     integer :: kind
+    integer :: nthreads
     type (mesh_cart_type), pointer :: cart
     type (mesh_layers_type), pointer :: layers
     type (fem_grid_type), pointer :: emc2
@@ -43,6 +44,7 @@ contains
 !
 ! ARG: method   [name] [none] Meshing method name:
 !               'CARTESIAN', 'LAYERED', 'EMC2', 'MESH2D'
+! ARG: nthreads [INT][1] number of threads for coloring purposes
 !               
 ! END INPUT BLOCK
 
@@ -53,17 +55,21 @@ subroutine MESH_read(mesh,iin)
 
   type(mesh_type), intent(out) :: mesh
   integer, intent(in) :: iin
+  integer :: nthreads
 
   character(10) :: method
 
-  NAMELIST / MESH_DEF / method
+  NAMELIST / MESH_DEF / method, nthreads
 
   method = ' '
+  nthreads = 1
+
   rewind(iin)
   read(iin,MESH_DEF,END= 100)
   if (method == ' ') call IO_abort('mesh_read: you must set the "method" ')
   if (echo_input) write(iout,200) method
 
+  mesh%nthreads = nthreads
   select case (method) 
     case('CARTESIAN') 
       mesh%kind = tag_cart
@@ -91,7 +97,8 @@ subroutine MESH_read(mesh,iin)
 
 200 format(//,' M e s h   G e n e r a t i o n', &
       /1x,29('='),//5x, &
-      'Method  . . . . . . . . . . . . . . . .(method) = ',a)
+      'Method  . . . . . . . . . . . . . . . .(method) = ',a,&
+      'Nthreads . . . . . . . . . . . . . . . (method) = ',i6)
 
 end subroutine MESH_read
 
@@ -133,7 +140,7 @@ subroutine MESH_build(grid,mesh)
   end select
 
   ! Color the fem grid
-  call FE_GreedyColoring(grid%knods, grid%colors, grid%colorsA)
+  call FE_GreedyColoring(grid%knods, grid%colors, grid%colorsA, mesh%nthreads)
 
   if (echo_init) then 
     write(iout,fmtok)

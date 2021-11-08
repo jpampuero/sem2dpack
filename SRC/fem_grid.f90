@@ -541,33 +541,30 @@ end subroutine FE_GetVertexConn
 !
 ! Coloring wrapper subroutine
 !
-! Default nthreads = 1
-!
-! when OMP is used, nthreads = OMP_NUM_THREADS
-! OMP_NUM_THREADS is set as an environment variable when 
-! compiling and launching the omp program
-!
 
-      subroutine FE_GreedyColoring(knods, Colors, ColorsA)
+      subroutine FE_GreedyColoring(knods, Colors, ColorsA, nthreads)
          !$ use OMP_LIB
+          use stdio, only : IO_abort
          implicit none
          Integer, intent(in) :: knods(:,:)
          Type(color), intent(out), pointer :: Colors(:)
          INTEGER, intent(out), pointer :: ColorsA(:) 
          INTEGER, dimension(max_neighbor, size(knods, 2)) :: NEB
-         INTEGER :: nthreads = 1, NColor 
+         INTEGER :: NColor, nthreads_omp = 1, nthreads 
          
 !        get the total number of threads if OMP is used
 !$OMP PARALLEL 
 !$OMP SINGLE
-!$       nthreads  = OMP_GET_NUM_THREADS()
+!$       nthreads_omp  = OMP_GET_NUM_THREADS()
 !$OMP END SINGLE
 !$OMP END PARALLEL
-
+         if (nthreads_omp==1) nthreads = 1
+         if (nthreads_omp > nthreads) &
+             call IO_abort("nthreads must be larger than nthreads from OMP")
          write(*, *) "number of threads = ", nthreads
          call FindNeighbors(knods, NEB)
 		 call ColorByNeighbors(NEB, nthreads, ColorsA, NColor, Colors)
-         write(*, *) "Done coloring fem mesh"
+         write(*, *) "Done coloring fem mesh, Number of Colors = ", NColor
       end subroutine FE_GreedyColoring
 
 !=====================================================================
