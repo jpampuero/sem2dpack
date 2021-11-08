@@ -8,4 +8,4 @@
   * Elastic and inelastic wave propagation in heterogeneous media
   * Rupture dynamics on non-planar faults, with friction and off-fault damage or plasticity
   * High order (spectral) elements on unstructured meshes
-  * Parallelization on shared memory machine using openmp
+  * Parallelization on shared memory machine using openmp (not optimized, only 3x speedup)
