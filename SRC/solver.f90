@@ -7,6 +7,7 @@ module solver
   use stdio, only : IO_Abort
   use sources, only : SO_add
   use bc_gen , only : BC_apply, BC_set, BC_timestep
+  !$ use OMP_LIB
 
   implicit none
   private
@@ -281,30 +282,47 @@ subroutine compute_Fint(f,d,v,pb)
 
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc,vloc,floc
   double precision :: E_ep, E_el, sg(3), sgp(3)
-  integer :: e
+  double precision :: E_ept, E_elt, sgt(3), sgpt(3)
+  integer :: e, icol, ie
 
   f = 0d0
   pb%energy%E_el = 0d0
   pb%energy%sg   = 0d0
   pb%energy%sgp  = 0d0
 
-  do e = 1,pb%grid%nelem
-    dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
-    vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
-    call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
-                   pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
-                   E_ep,E_el,sg,sgp)
-    call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+  E_ept = pb%energy%E_ep
+  E_elt = pb%energy%E_el
+  sgt = pb%energy%sg
+  sgpt = pb%energy%sgp
 
-   ! total elastic energy change
-    pb%energy%E_el = pb%energy%E_el +E_el
-   ! cumulated plastic energy
-    pb%energy%E_ep = pb%energy%E_ep +E_ep
-   ! cumulated stress glut
-    pb%energy%sg = pb%energy%sg + sg
-    pb%energy%sgp = pb%energy%sgp + sgp
+  do icol = 1, size(pb%grid%fem%colors)
 
-  enddo
+      !$OMP PARALLEL DO SCHEDULE(STATIC) &
+      !$OMP REDUCTION(+: E_elt, E_ept, sgt, sgpt)
+      do ie = 1, pb%grid%fem%colors(icol)%nelem
+          e = pb%grid%fem%colors(icol)%elem(ie)
+!      do e = 1,pb%grid%nelem
+          dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
+          vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+          call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
+                         pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
+                         E_ep,E_el,sg,sgp)
+          call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+  
+         ! total elastic energy change
+          E_elt = E_elt + E_el
+         ! cumulated plastic energy
+          E_ept = E_ept + E_ep
+         ! cumulated stress glut
+          sgt   = sgt   + sg
+          sgpt  = sgpt  + sgp
+      end do !ie
+  enddo ! icol
+
+  pb%energy%E_ep = E_ept 
+  pb%energy%E_el = E_elt
+  pb%energy%sg   = sgt
+  pb%energy%sgp  =sgpt
 
 !DEVEL: to parallelize this loop for multi-cores (OpenMP)
 !DEVEL: reorder the elements to avoid conflict during assembly (graph coloring)
