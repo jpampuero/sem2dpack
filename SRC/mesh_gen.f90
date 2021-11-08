@@ -165,9 +165,12 @@ subroutine MESH_build(grid,mesh)
   open(ounit,file='ElmtColors_sem2d.tab')
   write(ounit,'(i6)') grid%colorsA
   close(ounit)
-
+  
+  if (echo_init) then 
+    write(iout,fmtok)
+    write(iout,fmt1,advance='no') 'Saving element coloring in file ElmtColors_sem2d.tab'
+  endif
   if (echo_init) write(iout,fmtok)
-
 
 end subroutine MESH_build
 

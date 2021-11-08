@@ -549,16 +549,25 @@ end subroutine FE_GetVertexConn
 !
 
       subroutine FE_GreedyColoring(knods, Colors, ColorsA)
+         !$ use OMP_LIB
          implicit none
          Integer, intent(in) :: knods(:,:)
          Type(color), intent(out), pointer :: Colors(:)
+         INTEGER, intent(out), pointer :: ColorsA(:) 
          INTEGER, dimension(max_neighbor, size(knods, 2)) :: NEB
-         INTEGER :: nthreads = 1, NColor, ColorsA(size(knods, 2))
+         INTEGER :: nthreads = 1, NColor 
          
 !        get the total number of threads if OMP is used
+!$OMP PARALLEL 
+!$OMP SINGLE
 !$       nthreads  = OMP_GET_NUM_THREADS()
+!$OMP END SINGLE
+!$OMP END PARALLEL
+
+         write(*, *) "number of threads = ", nthreads
          call FindNeighbors(knods, NEB)
 		 call ColorByNeighbors(NEB, nthreads, ColorsA, NColor, Colors)
+         write(*, *) "Done coloring fem mesh"
       end subroutine FE_GreedyColoring
 
 !=====================================================================
@@ -644,14 +653,16 @@ end subroutine FE_GetVertexConn
       subroutine ColorByNeighbors(NEB, nthreads, ColorsA, NColor, Colors)
          implicit none
          INTEGER, INTENT(IN)  :: NEB(:,:), nthreads
-         INTEGER, INTENT(OUT) :: NColor, ColorsA(size(NEB, 2))
+         INTEGER, INTENT(OUT) :: NColor
  		 TYPE(color), POINTER, INTENT(OUT):: Colors(:)
+ 		 INTEGER, POINTER, INTENT(OUT):: ColorsA(:)
          INTEGER :: NEL, i, j, ColorCount(size(NEB, 2)), ci, ei
          INTEGER :: BlockedColorsA(size(NEB,1)), Neighbors(size(NEB,1))
          LOGICAL :: isfree
          INTEGER, allocatable :: tmp(:)
 
           NEL        = size(NEB, 2)
+          allocate(ColorsA(NEL))
           ColorsA     = 0
           ColorsA(1)  = 1
           NColor     = 1
@@ -699,7 +710,7 @@ end subroutine FE_GetVertexConn
               end if
           end do ! i
 
-      deallocate(tmp)
+      if (allocated(tmp)) deallocate(tmp)
       
       ! allocate memory for Colors
 	  allocate(Colors(NColor))
