@@ -583,7 +583,7 @@ end subroutine FE_GetVertexConn
           INTEGER :: i, j, k, NEL, i_node, cnt_i, n2e(size(NEB, 1))
           INTEGER :: e_i, e_j,nnode
           INTEGER, allocatable :: node2el(:,:), cnt1(:)
-          Integer, allocatable :: tmp(:)
+          Integer :: tmp
           Integer :: cnt2(size(ELEM, 2)), nodes(size(ELEM, 1))
 
           NEL     = size(ELEM, 2)
@@ -604,9 +604,8 @@ end subroutine FE_GetVertexConn
                   i_node = nodes(j)
                   ! (i, i_node) should be included in node2el
                   ! if not included then update both count and nodel2el
-                  if (allocated(tmp)) deallocate(tmp)
-                  tmp  = findloc(node2el(:, i_node),i)
-                  if (size(tmp)==1 .and. tmp(1)==0) then
+                  tmp  = findlocfirst(node2el(:, i_node),i)
+                  if (tmp==0) then
                       ! update the count of elements for each node 
                       cnt1(i_node) = cnt1(i_node) + 1
                       node2el(cnt1(i_node),i_node) = i
@@ -623,9 +622,8 @@ end subroutine FE_GetVertexConn
                   do j = k+1, cnt_i
                       e_j = n2e(j)
                       ! check if e_i, e_j has already been included
-                      if (allocated(tmp)) deallocate(tmp)
-                      tmp  = findloc(NEB(:, e_i), e_j)
-                      if (size(tmp)==1 .and. tmp(1)==0) then
+                      tmp  = findlocfirst(NEB(:, e_i), e_j)
+                      if (tmp==0) then
                           ! if not, include pair
                           cnt2(e_i) = cnt2(e_i) + 1
                           cnt2(e_j) = cnt2(e_j) + 1
@@ -635,7 +633,7 @@ end subroutine FE_GetVertexConn
                   end do
               end do
           end do
-          deallocate(node2el, cnt1, tmp)
+          deallocate(node2el, cnt1)
       end subroutine FINDNeighbors
 
 !=====================================================================
@@ -656,7 +654,7 @@ end subroutine FE_GetVertexConn
          INTEGER :: NEL, i, j, ColorCount(size(NEB, 2)), ci, ei
          INTEGER :: BlockedColorsA(size(NEB,1)), Neighbors(size(NEB,1))
          LOGICAL :: isfree
-         INTEGER, allocatable :: tmp(:)
+         INTEGER :: tmp
 
           NEL        = size(NEB, 2)
           allocate(ColorsA(NEL))
@@ -685,9 +683,8 @@ end subroutine FE_GetVertexConn
               do j = 1, NColor
                   ! check if colorcount has reached nthreads
                   if (ColorCount(j) /= nthreads) then
-                      if (allocated(tmp)) deallocate(tmp)
-                      tmp  = findloc(BlockedColorsA, j)
-                      isfree = size(tmp)==1 .and. tmp(1)==0
+                      tmp  = findlocfirst(BlockedColorsA, j)
+                      isfree = tmp==0
                       if (isfree) then
                           ! color elemment i with Color j
                           ColorsA(i) = j
@@ -707,8 +704,6 @@ end subroutine FE_GetVertexConn
               end if
           end do ! i
 
-      if (allocated(tmp)) deallocate(tmp)
-      
       ! allocate memory for Colors
 	  allocate(Colors(NColor))
       
@@ -734,6 +729,20 @@ end subroutine FE_GetVertexConn
          Colors(ci)%elem(ei) = i
       end do
       end subroutine ColorByNeighbors
+
+      ! find the first index of x in A
+      function findlocfirst(A, x) result(ix)
+          integer, intent(in):: A(:), x
+          integer :: ix
+          integer :: i
+          ix = 0
+          do i = 1, size(A)
+              if (A(i)==x) then
+                  ix = i
+                  exit
+              end if
+          end do
+      end function findlocfirst
 
 end module fem_grid
 
