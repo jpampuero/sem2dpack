@@ -229,16 +229,6 @@ contains
   call storearray('ibool',size(se%ibool),iinteg)
   
   ibool => se%ibool
-  ! does not gain much by first touch
-!  ! parallel initialize ibool using first touch principle
-!  do icol = 1, size(se%fem%colors)
-!      !$OMP PARALLEL DO SCHEDULE(STATIC) private(e)
-!      do ie = 1, se%fem%colors(icol)%nelem
-!          e = se%fem%colors(icol)%elem(ie)
-!          ibool(:,:,e) = 0
-!      end do
-!  end do
-
   ibool = 0
 
 !---- start numbering
