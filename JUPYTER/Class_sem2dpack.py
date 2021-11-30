@@ -238,6 +238,20 @@ def create_gif(filenames, duration):
 #
 
 
+def write_station_file(filename='stats.txt',lims=[0, 1, 0, 1], dx=1.0, dz=1.0):
+    f = open (filename, 'w')
+    nsta = 0 
+    for _z in np.arange(lims[2],lims[3]+dz, dz):
+        for _x in np.arange(lims[0],lims[1]+dx, dx):
+            f.write('%s \t %s \n' % (str(_x), str(_z)) )
+            nsta+=1
+    f.close()
+    print ('Number of stations (input file): ', nsta)
+    return
+#
+
+
+
 class sem2dpack(object):
   """
     Class to postprocess SEM2DPACK simulation outputs.
@@ -1157,68 +1171,88 @@ class sem2dpack(object):
 #
 
 
+
   def plot_snapshot_tests(self,fname,interval, vmin=-1.e-10, vmax=1.e-10, save=False,outdir='./',
-            show=False, nsample=500, cmap='seismic',\
-            ylabel='Width / $L_{c}$',xlabel='Length / $L_{c}$'):
-    ''' very slow... needs optimisation ! '''
+            show=False, nsample=1000, cmap='seismic',\
+            ylabel='Width / $L_{c}$', xlabel='Length / $L_{c}$', \
+            lims=None, switch_coord=False, logscale=False, normaliseby=1.0):
 
     print ('Plotting snapshots...')
     filename = self.directory+ fname
     print ('reading ...', filename)
-
     field = self.readField(filename)
+
     coord = self.mdict["coord"]
-    xcoord = coord[:,0] ; zcoord = coord[:,1]
+    xcoord, zcoord = coord[:,0]/normaliseby, coord[:,1]/normaliseby
+    # switch coord for anti-plane cycle simulations 
+    # using 'x' along fault dip
+    if switch_coord: 
+      xcoord, zcoord = coord[:,1]/normaliseby, coord[:,0]/normaliseby
     nbx = len(xcoord)/4 ; nbz = len(zcoord)/4
     ext = [min(xcoord), max(xcoord), min(zcoord), max(zcoord)]
-    # x,z = np.meshgrid(np.linspace(ext[0],ext[1],50),np.linspace(ext[2],ext[3],50))
-    # print('grid data ...')
-    # y = gd((xcoord,zcoord),field,(x,z),method='linear')
-
+    print ('Model extent: ', ext)
 
     # Test for Nepal simulations
     # nearest is much faster than linear !
     x,z = np.meshgrid(np.linspace(ext[0],ext[1],nsample),np.linspace(ext[2],ext[3],nsample))
     y = gd((xcoord,zcoord),field,(x,z),method='nearest')
-
     print ('Min, Max of Field: ', np.amin(field), np.amax(field))
-
     print('flipud ...')
     y = np.flipud(y)
 
-    print ('Snapshots -- min and max:', min(field), max(field))
+    #
     fig = plt.figure()
     sns.set_style('whitegrid')
     ax = fig.add_subplot(111)
-    # ax.set(xlim=(10e3, 30e3), ylim=(-2e3, max(zcoord)))
+    if lims != None:
+      ax.set(xlim=(lims[0],lims[1]), ylim=(lims[2],lims[3]))
 
     # Fault rupture outputs
-    im = ax.imshow(y, extent=[min(xcoord), max(xcoord), min(zcoord), max(zcoord)], \
-      vmin=vmin, vmax=vmax, cmap=cmap)
+    if not logscale:
+      im = ax.imshow(y, extent=[min(xcoord), max(xcoord), min(zcoord), max(zcoord)], \
+        vmin=vmin, vmax=vmax, cmap=cmap, aspect='auto')
+    else:
+      im = ax.imshow(np.log10(abs(y)), extent=[min(xcoord), max(xcoord), min(zcoord), max(zcoord)], \
+        vmin=vmin, vmax=vmax, cmap=cmap, aspect='auto')
+      print ('Min, Max of log10(field): ', np.amin(np.log10(abs(y))), np.amax(np.log10(abs(y))) )
 
+    # custom cycle plots
+    # add VW limits
+    plt.axhline(y=self.VW_halflen/normaliseby, c='snow',linestyle=':')
+    plt.axhline(y=-self.VW_halflen/normaliseby, c='snow',linestyle=':')
+    try:
+      plt.axvline(x=self.LVFZ/normaliseby, c='k',linestyle=':')
+    except:
+      pass
 
     # Adding rectangle to restrain the fault area (optional)
     # ax.add_patch(Rectangle((-15.0, -1.5),30., 3.,alpha=1,linewidth=1,edgecolor='k',facecolor='none'))
 
     plt.ylabel(ylabel); plt.xlabel(xlabel)
     c = plt.colorbar(im, fraction=0.046, pad=0.1,shrink=0.4)
-    c.set_clim(vmin, vmax)
+    # c.set_clim(vmin, vmax)
     c.set_label('Amplitude')
     tit = 'Snapshot at t (s)= '+ str(interval)
     if interval < 0: tit = 'File: '+ fname    
-    tit += '   Min- Max vel. amplitude = '+ str('%.2f' % (min(abs(field))))
-    tit += '   '+ str('%.2f' % (max(abs(field))))
+    if logscale:
+      tit += '   Min- Max vel. amplitude = '+ str('%.2f' % (np.amin(np.log10(abs(y)))))
+      tit += '   '+ str('%.2f' % (np.amax(np.log10(abs(y)))))
+    else:
+      tit += '   Min- Max vel. amplitude = '+ str('%.2f' % (min(abs(field))))
+      tit += '   '+ str('%.2f' % (max(abs(field))))      
 
     plt.title(tit); plt.tight_layout()
     if save: plt.savefig(fname+'.png',dpi=300) # save into current directory
     if show: plt.show()
     plt.close()
+    print ('*')
 #
 
 
   def animate_fault(self, compo='x', field='v', t_total=10.01, itd=500,\
                       vmin=-2.5, vmax=2.5, ready=False, digit=2,cmap='seismic',\
-                      ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel=''):
+                      ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel='',\
+                      lims=None,switch_coord=False,logscale=False,normaliseby=1.0):
     ''' Preparing snapshots and their gif in the current path. '''
     # Make snapshots from binary files
 
@@ -1237,7 +1271,10 @@ class sem2dpack(object):
       if not ready:
         # self.plot_snapshot(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False) 
         self.plot_snapshot_tests(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False, cmap=cmap,\
-                                    xlabel=xlabel, ylabel=ylabel) 
+                                  xlabel=xlabel, ylabel=ylabel,lims=lims,\
+                                  switch_coord=switch_coord,logscale=logscale,\
+                                  normaliseby=normaliseby)     
+
       files.append(fname+'.png')
     # Animate the plot_snapshot_testspshots
     create_gif(files, 1.5)
