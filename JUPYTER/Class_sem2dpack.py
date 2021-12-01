@@ -1175,7 +1175,7 @@ class sem2dpack(object):
   def plot_snapshot_tests(self,fname,interval, vmin=-1.e-10, vmax=1.e-10, save=False,outdir='./',
             show=False, nsample=1000, cmap='seismic',\
             ylabel='Width / $L_{c}$', xlabel='Length / $L_{c}$', \
-            lims=None, switch_coord=False, logscale=False, normaliseby=1.0):
+            lims=None, switch_coord=False, logscale=False, normaliseby=1.0,roll_xcoord=False):
 
     print ('Plotting snapshots...')
     filename = self.directory+ fname
@@ -1188,6 +1188,8 @@ class sem2dpack(object):
     # using 'x' along fault dip
     if switch_coord: 
       xcoord, zcoord = coord[:,1]/normaliseby, coord[:,0]/normaliseby
+    if roll_xcoord:
+      xcoord = max(xcoord)- xcoord
     nbx = len(xcoord)/4 ; nbz = len(zcoord)/4
     ext = [min(xcoord), max(xcoord), min(zcoord), max(zcoord)]
     print ('Model extent: ', ext)
@@ -1252,7 +1254,8 @@ class sem2dpack(object):
   def animate_fault(self, compo='x', field='v', t_total=10.01, itd=500,\
                       vmin=-2.5, vmax=2.5, ready=False, digit=2,cmap='seismic',\
                       ibeg=0, iend=1, interval=-1,jump=1,xlabel='',ylabel='',\
-                      lims=None,switch_coord=False,logscale=False,normaliseby=1.0):
+                      lims=None,switch_coord=False,logscale=False, \
+                      normaliseby=1.0,roll_xcoord=False):
     ''' Preparing snapshots and their gif in the current path. '''
     # Make snapshots from binary files
 
@@ -1273,7 +1276,7 @@ class sem2dpack(object):
         self.plot_snapshot_tests(fname, interval*i, vmin=vmin, vmax=vmax, save=True, show=False, cmap=cmap,\
                                   xlabel=xlabel, ylabel=ylabel,lims=lims,\
                                   switch_coord=switch_coord,logscale=logscale,\
-                                  normaliseby=normaliseby)     
+                                  normaliseby=normaliseby,roll_xcoord=roll_xcoord)     
 
       files.append(fname+'.png')
     # Animate the plot_snapshot_testspshots
