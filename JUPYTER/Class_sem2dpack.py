@@ -433,14 +433,15 @@ class sem2dpack(object):
 
 
 
-  def read_seismos_rsf(self, ff=np.float32):
+  def read_seismos_rsf(self, ff=np.float32, jump=1):
+    print ('Reading ', self.directory+'Seismos_rsf.dat')
     with open(self.directory+'Seismos_rsf.dat', 'rb') as fid:
       whole = np.fromfile(fid, ff) 
       data = whole.reshape(int(len(whole)/(self.nsta+1)), self.nsta+1)
       print ('data shape: ', data.shape)
-      self.velocity = data[:, 1:]  
+      self.velocity = data[::jump, 1:]  
       # Elif: modif the code later to delete time array if unnecessary
-      self.time = np.arange(self.velocity.shape[0])* self.dt
+      self.time = np.arange(self.velocity.shape[0])* self.dt* jump
     return
     ###
 
@@ -657,6 +658,7 @@ class sem2dpack(object):
     Return:
       -Updates self.velocity array.
     """
+    print ('Filtering seissmograms ...')
     if not self.velocity.size:
       if not isRSF: 
         self.read_seismo(component=compo)
