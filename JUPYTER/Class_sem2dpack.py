@@ -834,7 +834,39 @@ class sem2dpack(object):
               dum = np.genfromtxt(fname, usecols=5, dtype=str)
               fault['isSwitch'] = np.array( [bool(util.strtobool(d)) for d in dum] )
               dum = np.genfromtxt(fname, usecols=6, dtype=str)
-              fault['isEq'] = np.array( [bool(util.strtobool(d)) for d in dum] )           
+              fault['isEq'] = np.array( [bool(util.strtobool(d)) for d in dum] )      
+
+          # Data file III
+          # Read potency and potency rate, currently only for out-of-plane (ndof=1)
+          # for in-plane models change usecols and potency* arrays' size
+          fname = self.directory+'/Flt'+str('%02d' % BC[0])+'_potency_sem2d.tab'        
+          if os.path.exists(fname):
+              print(fname)
+              # POTENCY
+              # out-of plane model -- compo 13
+              # replace D by e for python 
+              array = np.genfromtxt(fname,usecols=0, dtype=None,  encoding=None)
+              array_fixed  = np.array( [float(dum.replace('D','e')) for dum in array])
+              fault['potency'] = np.zeros((array_fixed.shape[0], 2))
+              fault['potency_rate'] = np.zeros((array_fixed.shape[0], 2))    
+              fault['potency'][:,0] = array_fixed
+              
+              # out-of plane model -- compo 23
+              array = np.genfromtxt(fname,usecols=1, dtype=None,  encoding=None)
+              array_fixed  = np.array( [float(dum.replace('D','e')) for dum in array])    
+              fault['potency'][:,1] = array_fixed
+              
+              # POTENCY RATE
+              # out-of plane model -- compo 13
+              array = np.genfromtxt(fname,usecols=2, dtype=None,  encoding=None)
+              array_fixed  = np.array( [float(dum.replace('D','e')) for dum in array])    
+              fault['potency_rate'][:,0] = array_fixed
+                  
+              # out-of plane model -- compo 23
+              array = np.genfromtxt(fname,usecols=3, dtype=None,  encoding=None)
+              array_fixed  = np.array( [float(dum.replace('D','e')) for dum in array])    
+              fault['potency_rate'][:,1] = array_fixed    
+    
           
       self.fault = fault        
 
