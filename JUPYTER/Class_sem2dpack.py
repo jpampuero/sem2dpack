@@ -892,7 +892,7 @@ class sem2dpack(object):
 
 
   def plot_cycles_slip_rate(self, eq=1, is_normalisation=False, VW_halflen=9.5, _vmin=0.0, _vmax=2.0, 
-                            savefig=False, VS_LVFZ=0.0, Lnuc=0.0, Vpl=6.34e-11, tmin=-1.0, tmax=-1.0, 
+                            savefig=False, VS_LVFZ=0.0, Lnuc=1.0, Vpl=6.34e-11, tmin=-1.0, tmax=-1.0, 
                             _cmap='rainbow'):
 
       import matplotlib.colors as colors
@@ -905,6 +905,7 @@ class sem2dpack(object):
       print ('Number of dynamic beginning and ending points:', len(index[cdt_beg]), len(index[cdt_end]))
       # choose the dynamic event range
       cdt1, cdt2 = index[cdt_beg][eq], index[cdt_end][eq]
+      print ('cdt1, cdt2: ', cdt1, cdt2)
 
       # Slip rate and tim
       V = self.fault['Slip_Rate'][:, cdt1:cdt2] #npts, nt
@@ -926,14 +927,12 @@ class sem2dpack(object):
           data = V/ Vpl
           data = np.log10(data)
           # print ('After normal. max : ', np.amax(data) )
-          # xx = t* VS_LVFZ/ Lnuc
-          # yy = self.fault['x'] / Lnuc  
-          xx = t
-          yy = self.fault['x']     
+          xx = t* self.Vdamage/ Lnuc
+          yy = self.fault['x']/Lnuc     
 
       else:
           xx = t
-          yy = self.fault['x']
+          yy = self.fault['x']/Lnuc
       #
                 
           
@@ -944,11 +943,11 @@ class sem2dpack(object):
       ###
       ax = axs[0]
       ax.set_title('Shear stress (MPa)')
-      ax.set_ylabel('Along dip (m)')
+      ax.set_ylabel('Along dip (Lnuc)')
       xmin, xmax = min(min(init), min(final)), max(max(init), max(final))
-      ax.set_ylim(-2*VW_halflen, 2*VW_halflen)
-      ax.hlines(y=VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
-      ax.hlines(y=-VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
+      ax.set_ylim(-2*VW_halflen/Lnuc, 2*VW_halflen/Lnuc)
+      ax.hlines(y=VW_halflen/Lnuc, xmin=xmin, xmax=xmax, linestyle=':')
+      ax.hlines(y=-VW_halflen/Lnuc, xmin=xmin, xmax=xmax, linestyle=':')
       ax.plot(init, yy, c='k', label='Initial stress')
       ax.plot(final, yy, c='red', label='Final stress')
       ax.grid()
@@ -961,13 +960,13 @@ class sem2dpack(object):
       if tmax < 0.0: tmax = max(xx)
       if tmin < 0.0: tmin = min(xx)
       ax.set_xlim(tmin, tmax)
-      ax.hlines(y=VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
-      ax.hlines(y=-VW_halflen, xmin=xmin, xmax=xmax, linestyle=':')
+      ax.hlines(y=VW_halflen/Lnuc, xmin=xmin, xmax=xmax, linestyle=':')
+      ax.hlines(y=-VW_halflen/Lnuc, xmin=xmin, xmax=xmax, linestyle=':')
       im = ax.imshow(data, extent=ext,
                  interpolation='nearest', cmap=_cmap, aspect='auto', vmin=_vmin, vmax=_vmax, origin='lower')
-      ax.set_xlabel('t (s)')
+      ax.set_xlabel('t (V/Lnuc)')
       cb = fig.colorbar(im, orientation='vertical')
-      cb.set_label('V')
+      cb.set_label('log(V/Vpl)')
       fig.set_size_inches(9.0, 4.5)
       plt.tight_layout()
 
