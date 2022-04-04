@@ -1,10 +1,6 @@
 #----- Some general parameters ----------------
 &GENERAL iexec=1, ngll=5, fmax=3.d0 , W=10d3, ndof=2 ,
-<<<<<<< HEAD
-  title = '2.5D elastic in-plane model', verbose='1111' , ItInfo = 400/ 
-=======
-  title = '2.5D elastic in-plane model', verbose='1111' , ItInfo = 400/
->>>>>>> 25D-VRSF
+title = '2.5D elastic in-plane model', verbose='1111' , ItInfo = 400/
 
 #----- Build the mesh ---------------------------
 &MESH_DEF  method = 'CARTESIAN'/
