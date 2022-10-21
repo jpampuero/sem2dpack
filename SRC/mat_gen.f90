@@ -374,7 +374,8 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       allocate(sigmid(ntags))
       allocate(siginit(grid%ngll,grid%ngll,grid%nelem))
 !       call MAT_IWAN_initial_stress(matpro,grid,ntags,sigmid,siginit)
-      call MAT_IWAN_initial_stress_Nepal(matpro,grid,ntags,sigmid,siginit)
+      !call MAT_IWAN_initial_stress_Nepal(matpro,grid,ntags,sigmid,siginit)
+      call MAT_IWAN_initial_stress(matpro,grid,ntags,sigmid,siginit)
       initstress = .True.
       exit
     endif

@@ -52,15 +52,14 @@ module mat_iwan
   integer, save:: MAT_IWAN_mempro = 0
   integer, save:: MAT_IWAN_memwrk = 0
 
-
   double precision, save:: MAT_IWAN_WaterTable = -9d13
-
+  logical, save :: MAT_IWAN_isNepal = .false.
 
   public :: matwrk_iwan_type &
           , MAT_isIwan, MAT_isOverburden, MAT_IWAN_read &
           , MAT_IWAN_init_elem_prop &
-          , MAT_IWAN_init_elem_work, MAT_IWAN_stress, MAT_IWAN_initial_stress &
-          , MAT_IWAN_initial_stress_Nepal &
+          , MAT_IWAN_init_elem_work, MAT_IWAN_stress &
+          , MAT_IWAN_initial_stress &
           , MAT_IWAN_mempro, MAT_IWAN_memwrk
 
 
@@ -120,6 +119,7 @@ contains
 ! ARG: cohesion [dble][0d0]  cohesion
 ! ARG: IAIMOD   [log] [  ]   excess-pore pressure development 
 ! ARG: VEPMOD   [log] [  ]   visco-elastoplasticity (referred to Liu& Archuleta, 2006)
+! ARG: IS_NEPAL [log] [F]    is this Nepal simulation of Oral et al. (2022, GJI)
 !
 !
 ! NOTE: WT must be defined only once in the first material block of types 2/3, 
@@ -138,9 +138,9 @@ contains
   integer, intent(in) :: iin
 
   double precision :: cp,cs,rho,Nspr,gref,phi_f,WT,K0,cohesion,dum
-  logical  :: IAIMOD, VEPMOD
+  logical  :: IAIMOD,VEPMOD,IS_NEPAL
 
-  NAMELIST / MAT_IWAN / cp,cs,rho,Nspr,gref,phi_f,WT,IAIMOD,K0,cohesion,VEPMOD
+  NAMELIST / MAT_IWAN / cp,cs,rho,Nspr,gref,phi_f,WT,IAIMOD,K0,cohesion,VEPMOD,IS_NEPAL
 
   call MAT_setKind(input,isIwan)
 
@@ -156,7 +156,7 @@ contains
   IAIMOD   = .False.
   VEPMOD   = .False.
   cohesion = 0d0
-
+  IS_NEPAL = .False.
   
 
   read(iin, MAT_IWAN, END=100)
@@ -166,8 +166,10 @@ contains
   if (WT .NE. dum) &
   MAT_IWAN_WaterTable = WT
 
+  ! Setting simulation type to adjust confining stress to Nepal topo
+  MAT_IWAN_isNepal = IS_NEPAL
 
-  write(iout,200) cp,cs,rho,Nspr,IAIMOD,VEPMOD
+  write(iout,200) cp,cs,rho,Nspr,IAIMOD,VEPMOD,IS_NEPAL
   ! Material type 2-3
   if (gref < 0d0) then
     write(iout,300) MAT_IWAN_WaterTable,K0,cohesion,phi_f
@@ -241,7 +243,8 @@ contains
     'Mass density. . . . . . . . . . . . (rho) =',EN12.3,/5x, &
     'Number of Iwan mechanisms . . . . .(Nspr) =',EN12.3,/5x, &
     'Front saturation model. . . . . .(IAIMOD) =',L3/5x, &
-    'Viscoelastoplasticity . . . . . .(VEPMOD) =',L3/5x)
+    'Viscoelastoplasticity . . . . . .(VEPMOD) =',L3/5x, &
+    'Nepal simulation . . . . . . . (IS_NEPAL) =',L3/5x)
 
   300   format(5x, &
     'Water table level. . . . . . . . . . (WT) =',EN12.3,/5x, &  
@@ -768,7 +771,6 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
 ! Constitutive law
 
   subroutine MAT_IWAN_stress(ndof,m,ngll,dt,de,sigsys,p,sigeps)
-!  subroutine MAT_IWAN_stress(ndof,m,ngll,dt,de,sigeps,sature,sigsys,p)
 
   use mat_visla, only: MAT_VISLA_strain, MAT_VISLA_strain2
 
@@ -777,7 +779,6 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
   double precision, intent(in) :: de(ngll,ngll,ndof+1) 
   type (matwrk_iwan_type), intent(inout) :: m
   double precision, intent(out) :: sigeps(ngll,ngll,3)
-!  double precision, intent(out) :: sature(ngll,ngll,3)
   double precision, intent(out) :: sigsys(ngll,ngll,ndof+1)
   type(matpro_elem_type), intent(in) :: p
 
@@ -1171,8 +1172,27 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
   enddo
 
 end subroutine MAT_IWAN_Ematris
-!=======================================================================
 
+
+!=======================================================================
+subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
+
+  use spec_grid, only : sem_grid_type, SE_elem_coord
+
+  type(matpro_elem_type), intent(in) :: mat_elem(:)
+  type(sem_grid_type), intent(in) :: grid
+  integer, intent(in) :: ntags
+  double precision, intent(inout)   :: sigmid(ntags)
+  double precision, intent(inout)   :: siginit(grid%ngll,grid%ngll,grid%nelem)
+
+  if ( MAT_IWAN_isNepal )  then
+     call MAT_IWAN_initial_stress_Nepal(mat_elem,grid,ntags,sigmid,siginit)
+  else
+     call MAT_IWAN_initial_stress_default(mat_elem,grid,ntags,sigmid,siginit)
+  endif
+
+end subroutine MAT_IWAN_initial_stress
+!=======================================================================
 ! Elif (01/2020)
 ! Testing for Nepal basin:
 ! only NL layer is #1;
@@ -1320,7 +1340,7 @@ subroutine MAT_IWAN_initial_stress_Nepal(mat_elem,grid,ntags,sigmid,siginit)
 end  subroutine MAT_IWAN_initial_stress_Nepal
 !=======================================================================
 
-subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
+subroutine MAT_IWAN_initial_stress_default(mat_elem,grid,ntags,sigmid,siginit)
 
 ! Elif (01/2020)
 ! THIS SUBROUTINE IS NOT APPROPRIATE FOR
@@ -1464,7 +1484,7 @@ subroutine MAT_IWAN_initial_stress(mat_elem,grid,ntags,sigmid,siginit)
   deallocate(zmin,sigmax)
   return
 
-end  subroutine MAT_IWAN_initial_stress
+end  subroutine MAT_IWAN_initial_stress_default
 !=======================================================================
   
   subroutine MAT_IWAN_shear_work(m,p,ngll,dplastic)
