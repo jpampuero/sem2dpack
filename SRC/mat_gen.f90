@@ -497,7 +497,7 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp,sige
   double precision, intent(out) :: E_ep !increment of plastic energy
   double precision, intent(out) :: E_el !total elastic energy
   double precision, intent(out) :: sg(3),sgp(3)   !stress glut
-  double precision, optional, dimension(ngll,ngll,2), intent(inout) :: sigeps
+  double precision, optional, dimension(ngll,ngll,3), intent(inout) :: sigeps
 
   double precision, dimension(ngll,ngll,ndof+1) :: e,s,de
 
@@ -555,7 +555,7 @@ subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp,de,
   double precision, optional, intent(in) :: dt
   double precision, optional, intent(out) :: E_ep, E_el, sg(3),sgp(3)
   double precision, optional, intent(in)  :: de(ngll,ngll,ndof+1)  
-  double precision, optional, intent(inout) :: sigeps(ngll,ngll,2)
+  double precision, optional, intent(inout) :: sigeps(ngll,ngll,3)
 
   double precision, dimension(ngll,ngll) :: E_ep_local, E_el_local
   double precision, dimension(ngll,ngll,3) :: sg_local,sgp_local

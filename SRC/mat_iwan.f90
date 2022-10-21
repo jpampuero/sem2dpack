@@ -605,7 +605,9 @@ subroutine MAT_IWAN_init_elem_overburden(m,p,ngll,siginit,sigmid,grid,e,ounitNL)
 
  
   m%Peff0 = siginit* (1d0+ 2d0*K0)/3d0
-  m%Gm0   = m%mu * (abs(m%Peff0/(sigmid* (1d0+ 2d0*K0)/3d0)))**0.5
+  !m%Gm0   = m%mu * (abs(m%Peff0/(sigmid* (1d0+ 2d0*K0)/3d0)))**0.5
+  ! Nepal (04/2020) Elif
+  m%Gm0   = m%mu !* (abs(m%Peff0/(sigmid* (1d0+ 2d0*K0)/3d0)))**0.5
 
   !
   m%Gact  = m%Gm0
@@ -774,7 +776,7 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
   double precision, intent(in) :: dt
   double precision, intent(in) :: de(ngll,ngll,ndof+1) 
   type (matwrk_iwan_type), intent(inout) :: m
-  double precision, intent(out) :: sigeps(ngll,ngll,2)
+  double precision, intent(out) :: sigeps(ngll,ngll,3)
 !  double precision, intent(out) :: sature(ngll,ngll,3)
   double precision, intent(out) :: sigsys(ngll,ngll,ndof+1)
   type(matpro_elem_type), intent(in) :: p
@@ -846,6 +848,10 @@ subroutine MAT_IWAN_init_shear_work(m,p,ngll,e)
   m%sig = m%sig+ dsig
  if (ndof==1)   sigeps(:,:,2) = m%sig(:,:,5)   !yz component to write out    ndof=1  
  if (ndof==2)   sigeps(:,:,2) = m%sig(:,:,3)   !xz component to write out    ndof=2
+ sigeps(:,:,3) = m%aktif(:,:)   !active surfaces to write out    ndof=2
+
+
+
 
   index = -ndof*ndof+ 4
   do i=1,ndof+1
@@ -1261,53 +1267,53 @@ subroutine MAT_IWAN_initial_stress_Nepal(mat_elem,grid,ntags,sigmid,siginit)
 
 
 
-  ! Max initial stress for each domain   !!! CORRECTED
-  ! to be changed for irregular layer interfaces!!!
-  sigmax = 0d0
-  do i=1,ntags-1
-
-    do e=1,grid%nelem
-      if (grid%tag(e) == i) then
-      sigmax(i+1) = max(sigmax(i+1), maxval(siginit(:,:,e)))
-      endif
-    enddo
-    
-    sigmax(i+1) = sigmax(i+1)+ sigmax(i)
-  enddo
-
-  do e=1,grid%nelem
-    do i=1,grid%ngll
-      do j=1,grid%ngll
-        siginit(i,j,e) = siginit(i,j,e)+ sigmax(grid%tag(e))
-      enddo
-    enddo
-  enddo
-
+!  ! Max initial stress for each domain   !!! CORRECTED
+!  ! to be changed for irregular layer interfaces!!!
+!  sigmax = 0d0
+!  do i=1,ntags-1
+!
+!    do e=1,grid%nelem
+!      if (grid%tag(e) == i) then
+!      sigmax(i+1) = max(sigmax(i+1), maxval(siginit(:,:,e)))
+!      endif
+!    enddo
+!    
+!    sigmax(i+1) = sigmax(i+1)+ sigmax(i)
+!  enddo
+!
+!  do e=1,grid%nelem
+!    do i=1,grid%ngll
+!      do j=1,grid%ngll
+!        siginit(i,j,e) = siginit(i,j,e)+ sigmax(grid%tag(e))
+!      enddo
+!    enddo
+!  enddo
+!
   
-  ! Midlayer stress for each domain
-  do i=1,ntags
-    count = 0
-    do e=1,grid%nelem
-
-      if (grid%tag(e) == i) then
-        if (count == 0) then
-          minim = minval(siginit(:,:,e))
-          maxim = maxval(siginit(:,:,e))
-        else
-          minim = min(minim, minval(siginit(:,:,e)))
-          maxim = max(maxim, maxval(siginit(:,:,e)))
-        endif
-        count = count+ 1
-      endif
-    enddo
-
-    if (i == 1) then 
-      sigmid(i) = 0.5d0* (maxim)
-    else
-      sigmid(i) = 0.5d0* (minim+maxim)
-    endif
-  enddo
-
+!  ! Midlayer stress for each domain
+!  do i=1,ntags
+!    count = 0
+!    do e=1,grid%nelem
+!
+!      if (grid%tag(e) == i) then
+!        if (count == 0) then
+!          minim = minval(siginit(:,:,e))
+!          maxim = maxval(siginit(:,:,e))
+!        else
+!          minim = min(minim, minval(siginit(:,:,e)))
+!          maxim = max(maxim, maxval(siginit(:,:,e)))
+!        endif
+!        count = count+ 1
+!      endif
+!    enddo
+!
+!    if (i == 1) then 
+!      sigmid(i) = 0.5d0* (maxim)
+!    else
+!      sigmid(i) = 0.5d0* (minim+maxim)
+!    endif
+!  enddo
+!
   deallocate(sigmax)
   return
 

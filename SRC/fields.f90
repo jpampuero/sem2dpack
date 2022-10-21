@@ -65,6 +65,8 @@ subroutine FIELDS_init(fields,npoin,alpha)
   ! Added by Elif(2017):
   ! Only xz(ndof=2) or yz(ndof=1) 
   ! strain(col 1) - stress(col 2) components
+  ! Elif (05/2020)
+  ! third column to save aktif
   call FIELD_init_user(fields%sigeps,'sigeps')
 
   if (alpha) then
@@ -105,7 +107,7 @@ contains
     double precision, pointer :: field(:,:)
     character(*), intent(in) :: name
   
-    allocate(field(npoin,2))
+    allocate(field(npoin,3))
     call storearray(name,size(field),idouble)
     field = 0d0
    

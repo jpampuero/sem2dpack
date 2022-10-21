@@ -318,7 +318,7 @@ end subroutine REC_extra_read
 
     ! extra
     if (rec%Enx > 0) then
-      allocate(rec%sigma(rec%nt,rec%Enx,2))
+      allocate(rec%sigma(rec%nt,rec%Enx,3))
       rec%sigma = 0d0
       call storearray('rec%sigma',size(rec%sigma),idouble)        
     endif
@@ -658,6 +658,14 @@ end subroutine REC_extra_init
       write(ounit,rec=k) rec%sigma(:,k,2)
     enddo
     close(ounit)
+
+    open(ounit,file='Nonlinear_surfaces_sem2d.dat',status='replace',access='direct',recl=iol)
+    ! Write out stress
+    do k=1,size(rec%sigma,2)
+      write(ounit,rec=k) rec%sigma(:,k,3)
+    enddo
+    close(ounit)
+
   endif
 
 
