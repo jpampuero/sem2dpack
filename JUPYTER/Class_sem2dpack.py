@@ -471,10 +471,10 @@ class sem2dpack(object):
 
     # Max values
     self.max_strain = np.zeros(self.nsta_extra)
-    self.max_aktif = np.zeros(self.nsta_extra)
+    if aktif: self.max_aktif = np.zeros(self.nsta_extra)
     for sta in np.arange(self.nsta_extra):
         self.max_strain [sta] = max( abs(self.strain[ :, sta]) )    
-        self.max_aktif [sta] = max( abs(self.aktif[ :, sta]) )    
+        if aktif: self.max_aktif [sta] = max( abs(self.aktif[ :, sta]) )    
 
 
   def read_nonlinear_backbone_data_tocorrect(self):
