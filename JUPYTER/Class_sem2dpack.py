@@ -529,47 +529,6 @@ class sem2dpack(object):
     return y
 #
 
-  def plot_wiggle(self,stats=None,sf=None,compo='x',save_dir=False,**kwargs):
-    
-    if not isinstance(stats,(tuple,list)):
-      # msg = 'stats must be a tuple of size 2, for indices. Ex: (0,101)'
-      # raise Exception(msg)
-      ssta_beg = 0; ssta_end = self.rcoord[:,0].shape[0]-1
-    else:
-      ssta_beg = stats[0]; ssta_end = stats[1]   
-
-    xx = self.rcoord[:,0]
-    if not self.velocity.shape[0]: self.read_seismo(component=compo)
-    
-    if sf!=None:
-      wig.wiggle(self.velocity[:,ssta_beg:ssta_end],self.time,xx=xx,sf=sf)
-    else : wig.wiggle(self.velocity[:,ssta_beg:ssta_end],self.time,xx=xx)
-
-    plt.xlabel('Horizontal distance (m)',fontsize=16)
-    plt.ylabel('Time (s)',fontsize=16)
-
-    if "xlim" in kwargs:
-      xlim = kwargs["xlim"]
-      plt.xlim(xlim[0],xlim[1])
-    else:
-      plt.xlim([0,max(xx)])
-
-    if "ylim" in kwargs:
-      ylim = kwargs["ylim"]
-      plt.ylim(ylim[1],ylim[0])
-    else:
-      plt.ylim([max(self.time),0])
-
-    if "title" in kwargs:
-      title = kwargs["title"]
-      plt.title(title,fontsize=18)
-
-    if save_dir: plt.savefig(save_dir,dpi=300)
-    plt.show()
-#
-
-
-
   @staticmethod
   def rinterp(x,y,z):
     # Set up a regular grid of interpolation points
