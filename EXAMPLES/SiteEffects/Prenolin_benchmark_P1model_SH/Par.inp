@@ -1,0 +1,37 @@
+#----- General parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=10d0 , ndof=1,
+title = 'Elastoplasticity', verbose='1011' , ItInfo = 10000 /
+# 1D - one component setup: SH or anti-plane mode (ndof=1)
+
+# P1 model of Prenolin benchmark (Oral, 2016; Fig. 4.1)
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'LAYERED' /
+&MESH_LAYERED xlim=0d0,5d0, zmin=-20d0, nx=1 , file="layers" /
+
+
+#---- Material parameters --------------
+&MATERIAL tag = 1, kind='IWAN'/
+&MAT_IWAN  rho=2000d0, cp=700d0, cs=300d0, Nspr=50, gref=0.000365 /
+
+
+#----- Boundary conditions ---------------------
+# FREE SURFACE (tag = 3)
+&BC_DEF  tags = 2,4 , kind = 'PERIOD' /
+&BC_DEF  Tag = 1, Kind = 'DIRNEU' /  
+&BC_DIRNEU h='N', v='D', hstf='TAB', borehole=T / 
+&STF_TAB file='inputp1' /  
+
+
+
+# modified
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=5d0, dt=1d-5, courant = 0.3d0, kind='leapfrog' / 
+
+
+#----- Receivers ---------------------------------
+&REC_LINE file='stations', isamp=20, field='V', AtNode=T, extra=T/
+&REC_LINEX fileE='stations', AtNodeE=F /
+
+
+#--------- Snapshot output settings ----------------------
+&SNAP_DEF itd=4000, fields ='V', components='xz', ps=F, bin=F/
