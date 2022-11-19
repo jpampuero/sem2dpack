@@ -1,0 +1,16 @@
+#!/bin/bash
+
+#Submit this script with: sbatch thefilename
+
+#SBATCH --time=7-00:00:00   # walltime
+#SBATCH --ntasks=1   # number of processor cores (i.e. tasks)
+#SBATCH --mem-per-cpu=30G   # memory per CPU core
+#SBATCH -J "HypoEff"   # job name
+##SBATCH --mail-user=elifo@caltech.edu
+
+
+# LOAD MODULES, INSERT CODE, AND RUN YOUR PROGRAMS HERE
+module load intel/20.1
+
+../../../sem2dsolve_test
+

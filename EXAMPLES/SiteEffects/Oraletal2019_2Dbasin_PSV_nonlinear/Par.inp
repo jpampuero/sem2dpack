@@ -1,0 +1,70 @@
+#----- General parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=10d0 , ndof=2,
+title = 'Nonlinear liquefiable basin -- P-SV', verbose='1011', ItInfo=50000 /
+
+# Hypothetical basin of Oral et al. (2019, GJI) 
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'MESH2D' /
+&MESH_MESH2D   file="2Dhypobasin.mesh2d" /
+
+
+#---- Material parameters --------------
+## Elif:
+## 1) For nonlinearity with no pore-pressure changes set IAIMOD=F
+## 2) For pressure-dependent viscoelasticity, I set G/Gmax=1 inside the code,
+## that requires re-compilation.
+&MATERIAL tag = 1, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=923.68d0, cs=278.5d0 , Nspr=50, phi_f=35d0, WT=2d0, VEPMOD=T, IAIMOD=T/
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+&MAT_IAI phi_p=24d0, p1=0.6, p2=1.2, S1=0.01, w1=3.0 /
+
+&MATERIAL tag = 2, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=1201.95d0, cs=362.4d0, Nspr=50, phi_f=35d0, VEPMOD=T, IAIMOD=T /
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+&MAT_IAI phi_p=24d0, p1=0.6, p2=1.2, S1=0.01, w1=5.0 /
+
+&MATERIAL tag = 3, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=1515.37d0, cs=456.9d0, Nspr=50, phi_f=38d0, VEPMOD=T, IAIMOD=F/
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+
+&MATERIAL tag = 4, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=1940.89d0, cs=585.2d0, Nspr=50, phi_f=38d0, VEPMOD=T, IAIMOD=F /
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+
+&MATERIAL tag = 5, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=2486.81d0, cs=749.8d0, Nspr=50, phi_f=40d0, VEPMOD=T, IAIMOD=F /
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+
+&MATERIAL tag = 6, kind='IWAN'/
+&MAT_IWAN rho=1800d0, cp=2976.67d0, cs=897.5d0, Nspr=50, phi_f=40d0, VEPMOD=T, IAIMOD=F /
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+
+&MATERIAL tag = 7, kind='VISLA'/
+&MAT_VISLA rho=2200d0, cp=4163.33d0, cs=2000d0,  Qp=200d0, Qs=100d0, fr=1d0/
+
+
+#----- Boundary conditions ---------------------
+# FREE SURFACE (tag = 3)
+&BC_DEF  tags = 2,4 , kind = 'PERIOD' /
+&BC_DEF  Tag = 1, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=F, let_wave=T /
+
+
+# modified STF: RICKER 5 HZ
+#---- Sources ----------------------------------
+&SRC_DEF  stf='TAB', Mechanism='WAVE', Coord= 0d0,0d0 /
+&STF_TAB  file='input_pga0.20_za' /  
+&SRC_WAVE Angle = 0. , phase='S'/
+
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=5d0, dt=2d-5, courant=0.3d0, kind='leapfrog' / 
+
+
+#----- Receivers ---------------------------------
+&REC_LINE file='stations', isamp=20, field='V', AtNode=F, extra=T/
+&REC_LINEX fileE='stations', AtNodeE=F /
+
+
+#--------- Snapshot output settings ----------------------
+&SNAP_DEF itd=4000, fields ='V', components='xz', ps=F, bin=F/
