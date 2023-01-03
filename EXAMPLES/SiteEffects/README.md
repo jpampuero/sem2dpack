@@ -66,7 +66,7 @@ Same as 1.1 example except for:
 ### 3.2. Kathmandu Basin with obliquely incident plane waves
 Same as 3.1 example except for:
 * Lateral boundaries set to absorbing (tags=2,4) in `BC_ABSORB`
-* Oblique plane wave incidence `Angle = 30` in `SRC_WAVE`
+* Oblique plane wave incidence `Angle=30` in `SRC_WAVE`
 
 
 ## Notes for developers/advanced users
