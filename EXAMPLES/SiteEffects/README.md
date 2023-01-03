@@ -54,7 +54,7 @@ Same as 1.1 example except for:
 * Vertical plane wave incidence through absorbing bottom boundary in `BC_ABSORB`
 * Incident motion set in `SRC_WAVE` and `STF_TAB`
 
-### 3.1. Kathmandu Basin with obliquely incident plane waves
+### 3.1. Kathmandu Basin with vertically incident plane waves
 * In-plane model by `ndof=2` in `GENERAL`
 * Nonlinear soil of top layer (tag=1) adjusted to Nepal topography by `IS_NEPAL=T` in `MAT_IWAN`
 * Pressure-dependent model with failure line angle `phi_f` and `cohesion` given
@@ -63,7 +63,7 @@ Same as 1.1 example except for:
 * Vertical plane wave incidence through absorbing layer in bottom in `BC_ABSORB`
 * Incident motion set in `SRC_WAVE` and `STF_TAB`
 
-### 3.2. Kathmandu Basin with vertically incident plane waves
+### 3.2. Kathmandu Basin with obliquely incident plane waves
 Same as 3.1 example except for:
 * Lateral boundaries set to absorbing (tags=2,4) in `BC_ABSORB`
 * Oblique plane wave incidence `Angle = 30` in `SRC_WAVE`
