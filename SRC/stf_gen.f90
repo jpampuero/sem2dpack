@@ -12,6 +12,7 @@ module stf_gen
   use stf_harmonic
   use stf_brune
   use stf_gaussian
+  use stf_gaussxsin
   use stf_user
   !! use stf_XXX
   !! Add here your new stf_XXX module
@@ -28,17 +29,19 @@ module stf_gen
     type (stf_harmonic_type), pointer :: harmonic => null()
     type (stf_brune_type), pointer :: brune => null()
     type (stf_gaussian_type), pointer :: gaussian => null()
+    type (stf_gaussxsin_type), pointer :: gaussxsin => null()
     type (stf_user_type), pointer :: user => null()
     !! Add here your new stf_XXX_type pointer
   end type stf_type
 
-  integer, parameter :: IS_RICKER   = 1 &
-                       ,IS_BUTTER   = 2 &
-                       ,IS_TAB      = 3 &   
-                       ,IS_HARMONIC = 4 &
-                       ,IS_BRUNE    = 5 &
-                       ,IS_GAUSSIAN = 6 &
-                       ,IS_USER     = 7
+  integer, parameter :: IS_RICKER    = 1 &
+                       ,IS_BUTTER    = 2 &
+                       ,IS_TAB       = 3 &   
+                       ,IS_HARMONIC  = 4 &
+                       ,IS_BRUNE     = 5 &
+                       ,IS_GAUSSIAN  = 6 &
+                       ,IS_GAUSSXSIN = 7 &
+                       ,IS_USER      = 8
   !! add here a unique tag number for your new source time function
 
   public :: stf_type, STF_read, STF_get
@@ -86,6 +89,11 @@ contains
         allocate(stf%gaussian)
         call STF_GAUSSIAN_read(stf%gaussian,iin)
 
+      case('GAUSSXSIN')
+        stf%kind = IS_GAUSSXSIN
+        allocate(stf%gaussxsin)
+        call STF_GAUSSXSIN_read(stf%gaussxsin,iin)
+
       case('USER')
         stf%kind = IS_USER
         allocate(stf%user)
@@ -117,6 +125,7 @@ contains
     case(IS_HARMONIC);   STF_get = STF_HARMONIC_fun(stf%harmonic,t)
     case(IS_BRUNE);  STF_get = STF_BRUNE_fun(stf%brune,t)
     case(IS_GAUSSIAN); STF_get = STF_GAUSSIAN_fun(stf%gaussian,t)
+    case(IS_GAUSSXSIN); STF_get = STF_GAUSSXSIN_fun(stf%gaussxsin,t)
     case(IS_USER);   STF_get = STF_USER_fun(stf%user,t)
     !! add here a call to your new source time function
     case default

@@ -340,6 +340,7 @@ subroutine MESH_LAYERS_build(mesh,grid)
   use fem_grid, only : fem_grid_type
   use memory_info
   use stdio, only : IO_abort
+  use rcmlib, only : genrcm, perm_inverse
   use mesh_structured
   use utils, only : sub2ind
 

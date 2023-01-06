@@ -7,12 +7,13 @@ module bc_dynflt
   use bc_dynflt_swf
   use bc_dynflt_rsf
   use bc_dynflt_twf
+  use stf_gen
 
   implicit none
   private
 
   type bc_dynflt_input_type
-    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion,V
+    type(cd_type) :: T,N,Sxx,Sxy,Sxz,Syz,Szz,cohesion,V,pp,sk,fa,cs,gg
   end type bc_dynflt_input_type
 
   type bc_dynflt_type
@@ -22,17 +23,18 @@ module bc_dynflt
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
       invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
-      D=>null(),coord=>null()
+      D=>null(),coord=>null(),Text=>null()
     double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
     type(swf_type), pointer :: swf => null()
     type(rsf_type), pointer :: rsf => null()
     type(twf_type), pointer :: twf => null()
+    type(stf_type), pointer :: pp => null()
     logical :: allow_opening
     type(normal_type) :: normal
     type(bnd_grid_type), pointer :: bc1 => null(), bc2 => null()
     type(bc_dynflt_input_type) :: input
    ! for outputs:
-    double precision :: ot1,odt
+    double precision :: ot1,odt,sk,fa,cs,gg
     integer :: oit,oitd,ounit,oix1,oixn,oixd, ou_pot
     logical :: osides
   end type bc_dynflt_type
@@ -87,6 +89,10 @@ contains
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
 ! ARG: V        [dble] [1d-12] Initial velocity (needed for RSF)
+! ARG: pp       [name] [none] Name of the source time function:
+!                  'RICKER', 'TAB', 'HARMONIC', 'BRUNE' or 'USER'
+! ARG: sk	[dble][0d0] Skempton coeff
+! ARG: fa	[dble][0d0] Fault angle (for PP) in deg
 !
 ! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
@@ -104,17 +110,18 @@ contains
 
   type(bc_dynflt_type), intent(out) :: bc
   integer, intent(in) :: iin
-  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V
+  double precision :: cohesion,Tt,Tn,ot1,otd,Sxx,Sxy,Sxz,Syz,Szz,V,sk,fa,cs,gg
   character(20) :: TtH,TnH, SxxH,SxyH,SxzH,SyzH,SzzH &
                   ,dt_txt,oxi2_txt, cohesionH, VH
   character(3) :: friction(2)
+  character(15) :: pp
   integer :: i,oxi(3)
   logical :: opening,osides
 
   NAMELIST / BC_DYNFLT /  Tt,Tn,Sxx,Sxy,Sxz,Syz,Szz &
                          ,TtH,TnH,SxxH,SxyH,SxzH,SyzH,SzzH &
                          ,ot1,otd,oxi,osides, friction, opening &
-                         ,cohesion, cohesionH, V, VH
+                         ,cohesion, cohesionH, V, VH, pp, sk, fa, cs, gg
 
   Tt = 0d0
   Tn = 0d0
@@ -148,6 +155,12 @@ contains
   cohesion = 0d0
   cohesionH = ''
   
+  pp = ' '
+  sk= 0d0
+  fa= 0d0
+  cs= 0d0
+  gg= 0d0
+  
   opening = .true.
 
   read(iin,BC_DYNFLT,END=100)
@@ -158,6 +171,10 @@ contains
   bc%oixn = oxi(2) 
   bc%oixd = oxi(3) 
   bc%osides = osides
+  bc%sk = sk
+  bc%fa = fa
+  bc%cs = cs
+  bc%gg = gg
 
   call DIST_CD_Read(bc%input%cohesion,cohesion,cohesionH,iin,cohesionH)
   call DIST_CD_Read(bc%input%N,Tn,TnH,iin,TnH)
@@ -187,6 +204,10 @@ contains
   endif
 
   do i=1,2
+    !-- read source time function parameters
+    allocate(bc%pp)
+    call STF_read(pp,bc%pp,iin)
+ 
     select case (friction(i))
     case ('SWF')
       allocate(bc%swf)
@@ -565,12 +586,14 @@ contains
   use stdio, only: IO_abort
   use constants, only : PI
   use time_evol, only : timescheme_type
+  use stf_gen
 
   type(timescheme_type), intent(in) :: time
   type(bc_dynflt_type), intent(inout) :: bc
   double precision, intent(in) :: V(:,:),D(:,:)
   double precision, intent(inout) :: MxA(:,:)
 
+  !double precision, dimension(2) :: Text
   double precision, dimension(bc%npoin) :: strength
   double precision, dimension(bc%npoin,2) :: T
   double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA
@@ -585,20 +608,27 @@ contains
 
 ! T_stick
   T(:,1:ndof) = bc%Z * ( dV + bc%CoefA2V*dA )
+  
+! T_ext computation
+  allocate(bc%Text(bc%npoin,2))
+  bc%Text(:,1)=-( -bc%gg / (2 * bc%cs) * STF_get(bc%pp,time%time)) * bc%sk * sin(bc%fa * 3.14 / 180) !tan
+  
+  bc%Text(:,2)= ( -bc%gg / (2 * bc%cs) * STF_get(bc%pp,time%time)) * bc%sk * cos(bc%fa * 3.14 / 180) !norm prendre en compte rotation de la faille (cf. ci-dessous) et celle de l'incident wave (à intégrer)
 
 ! rotate to fault frame (tangent,normal) if P-SV
   if (ndof==2) then
     dD = rotate(bc,dD,1)
     dV = rotate(bc,dV,1)
     dA = rotate(bc,dA,1)
-    T  = rotate(bc,T,1)      
+    T  = rotate(bc,T,1)  
+    !Text = rotate(bc,Text,1)    ! not necessary ?
   endif
 
 ! apply symmetry to normal stress when needed
   if (.not.associated(bc%bc2) .or. ndof==1) T(:,2)=0d0 
 
 ! add initial stress
-  T = T + bc%T0
+  T = T + bc%T0 + bc%Text
 
 ! Solve for normal stress (negative is compressive)
   ! Opening implies free stress
@@ -660,7 +690,7 @@ contains
   endif
 
 ! Subtract initial stress
-  T = T - bc%T0
+  T = T - bc%T0 - bc%Text
 
 ! Save tractions
   bc%T = T

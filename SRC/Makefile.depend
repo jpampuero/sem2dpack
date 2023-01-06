@@ -114,6 +114,7 @@ solver.o: bc_gen.o fields.o mat_gen.o problem_class.o src_gen.o
 spec_grid.o: bnd_grid.o constants.o echo.o fem_grid.o generic_list.o gll.o \
 	memory_info.o stdio.o utils.o
 src_force.o: constants.o echo.o stdio.o
+stf_gaussxsin.o: constants.o echo.o stdio.o
 src_gen.o: constants.o echo.o prop_mat.o spec_grid.o src_force.o src_moment.o \
 	src_wave.o stdio.o stf_gen.o
 src_moment.o: constants.o echo.o spec_grid.o stdio.o
@@ -121,7 +122,8 @@ src_wave.o: constants.o echo.o prop_mat.o spec_grid.o stdio.o stf_ricker.o
 stf_brune.o: constants.o echo.o stdio.o
 stf_gaussian.o: constants.o echo.o stdio.o
 stf_gen.o: butterworth_filter.o stdio.o stf_brune.o stf_gaussian.o \
-	stf_harmonic.o stf_ricker.o stf_tabulated.o stf_user.o
+	stf_harmonic.o stf_ricker.o stf_tabulated.o stf_user.o \
+	stf_gaussxsin.o
 stf_harmonic.o: constants.o echo.o stdio.o
 stf_ricker.o: constants.o echo.o stdio.o
 stf_tabulated.o: echo.o stdio.o utils.o

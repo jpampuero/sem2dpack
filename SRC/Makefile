@@ -38,7 +38,8 @@
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
+#EXEC = $(HOME)/local/bin/sem2dsolve
+EXEC=/home/hugo/bin/sem2dsolvepp   #Documents/phd_local/sem2dpack_pptest/sem2dsolvepp
 
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
@@ -47,7 +48,8 @@ EXEC = $(HOME)/bin/sem2dsolve
 #OPT = 
 #F90 = gfortran
 #OPT = -O3 -Wall
-#OPT = -O0 -Wall -g -fbacktrace -fbounds-check
+#OPT = -O0 -Wall -g3 -fbacktrace -fbounds-check
+#OPT=-ffpe-trap=invalid,zero,overflow -fbounds-check -g3 -O0 -fstack-protector-all -finit-real=snan -fbacktrace -o
 
 #-- Intel Fortran --
 F90 = ifort
