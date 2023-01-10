@@ -1,0 +1,363 @@
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S E M 2 D P A C K : start
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+                                                   
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 02 - 01 - 2023                                 T i m e  : 13:07:15
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ 
+***********************************************
+*            I n p u t   p h a s e            *
+***********************************************
+ 
+
+
+ G e n e r a l   P a r a m e t e r s
+ ===================================
+
+     Execution mode . . . . . . . . . . . . . . . (iexec) = solve     
+     Number of nodes per edge . . . . . . . . . . .(ngll) = 5
+     Number of d.o.f per node . . . . . . . . . . .(ndof) = 2
+     Highest frequency to be resolved . . . . . . .(fmax) =   10.000E+00
+     Print progress information during 
+                 input phase  . . . . . . . .(verbose(1)) = T
+                 initialization phase . . . .(verbose(2)) = F
+                 checking phase . . . . . . .(verbose(3)) = T
+                 solver phase . . . . . . . .(verbose(4)) = T
+     Frequency for solver progress information  .(itInfo) = 20000
+     Abort if severe warnings . . . . (abort_on_warnings) = T
+
+
+
+ M e s h   G e n e r a t i o n
+ =============================
+
+     Method  . . . . . . . . . . . . . . . .(method) = MESH2D    
+     File name . . . . . . . . . . . . . . . .(file) = april10Hz.mesh2d                                  
+     Number of nodes . . . . . . . . . . . . . . . . = *****
+     Number of elements. . . . . . . . . . . . . . . = *****
+     Number of nodes per element . . . . . . . . . . =     4
+     Number of boundaries  . . . . . . . . . . . . . =     4
+
+
+ T i m e   i n t e g r a t i o n
+ ===============================
+
+     Scheme. . . . . . . . . . . . . .(kind) = leapfrog    
+     Number of time steps. . . . . (NbSteps) = 133334
+     Time step increment . . . . . . . .(Dt) =  150.000E-06
+     Total simulation duration . (TotalTime) =   20.000E+00
+
+
+ M a t e r i a l   P r o p e r t i e s
+ =====================================
+
+     Number of materials . . . . . . . . . . . = 4
+
+     Material index. . . . . . . . . . . (tag) = 1
+     Material type . . . . . . . . . . .(kind) = Iwan
+     P-wave velocity . . . . . . . . . . .(cp) = 416.330E+00
+     S-wave velocity . . . . . . . . . . .(cs) = 200.000E+00
+     Mass density. . . . . . . . . . . . (rho) =   1.600E+03
+     Number of Iwan mechanisms . . . . .(Nspr) =  50.000E+00
+     Front saturation model. . . . . .(IAIMOD) =  F
+     Viscoelastoplasticity . . . . . .(VEPMOD) =  T
+     Nepal simulation . . . . . . . (IS_NEPAL) =
+     Water table level. . . . . . . . . . (WT) = -90.000E+12
+     Coefficient of Earth at rest . . . . (K0) =   1.000E+00
+     Cohesion . . . . . . . . . . . (cohesion) =  20.000E+03
+     Angle of failure line. . . . . . (phi_f) =  10.000E+00
+
+     Qp . . . . . . . . . . . . . . . . . . . .=  40.000E+00
+     Qs . . . . . . . . . . . . . . . . . . . .=  20.000E+00
+     fr . . . . . . . . . . . . . . . . . . . .=   1.000E+00
+
+
+     Material index. . . . . . . . . . . (tag) = 2
+     Material type . . . . . . . . . . .(kind) = Visco_LA
+     P-wave velocity . . . . . . . . . . .(cp) = 810.000E+00
+     S-wave velocity . . . . . . . . . . .(cs) = 425.000E+00
+     Mass density. . . . . . . . . . . . (rho) =   1.800E+03
+     P wave quality factor . . . . . . . .(Qp) =  80.000E+00
+     S wave quality factor . . . . . . . .(Qs) =  40.000E+00
+     Reference frequency . . . . . . . . .(fr) =   1.000E+00
+
+
+     Material index. . . . . . . . . . . (tag) = 3
+     Material type . . . . . . . . . . .(kind) = Visco_LA
+     P-wave velocity . . . . . . . . . . .(cp) =   2.298E+03
+     S-wave velocity . . . . . . . . . . .(cs) =   1.250E+03
+     Mass density. . . . . . . . . . . . (rho) =   2.000E+03
+     P wave quality factor . . . . . . . .(Qp) = 230.000E+00
+     S wave quality factor . . . . . . . .(Qs) = 125.000E+00
+     Reference frequency . . . . . . . . .(fr) =   1.000E+00
+
+
+     Material index. . . . . . . . . . . (tag) = 4
+     Material type . . . . . . . . . . .(kind) = Visco_LA
+     P-wave velocity . . . . . . . . . . .(cp) =   5.500E+03
+     S-wave velocity . . . . . . . . . . .(cs) =   3.200E+03
+     Mass density. . . . . . . . . . . . (rho) =   2.530E+03
+     P wave quality factor . . . . . . . .(Qp) = 300.000E+00
+     S wave quality factor . . . . . . . .(Qs) = 150.000E+00
+     Reference frequency . . . . . . . . .(fr) =   1.000E+00
+
+
+
+ B o u n d a r y   C o n d i t i o n s
+ =====================================
+
+
+     Boundary tags . . . . . . . . . . .(tags) = 2 and 4
+     Boundary condition. . . . . . . . .(kind) = PERIOD
+     Type   = Periodic
+
+     Boundary tag. . . . . . . . . . . . (tag) = 1
+     Boundary condition. . . . . . . . .(kind) = ABSORB
+     Type of absorbing boundary. . . .(stacey) = Clayton-Engquist    
+     Allow incident wave . . . . . .(let_wave) = T
+
+
+ S o u r c e s
+ =============
+
+     X-position (meters). . . . .(coord(1)) =    0.000E+00
+     Y-position (meters). . . . .(coord(2)) =    0.000E+00
+     Function Type. . . . . . . . . . . . . = tabulated
+     File name . . . . . . . . . . . (file) =ricker10Hz
+
+
+     Source Type. . . . . . . . (mechanism) = plane wave
+     Incidence angle  . . . . . . . (angle) = .0
+     Phase. . . . . . . . . . . . . (phase) = S
+
+
+
+ R e c e i v e r s
+ =================
+
+     Number of receivers . . . . . . . . . . . . (number) = 6005
+     Receiver locations file name. . . . . . . . . (file) = surface_stations                                  
+
+     Relocate to the nearest GLL node. . . . . . (AtNode) = T
+     Subsampling for seismograms recording . . . .(isamp) = 20
+     Field recorded. . . . . . . . . . . . . . . .(field) = V
+     Axis of the seismogram plot . . . . . . . . .(irepr) = D
+
+
+ E x t r a  R e c e i v e r s
+ ============================
+
+     Number of extra receivers . . . . . . . . .(numberE) = 36015
+     Extra receiver locations file name . . . . . (fileE) = Xstations                                         
+
+     Relocate to the nearest GLL node. . . . . . (AtNode) = F
+
+
+
+ S n a p s h o t   O u t p u t s
+ ===============================
+
+     Timestep of first snapshot output  . . . . . . (it1) = 0
+     Number of timesteps between snapshots. . . . . (itd) = 4000
+     Save results in PS file or not . . . . . . . . .(ps) = F
+     Save grid triangulation for GMT. . . . . . . . (gmt) = F
+     Save results in AVS file or not. . . . . . . . (avs) = F
+     Save results in Visual3 file or not. . . . (visual3) = F
+     Save results in binary file or not . . . . . . (bin) = T
+     Selected fields :
+       Displacement . . . . . . . . . . . . . . . . . . . = F
+       Velocity . . . . . . . . . . . . . . . . . . . . . = T
+       Acceleration . . . . . . . . . . . . . . . . . . . = F
+       Strain . . . . . . . . . . . . . . . . . . . . . . = F
+       Stress . . . . . . . . . . . . . . . . . . . . . . = F
+       Divergence . . . . . . . . . . . . . . . . . . . . = F
+       Curl . . . . . . . . . . . . . . . . . . . . . . . = F
+     Selected components for PostScript snapshots :
+       X  . . . . . . . . . . . . . . . . . . . . . . . . = T
+       Y  . . . . . . . . . . . . . . . . . . . . . . . . = F
+       Z  . . . . . . . . . . . . . . . . . . . . . . . . = T
+       Amplitude  . . . . . . . . . . . . . . . . . . . . = F
+ 
+     Saving the grid coordinates (coord) in a text file ...... [OK]
+ 
+ M e s h   p r o p e r t i e s
+ =============================
+ 
+     Checking mesh ...... [OK]
+    Max mesh size =   85.079E+00
+    Min mesh size =  194.199E-03
+    Ratio max/min =  438.103E+00
+ 
+    RESOLUTION: nodes per min wavelength =    4.638E+00
+                for maximum frequency   =   10.000E+00 Hz
+                    minimum wavelength  =   20.000E+00 m
+ 
+     Dump PostScript Resolution_sem2d.ps ...... [OK]
+     Dump PostScript Stability_sem2d.ps ...... [OK]
+ 
+ T i m e   s o l v e r
+ =====================
+ 
+    Time step (secs)      =  150.000E-06
+    Number of time steps  = 133334
+    Total duration (secs) =   20.000E+00
+    Courant number        =  387.339E-03
+ 
+    STABILITY:  CFL number               =  387.339E-03
+ 
+ *** considered point    :   42410.0000000000       -12000.0000000000     
+ *** closest point       :   42410.0000000000       -12000.0000000000     
+ *** grid xmax and zmin  :   42410.0000000000       -12000.0000000000     
+ *** wave angle          :  0.000000000000000E+000
+
+Snapshot at timestep = 0
+ 
+ 
+***********************************************
+*           S o l v e r   p h a s e           *
+***********************************************
+ 
+Timestep #       0  t =    0.000E+00  vmax =    0.000E+00  dmax =    0.000E+00
+
+---  CPU TIME ESTIMATES (in seconds) :
+  CPU time for initialization . . 373.929E+00
+  CPU time per timestep . . . . .   1.214E+00
+  Total solver CPU time . . . . . 161.837E+03
+                   (mins) . . . .   2.697E+03
+                   (hours). . . .  44.955E+00
+
+
+Snapshot at timestep = 4000
+ 
+
+Snapshot at timestep = 8000
+ 
+
+Snapshot at timestep = 12000
+ 
+
+Snapshot at timestep = 16000
+ 
+Timestep #   20000  t =    3.000E+00  vmax =   72.746E-03  dmax =    5.621E-03
+
+Snapshot at timestep = 20000
+ 
+
+Snapshot at timestep = 24000
+ 
+
+Snapshot at timestep = 28000
+ 
+
+Snapshot at timestep = 32000
+ 
+
+Snapshot at timestep = 36000
+ 
+Timestep #   40000  t =    6.000E+00  vmax =  259.081E-03  dmax =   32.936E-03
+
+Snapshot at timestep = 40000
+ 
+
+Snapshot at timestep = 44000
+ 
+
+Snapshot at timestep = 48000
+ 
+
+Snapshot at timestep = 52000
+ 
+
+Snapshot at timestep = 56000
+ 
+Timestep #   60000  t =    9.000E+00  vmax =  221.894E-03  dmax =   32.729E-03
+
+Snapshot at timestep = 60000
+ 
+
+Snapshot at timestep = 64000
+ 
+
+Snapshot at timestep = 68000
+ 
+
+Snapshot at timestep = 72000
+ 
+
+Snapshot at timestep = 76000
+ 
+Timestep #   80000  t =   12.000E+00  vmax =   89.838E-03  dmax =   21.954E-03
+
+Snapshot at timestep = 80000
+ 
+
+Snapshot at timestep = 84000
+ 
+
+Snapshot at timestep = 88000
+ 
+
+Snapshot at timestep = 92000
+ 
+
+Snapshot at timestep = 96000
+ 
+Timestep #  100000  t =   15.000E+00  vmax =   80.435E-03  dmax =   22.796E-03
+
+Snapshot at timestep = 100000
+ 
+
+Snapshot at timestep = 104000
+ 
+
+Snapshot at timestep = 108000
+ 
+
+Snapshot at timestep = 112000
+ 
+
+Snapshot at timestep = 116000
+ 
+Timestep #  120000  t =   18.000E+00  vmax =   54.522E-03  dmax =   22.756E-03
+
+Snapshot at timestep = 120000
+ 
+
+Snapshot at timestep = 124000
+ 
+
+Snapshot at timestep = 128000
+ 
+
+Snapshot at timestep = 132000
+ 
+
+
+---  CPU TIME INFORMATION (in seconds) :
+  CPU time for initialization . . 373.929E+00
+  CPU time per timestep . . . . .   2.154E+00
+  Total solver CPU time . . . . . 287.182E+03
+                   (mins) . . . .   4.786E+03
+                   (hours). . . .  79.773E+00
+
+ Storing seismograms (SEP format) ...
+
+
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Program  S E M 2 D P A C K :  end
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ Nepal nonlinear -- theta 0                        
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
+ D a t e : 05 - 01 - 2023                                 T i m e  : 21:11:41
+ -------------------------------------------------------------------------------
+ -------------------------------------------------------------------------------
