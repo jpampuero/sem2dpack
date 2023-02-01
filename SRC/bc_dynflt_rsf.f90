@@ -265,6 +265,7 @@ contains
   double precision, dimension(:), intent(in) :: v,theta
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(v)) :: theta_new
+  integer :: it
 
   select case(f%kind)
     case(1) 
@@ -272,6 +273,13 @@ contains
      ! Tc = Dc/Vstar
      ! coeft = exp(-dt/Tc)
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
+     ! remove the accumulation of numeric errors
+      do it=1,size(theta_new)          
+         if(abs(theta_new(it))<1.0d-12) then
+              theta_new(it) = 0.0
+         endif
+      enddo
+
 
     case(2) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
@@ -324,6 +332,12 @@ contains
       tmp = v -f%Vstar +sigma*f%a/Z
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
+     ! remove the accumulation of numeric errors
+      do it=1,size(v)
+         if(abs(v(it))<1.0d-12) then
+              v(it) = 0.0
+         endif
+      enddo
  
     case(2,3,4) 
      ! "Aging Law and Slip Law"
