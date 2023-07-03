@@ -336,7 +336,7 @@ contains
        tolerance = - 0.001d0*f%a(i)*sigma(i) ! As used by Kaneko in MATLAB code
        estimateLow  = min( 0d0, tau_stick(i) )
        estimateHigh = max( 0d0, tau_stick(i) ) 
-       v(i)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(i),tau_stick(i),sigma(i),Z(i))
+       v(i)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,i,theta(i),tau_stick(i),sigma(i),Z(i))
      enddo     
         
   end select
