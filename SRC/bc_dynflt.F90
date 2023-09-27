@@ -320,6 +320,7 @@ contains
   character(100) :: oname,hname
   logical :: two_sides, adapt_time
   double precision :: hnode_left, hnode_right
+  double precision, allocatable:: phi(:) ! state variable2
   double precision, allocatable:: theta(:) ! state variable
   double precision, allocatable:: rsf_a(:) ! rsf a parameter
   double precision, allocatable:: rsf_b(:) ! rsf b parameter
@@ -633,23 +634,26 @@ contains
 
   ! output initial parameters including state variable
   open(ounit,file=oname,status='replace')
+  allocate(phi(npoin))
   allocate(theta(npoin))
   allocate(rsf_a(npoin))
   allocate(rsf_b(npoin))
 
+  phi = 0d0
   theta = 0d0
   rsf_a = 0d0
   rsf_b = 0d0
   onx   = 0 
   if (associated(bc%rsf)) then
       ! get state
+      phi(bc%iactive) = rsf_get_phi(bc%rsf)
       theta(bc%iactive) = rsf_get_theta(bc%rsf)
       rsf_a(bc%iactive) = rsf_get_a(bc%rsf)
       rsf_b(bc%iactive) = rsf_get_b(bc%rsf)
       do i=bc%oix1,bc%oixn,bc%oixd
         if (bc%isactive(i)) then
             onx = onx + 1
-            write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), theta(i), bc%V(i, 1), &
+            write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i), phi(i),theta(i),  bc%V(i, 1), &
                            rsf_a(i), rsf_b(i)                     
         end if
       enddo
@@ -675,7 +679,7 @@ contains
       end if
   end do
 
-  deallocate(theta, rsf_a, rsf_b)
+  deallocate(phi,theta, rsf_a, rsf_b)
 
  ! output times 
  ! Only adjust times when using uniform time step
@@ -875,6 +879,7 @@ contains
       bc%D_pre = bc%D
       bc%T_pre = bc%T
       ! update state variable
+      if (associated(bc%rsf)) call rsf_update_phi_pre(bc%rsf)
       if (associated(bc%rsf)) call rsf_update_theta_pre(bc%rsf)
   end subroutine
 
@@ -1433,9 +1438,8 @@ end subroutine BC_DYNFLT_AppendDofFix
     call export_side(bc,get_side(bc,v,1))
     call export_side(bc,get_side(bc,v,2))
   endif
-
+  call export_phi(bc) ! export state variable
   call export_theta(bc) ! export state variable
-
   ! update the next output time step index
   adapt_time = (time%kind=='adaptive') &
                .and. (.not.time%fixdt)
@@ -1449,10 +1453,11 @@ end subroutine BC_DYNFLT_AppendDofFix
       else
           ! output more steps with dt<otdS
           bc%ot = bc%ot + max(bc%odtS, time%dt) 
-      end if
       ! write time information if adaptive time into bindary
+      end if
       write(bc%ou_time, *)  time%it, time%dt, time%time, & 
                         time%EQNum, time%isDynamic, time%switch, time%isEQ  
+      
   end if
 
   end subroutine BC_DYNFLT_write
@@ -1467,6 +1472,18 @@ end subroutine BC_DYNFLT_AppendDofFix
   end if
 
   end subroutine export_theta
+  
+  
+  subroutine export_phi(bc)
+  ! export the state variable for rsf faults
+  type(bc_dynflt_type), intent(in) :: bc
+  double precision, dimension(bc%npoin) :: phi
+  if (associated(bc%rsf)) then
+      phi(bc%iactive) = rsf_get_phi(bc%rsf)
+      write(bc%ounit) real( phi(bc%oix_export) )
+  end if
+
+  end subroutine export_phi
 
   !----------
   function get_side(bc,d,side) result(delta)

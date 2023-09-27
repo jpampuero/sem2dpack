@@ -10,16 +10,16 @@ module bc_dynflt_rsf
 
   type rsf_input_type
     ! plate rate is added
-    type(cd_type) :: dc, mus, a, b, Vstar, theta, vplate 
+    type(cd_type) :: dc, mus, Vw, fw, a, b, Vstar, theta, phi , l_tw, vplate
   end type rsf_input_type
 
   type rsf_type
     private
     integer :: kind
     double precision, dimension(:), pointer :: dc=>null(),& 
-                     mus=>null(), a=>null(), b=>null(), &
+                     mus=>null(), Vw=>null(),fw=>null(), a=>null(), b=>null(), phi=>null(), l_tw=>null(),&
                      Vstar=>null(), theta=>null(), Tc=>null(),&
-                     coeft=>null(), vplate=>null(), theta_pre=>null()
+                     coeft=>null(), vplate=>null(), theta_pre=>null(),phi_pre=>null()
     double precision :: dt
     double precision :: dtScale
     double precision :: vmaxPZ ! maximum slip rate to control the process zone size
@@ -33,7 +33,8 @@ module bc_dynflt_rsf
             rsf_solver, rsf_qs_solver, rsf_timestep, & 
             rsf_vplate, rsf_get_theta, rsf_get_a, &
             rsf_get_b, rsf_get_NRTol, rsf_reset,rsf_vmaxD2S,& 
-            rsf_vmaxS2D,rsf_update_theta_pre 
+            rsf_vmaxS2D,rsf_update_theta_pre,rsf_update_phi_pre, &
+            rsf_get_phi
 
 contains
 
@@ -81,32 +82,40 @@ contains
   type(rsf_type), intent(out) :: rsf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,a,b,Vstar,theta,vplate,vmaxS2D,vmaxD2S, vEQ
+  double precision :: Dc,MuS,Vw,fw,a,b,Vstar,theta,phi,l_tw,vplate,vmaxS2D,vmaxD2S, vEQ
   double precision :: NRTol,minGap,dtScale,vmaxPZ, vmaxD2S_VS 
   integer :: NRMaxIter, minStep 
-  character(20) :: DcH,MuSH,aH,bH,VstarH,thetaH,vplateH
+  character(20) :: DcH,MuSH,VwH,fwH,aH,bH,VstarH,thetaH,vplateH,phiH,l_twH
   integer :: kind
   character(25) :: kind_txt
 
-  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,a,b,Vstar,theta,&
-           DcH,MuSH,aH,bH,VstarH,thetaH, vplate, vplateH,&
+  NAMELIST / BC_DYNFLT_RSF / kind,Dc,MuS,Vw,fw,a,b,Vstar,theta,phi,l_tw,&
+           DcH,MuSH,aH,bH,VstarH,thetaH,phiH,l_twH,vplate,vplateH,VwH,fwH,&
            vmaxS2D, vmaxD2S, NRMaxIter, NRTol, vEQ, minGap, &
            dtScale, vmaxPZ, minStep,vmaxD2S_VS
 
   kind = 1
   Dc = 0.5d0
   MuS = 0.6d0
+  Vw=0.1d0
+  fw=0.2d0
   a = 0.01d0
   b = 0.02d0
   Vstar = 1d0
   theta = 0d0
   vplate = 0d0
+  phi= 0d0
+  l_tw=0.1d0
   DcH = ''
   MuSH = ''
+  VwH=''
+  fwH=''
   aH = ''
   bH = ''
   VstarH = ''
   thetaH = ''
+  phiH = ''
+  l_twH = ''
   vplateH = ''
   vmaxS2D = 5d-3 ! 5 mm/s
   vmaxD2S = 2d-3 ! 2 mm/s
@@ -126,16 +135,23 @@ contains
     case(1); kind_txt = 'Strong velocity-weakening'
     case(2); kind_txt = 'Classical with aging law'
     case(3); kind_txt = 'Classical with slip law'
+    case(4); kind_txt = 'Thermal weakening with slip-law'
+    case(5); kind_txt = 'Flash heating with slip-law'
+    case(6); kind_txt = 'Flash heating and thermal weakening with slip-law'
     case default; call IO_abort('BC_DYNFLT_RSF: invalid kind')
   end select
   rsf%kind = kind
   
   call DIST_CD_Read(rsf%input%Dc,Dc,DcH,iin,DcH)
   call DIST_CD_Read(rsf%input%MuS,MuS,MuSH,iin,MuSH)
+  call DIST_CD_Read(rsf%input%Vw,Vw,VwH,iin,VwH)
+  call DIST_CD_Read(rsf%input%fw,fw,fwH,iin,fwH)
   call DIST_CD_Read(rsf%input%a,a,aH,iin,aH)
   call DIST_CD_Read(rsf%input%b,b,bH,iin,bH)
   call DIST_CD_Read(rsf%input%Vstar,Vstar,VstarH,iin,VstarH)
   call DIST_CD_Read(rsf%input%theta,theta,thetaH,iin,thetaH)
+  call DIST_CD_Read(rsf%input%phi,phi,phiH,iin,phiH)
+  call DIST_CD_Read(rsf%input%l_tw,l_tw,l_twH,iin,l_twH)
   call DIST_CD_Read(rsf%input%vplate,vplate,vplateH,iin,vplateH)
 
   rsf%vmaxS2D = vmaxS2D
@@ -152,7 +168,7 @@ contains
   rsf%vmaxPZ  = vmaxPZ
 
   if (echo_input) write(iout,400) kind_txt,DcH, &
-               MuSH,aH,bH,VstarH,thetaH,vplateH,& 
+               MuSH,VwH,fwH,aH,bH,VstarH,thetaH,phiH,l_twH,vplateH,& 
                vmaxS2D,vmaxD2S, vEQ, NRMaxIter, minStep, NRTol
 
   return
@@ -161,10 +177,14 @@ contains
             /5x,'  Type of weakening . . . . . . . . (kind) = ',A,&
             /5x,'  Critical slip . . . . . . . . . . . (Dc) = ',A,&
             /5x,'  Static friction coefficient . . . .(MuS) = ',A,&
+            /5x,'  Vel. threshold....  . . . . . . . . (Vw) = ',A,&
+            /5x,'  Residual friction  . . . . . . .. . (fw) = ',A,&
             /5x,'  Direct effect coefficient . . . . . .(a) = ',A,&
             /5x,'  Evolution effect coefficient  . . . .(b) = ',A,&
             /5x,'  Velocity scale  . . . . . . . . .(Vstar) = ',A,&
             /5x,'  State variable  . . . . . . . . .(theta) = ',A,&
+            /5x,'  TW State variable  . . . . . . . . (phi) = ',A,&
+            /5x,'  TW slip distance  . . . . . . . . (l_tw) = ',A,&            
             /5x,'  Plate rate  . . . . . . . . . . (vplate) = ',A,&
             /5x,'  V threshold (Static to Dyanmic) (vmaxS2D) = ',EN12.3,&
             /5x,'  V threshold (Dyanmic to Static) (vmaxD2S) = ',EN12.3,&
@@ -191,10 +211,14 @@ contains
   
   call DIST_CD_Init(rsf%input%dc,coord,rsf%dc)
   call DIST_CD_Init(rsf%input%mus,coord,rsf%mus)
+  call DIST_CD_Init(rsf%input%Vw,coord,rsf%Vw)
+  call DIST_CD_Init(rsf%input%fw,coord,rsf%fw)
   call DIST_CD_Init(rsf%input%a,coord,rsf%a)
   call DIST_CD_Init(rsf%input%b,coord,rsf%b)
   call DIST_CD_Init(rsf%input%Vstar,coord,rsf%Vstar)
   call DIST_CD_Init(rsf%input%theta,coord,rsf%theta)
+  call DIST_CD_Init(rsf%input%phi,coord,rsf%phi)
+  call DIST_CD_Init(rsf%input%l_tw,coord,rsf%l_tw)
   call DIST_CD_Init(rsf%input%vplate,coord,rsf%vplate)
 
   ! reinitialize state variable theta using initial mu and v
@@ -204,7 +228,9 @@ contains
   allocate(rsf%Tc(n))
   allocate(rsf%coeft(n))
   allocate(rsf%theta_pre(n))
+  allocate(rsf%phi_pre(n))  
   rsf%theta_pre = rsf%theta
+  rsf%phi_pre = rsf%phi  
                                               
   rsf%Tc = rsf%dc / rsf%Vstar
   ! if adaptive stepping is activated, 
@@ -222,24 +248,31 @@ contains
       double precision, dimension(size(f%theta)) :: tmp
       double precision:: tmp_i
       integer :: i
-      
+
+      select case(f%kind)
+        case(1,2,3) 
       ! initialize
-!      f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
-!               * f%Dc / f%Vstar
+          f%theta = exp((mu - f%mus - f%a * log(v/f%Vstar))/f%b) & 
+               * f%Dc / f%Vstar
       
-      tmp = f%a/f%b * log(2*f%Vstar/v * sinh(mu/f%a))
-      f%theta = f%Dc/f%Vstar * exp(tmp - f%mus/f%b)
-      tmp_i   = 0d0
-
-      do i = 1, size(f%theta)
-          if (f%theta(i)>huge(0d0) .or. tmp(i)>huge(0d0)) then
+          tmp = f%a/f%b * log(2*f%Vstar/v * sinh(mu/f%a))
+          f%theta = f%Dc/f%Vstar * exp(tmp - f%mus/f%b)
+          tmp_i   = 0d0
+          do i = 1, size(f%theta)
+            if (f%theta(i)>huge(0d0) .or. tmp(i)>huge(0d0)) then
               ! expand the sinh and cancel the factor a
-              tmp_i = f%a(i)/f%b(i) * log(f%Vstar(i)/v(i))
-              tmp_i = mu(i)/f%b(i) + tmp_i
-              f%theta(i) = f%Dc(i)/f%Vstar(i) * exp(tmp_i- f%mus(i)/f%b(i))
-          end if
-      end do
+                tmp_i = f%a(i)/f%b(i) * log(f%Vstar(i)/v(i))
+                tmp_i = mu(i)/f%b(i) + tmp_i
+                f%theta(i) = f%Dc(i)/f%Vstar(i) * exp(tmp_i- f%mus(i)/f%b(i))
+            end if
+          end do
 
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+        case(4,5,6) 
+      ! initialize
+          f%theta = mu - f%a * log(v/f%Vstar)
+          !f%theta = f%theta
+      end select      
   end subroutine rsf_init_theta
 
 ! reset the state variable and update to new dt
@@ -247,6 +280,7 @@ contains
     type(rsf_type), intent(inout) :: f
     double precision :: dt
    
+    f%phi = f%phi_pre
     f%theta = f%theta_pre
     f%dt    = dt
     f%iter  = 0
@@ -258,6 +292,12 @@ contains
       type(rsf_type), intent(in) :: f
       double precision, dimension(size(f%theta)):: theta
       theta = f%theta
+  end function !rsf_get_theta 
+  
+    function rsf_get_phi(f) result(phi)
+      type(rsf_type), intent(in) :: f
+      double precision, dimension(size(f%phi)):: phi
+      phi = f%phi
   end function !rsf_get_theta 
   
   function rsf_get_a(f) result(a)
@@ -310,8 +350,10 @@ contains
                   mu(i) = f%a(i)*(tmp(i) + log(2d0))
               end if
           end do
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+        case(4,5,6) 
+          mu = f%a*asinh(abs(v)/(2d0*f%Vstar)*exp(f%theta/f%a))
       end select
-
   end function rsf_mu
   
   function rsf_vmaxD2S(f) result(vmaxd2s)
@@ -340,6 +382,10 @@ contains
     case(2,3) 
       !  Kaneko et al (2008) Eq. 12
       mu = f%mus + f%b*log(f%theta*f%Vstar/f%Dc) 
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+    case(4,5,6) 
+      !  Kaneko et al (2008) Eq. 12
+      mu = f%theta
   end select
 
   end function rsf_mu_no_direct
@@ -355,31 +401,53 @@ contains
   double precision, dimension(size(theta)) :: tmp, v
   double precision:: tmp1, tmp2
   integer::i
-
+  
+  
+  select case(f%kind)
+    case(1,2,3)
   !  Kaneko et al (2011) Eq. 14
 !  tmp = f%mus +f%b*log(f%Vstar*theta/f%Dc)
 !  tmp = 2d0*f%Vstar*exp(-tmp/f%a)
 !  v = sinh(abs(tau)/(-sigma*f%a))*tmp
 !  v = sign(v, tau)
 
-  tmp = -(f%mus +f%b*log( f%Vstar*theta/f%Dc))/f%a
-  v = f%Vstar * (exp(tau/(-sigma*f%a)+tmp) - exp(tau/(sigma*f%a) + tmp))
-  v = sign(v, tau)
+      tmp = -(f%mus +f%b*log( f%Vstar*theta/f%Dc))/f%a
+      v = f%Vstar * (exp(tau/(-sigma*f%a)+tmp) - exp(tau/(sigma*f%a) + tmp))
+      v = sign(v, tau)
 
-  do i = 1, size(theta)
-      if (abs(v(i))>1d0) then
-          write(*, *) "error in rsf_v, abs(v)>1d0, i, v(i) = ", i, v(i)
-          write(*, *) "tau(i), theta(i), a(i), b(i), dc(i) = ", tau(i), theta(i), &
+      do i = 1, size(theta)
+          if (abs(v(i))>1d0) then
+              write(*, *) "error in rsf_v, abs(v)>1d0, i, v(i) = ", i, v(i)
+              write(*, *) "tau(i), theta(i), a(i), b(i), dc(i) = ", tau(i), theta(i), &
                       f%a(i), f%b(i), f%dc(i)
-          tmp1 = f%mus(i) +f%b(i)*log(f%Vstar(i)*theta(i)/f%Dc(i)) 
-          tmp2 = 2d0*f%Vstar(i)*exp(-tmp1/f%a(i))
-          write(*, *) "tmp1=", tmp1 
-          write(*, *) "tmp2=", tmp2
-          write(*, *) "sinh(abs(tau)/(sigma*a))", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))
-          write(*, *) "v = sinh(abs(tau)/(sigma*a))*tmp2 = ", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))*tmp2
-      end if
-  end do
+              tmp1 = f%mus(i) +f%b(i)*log(f%Vstar(i)*theta(i)/f%Dc(i)) 
+              tmp2 = 2d0*f%Vstar(i)*exp(-tmp1/f%a(i))
+              write(*, *) "tmp1=", tmp1 
+              write(*, *) "tmp2=", tmp2
+              write(*, *) "sinh(abs(tau)/(sigma*a))", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))
+              write(*, *) "v = sinh(abs(tau)/(sigma*a))*tmp2 = ", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))*tmp2
+          end if
+      end do
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+    case(4,5,6) 
+      tmp = -(theta)/f%a
+      v = f%Vstar * (exp(tau/(-sigma*f%a)+tmp) - exp(tau/(sigma*f%a) + tmp))
+      v = sign(v, tau)
 
+      do i = 1, size(theta)
+          if (abs(v(i))>1d0) then
+              write(*, *) "error in rsf_v, abs(v)>1d0, i, v(i) = ", i, v(i)
+              write(*, *) "tau(i), theta(i), a(i), b(i), dc(i) = ", tau(i), theta(i), &
+                      f%a(i), f%b(i), f%dc(i)
+              tmp1 = theta(i)
+              tmp2 = 2d0*f%Vstar(i)*exp(-tmp1/f%a(i))
+              write(*, *) "tmp1=", tmp1 
+              write(*, *) "tmp2=", tmp2
+              write(*, *) "sinh(abs(tau)/(sigma*a))", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))
+              write(*, *) "v = sinh(abs(tau)/(sigma*a))*tmp2 = ", sinh(abs(tau(i))/(-sigma(i)*f%a(i)))*tmp2
+          end if
+      end do
+  end select
   end function rsf_v
 
 !=====================================================================
@@ -403,7 +471,7 @@ contains
   double precision, dimension(:), intent(in) :: sigma,Z,tau_stick
   type(rsf_type), intent(inout) :: f
 
-  double precision, dimension(size(v)) :: v_new,theta_new
+  double precision, dimension(size(v)) :: v_new,theta_new,phi_new,phi_new2
   integer :: it, iter,  stat_i
 
   isSetmaxV = .false.
@@ -411,7 +479,8 @@ contains
   time%solver_converge_stat = 1
 
   ! First pass: 
-  theta_new = rsf_update_theta(f%theta,v,f)
+  phi_new = rsf_update_phi(f%phi,v,f)
+  theta_new = rsf_update_theta(f%theta,v,phi_new,f)
   
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(1), stat_i)
   if (stat_i<0) then
@@ -421,8 +490,8 @@ contains
 
   ! limit the slip velocity to v_new
   v_new = sign(min(abs(v_new), f%vmaxPZ),v_new)
-
-  theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), f)
+  phi_new = rsf_update_phi(f%phi,0.5d0*(v+v_new),f)
+  theta_new = rsf_update_theta(f%theta,0.5d0*(v+v_new), phi_new,f)
   call rsf_update_V(tau_stick, sigma, f, theta_new, Z, v_new, time%nr_iters(2), stat_i)
   
   ! limit the slip velocity to v_new
@@ -435,6 +504,7 @@ contains
   end if
   
   ! store new velocity and state variable estimate in friction law 
+  f%phi = phi_new
   f%theta = theta_new 
   v = v_new
 
@@ -453,14 +523,16 @@ contains
   type(timescheme_type):: time
   double precision, dimension(:), intent(in) :: sigma,tau
   double precision, dimension(:), intent(inout) :: v
-  double precision, dimension(size(v)) :: theta, vnew
+  double precision, dimension(size(v)) :: theta, vnew,phi
   type(rsf_type), intent(inout) :: f
   integer::i
  
   time%solver_converge_stat = 1
 
   f%theta_pre = f%theta
-  theta = rsf_update_theta(f%theta_pre,v,f)
+  f%phi_pre= f%phi 
+  phi=rsf_update_phi(f%phi_pre,v,f)
+  theta = rsf_update_theta(f%theta_pre,v,phi,f)
   vnew  = rsf_v(f, tau, sigma, theta)
 
   do i = 1, size(v)
@@ -479,6 +551,7 @@ contains
 
   if (f%iter==2) then
       ! save theta after 2 passes
+      f%phi = phi
       f%theta = theta
       ! reset the counter to 0
       f%iter  = 0
@@ -503,18 +576,34 @@ contains
   subroutine rsf_update_theta_pre(f)
       type(rsf_type), intent(inout) :: f
       f%theta_pre = f%theta
+  end subroutine
+  
+  subroutine rsf_update_phi_pre(f)
+      type(rsf_type), intent(inout) :: f
+      f%phi_pre = f%phi
   end subroutine 
 
 !---------------------------------------------------------------------
+! Update state variable (phi) assuming slip velocity (v) is known -FOR THERMAL WEAKENING MODEL
+
+  function rsf_update_phi(phi,v,f) result(phi_new)
+  double precision, dimension(:), intent(in) :: v,phi
+  type(rsf_type), intent(in) :: f
+  double precision, dimension(size(v)) :: psi,phi_new
+  integer::i
+  psi=0.999999/(1+exp(-40.000*(abs(v)/(1e-3)-1)))+0.0000005
+  phi_new=(phi-abs(v)*psi*0.10/(1-psi))*exp(-(1-psi)*f%dt/0.10)+abs(v)*psi*0.1/(1-psi)
+  !phi_new=phi+abs(v)*f%dt
+  end function rsf_update_phi
+
 ! Update state variable (theta) assuming slip velocity (v) is known
 
-  function rsf_update_theta(theta,v,f) result(theta_new)
+  function rsf_update_theta(theta,v,phi,f) result(theta_new)
 
-  double precision, dimension(:), intent(in) :: v,theta
+  double precision, dimension(:), intent(in) :: v,theta,phi
   type(rsf_type), intent(in) :: f
-  double precision, dimension(size(v)) :: theta_new
-!  integer::i
-
+  double precision, dimension(size(v)) :: theta_new,psi_2,psi_3
+  integer::i
   select case(f%kind)
     case(1) 
      ! exact integration assuming constant V over the timestep
@@ -530,24 +619,50 @@ contains
          theta_new = theta*exp(-abs(v)*f%dt/f%Dc)
          theta_new = theta_new + exp(log(f%Dc/abs(v)) + log(1-exp(-abs(v)*f%dt/f%Dc))) 
      end where
-
+     
     case(3) 
-     ! Kaneko et al (2008) eq 20 - "Slip Law"
-     ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
-      theta_new = f%Dc/abs(v)
-      theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
+     theta_new= f%Dc/abs(v)
+     theta_new = theta_new*(theta/theta_new)**exp(-f%dt/theta_new)
+
+    case(4) 
+      !!! Psi_2 is used to cancel the thermal weakening on VS regions
+      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))      
+      !!! rate and state fss
+      theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
+      !!! THERMAL_WEAKENING IMPLEMENTATION
+      theta_new=theta_new/(1+abs(phi/f%l_tw)*psi_2)**0.333333
+      !!! obtain psi_ss_TW from fss_TW
+      theta_new=sinh(theta_new/f%a)*2.0*f%Vstar/abs(v)
+      theta_new=log(theta_new)*f%a
+      theta_new = (theta-theta_new)*exp(-f%dt*abs(v)/f%Dc)+theta_new
+    case(5)
+      !!! Psi_2 is used to cancel Fash_heating on VS regions
+      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))
+      !!! rate and state fss
+      theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
+      !!! FLASH HEATING IMPLEMENTATION
+      theta_new=(theta_new-f%fw)/(1.0+psi_2*abs(v)/f%Vw)+f%fw
+      !!! obtain psi_ss_FH from fss_FH
+      theta_new=sinh(theta_new/f%a)*2.0*f%Vstar/abs(v)
+      theta_new=log(theta_new)*f%a
+      !!! SLIP-LAW using Psi_ss
+      theta_new = (theta-theta_new)*exp(-f%dt*abs(v)/f%Dc)+theta_new
+    case(6)
+      !!! Psi_2 is used to cancel Flash_heating_thermal_weakening on VS regions
+      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))
+      !!! rate and state fss
+      theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
+      !!! FLASH_HEATING +THERMAL WEAKENING
+      theta_new=((theta_new-f%fw)/(1.0+psi_2*abs(v)/f%Vw)+f%fw)/(1+psi_2*abs(phi/f%l_tw))**0.333333
+      !!! obtain psi_ss_(FH+TW) from fss_(FH+TW)
+      theta_new=sinh(theta_new/f%a)*2.0*f%Vstar/abs(v)
+      theta_new=log(theta_new)*f%a
+      !!!! SLIP-LAW using Psi_ss_(FH+TW)
+      theta_new = (theta-theta_new)*exp(-f%dt*abs(v)/f%Dc)+theta_new
   end select
   
-!  do i = 1, size(theta)
-!      if (theta_new(i)<1d-20 .or. theta(i)<1d-20) then
-!          write(*, *) "rsf_update_theta, it", i
-!          write(*, *) "theta_new<1d-20, theta, theta_new, v", theta(i), theta_new(i),v(i)
-!          write(*, *) "theta_new<1d-20, log10(theta, theta_new, v)", &
-!          log10(theta(i)), log10(theta_new(i)),log10(v(i))
-!      end if
-!  end do
-
   end function rsf_update_theta
+
 
 !---------------------------------------------------------------------
 ! Update slip velocity assuming theta is known
@@ -577,11 +692,18 @@ contains
   maxtau = tau_stick
   iter_i = 0
 
+  select case(f%kind)
+    case(1,2,3) 
   ! compute the lower bound initial guess
-  tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%mus+f%b*log(f%Vstar*f%theta/f%dc))/f%a)
-  mintau = tau_stick/(1d0 + Z*tmp)
-  mintau = 0d0
-
+      tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%mus+f%b*log(f%Vstar*f%theta/f%dc))/f%a)
+      mintau = tau_stick/(1d0 + Z*tmp)
+      mintau = 0d0
+    case(4,5,6) 
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+      tmp    = 2d0*f%Vstar/(-f%a*sigma)*exp(-(f%theta)/f%a)
+      mintau = tau_stick/(1d0 + Z*tmp)
+      mintau = 0d0
+  end select
   select case(f%kind)
     case(1) 
       v = (tau_stick +sigma*rsf_mu_no_direct(f))/Z ! if v<0 will stop
@@ -589,7 +711,7 @@ contains
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
  
-    case(2,3) 
+    case(2,3,4,5,6) 
      ! "Aging Law and Slip Law"
      ! Find each element's velocity:
      do it=1,size(tau_stick)
@@ -883,18 +1005,32 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       !tmp = (f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it)))
 !      tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       !v = sinh(tau/(-sigma*f%a(it)))*tmp
-
-      tmp = -(f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
-      v = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) - exp(tau/(sigma*f%a(it)) + tmp))
-      v = sign(v, tau_stick)
-      func_tau = tau_stick - Z*v - tau
+    select case(f%kind)
+      case(1,2,3) 
+        tmp = -(f%mus(it) +f%b(it)*log( f%Vstar(it)*theta/f%Dc(it)))/f%a(it)
+        v = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) - exp(tau/(sigma*f%a(it)) + tmp))
+        v = sign(v, tau_stick)
+        func_tau = tau_stick - Z*v - tau
     
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
       !  solved in terms of v, derivative wrt tau
       !dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
-      dv_dtau = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) + exp(tau/(sigma*f%a(it)) + tmp)) /(-sigma*f%a(it))
-      dfunc_dtau = -Z*dv_dtau - 1d0
+        dv_dtau = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) + exp(tau/(sigma*f%a(it)) + tmp)) /(-sigma*f%a(it))
+        dfunc_dtau = -Z*dv_dtau - 1d0
+!*** For these cases, the state variable is f0+b*ln(thera*V0/L)
+      case(4,5,6) 
+        tmp = -(theta)/f%a(it)
+        v = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) - exp(tau/(sigma*f%a(it)) + tmp))
+        v = sign(v, tau_stick)
+        func_tau = tau_stick - Z*v - tau
+      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used)
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+      !  solved in terms of v, derivative wrt tau
+      !dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
+        dv_dtau = f%Vstar(it) * (exp(tau/(-sigma*f%a(it))+tmp) + exp(tau/(sigma*f%a(it)) + tmp)) /(-sigma*f%a(it))
+        dfunc_dtau = -Z*dv_dtau - 1d0
+    end select
 end subroutine nr_fric_func_tau
 
 subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z) 
@@ -904,21 +1040,38 @@ subroutine nr_fric_func_v(v, func_v, dfunc_dv, f, it, tau_stick, sigma, Z)
   type(rsf_type), intent(in) :: f
   double precision :: v, mu, dmu_dv
   integer, intent(in) :: it
-
+    select case(f%kind)
+      case(1,2,3) 
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
-      mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
-      func_v = tau_stick - Z*v - sigma*mu
+        mu = (f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it)
+        mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
+        func_v = tau_stick - Z*v - sigma*mu
       
       !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
       !  dmu_dv = f%a*/v 
       !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
-      dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
-      dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
-      dfunc_dv = -Z - sigma*dmu_dv
-  
+        dmu_dv = exp((f%mus(it)+f%b(it)*log(f%Vstar(it)*f%theta(it)/f%Dc(it)))/f%a(it))/(2*f%Vstar(it))
+        dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
+        dfunc_dv = -Z - sigma*dmu_dv
+!**** For these cases, the state variable is f0+b*ln(thera*V0/L)
+      case(4,5,6) 
+      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
+      ! mu = f%mus +f%a*log(v/f%Vstar) + f%b*log(f%theta*f%Vstar/f%Dc) 
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+        mu = (f%theta(it))/f%a(it)
+        mu = f%a(it)*asinh(v/(2*f%Vstar(it))*exp(mu))
+        func_v = tau_stick - Z*v - sigma*mu
+      
+      !  Kaneko et al. (2008) Eq. 12 (this is unphysical, so Eq. 15 is used):
+      !  dmu_dv = f%a*/v 
+      !  Kaneko et al. (2008) Eq. 15 (regularize at v=0 as per Laupsta et al. (2000))
+        dmu_dv = exp(f%theta(it)/f%a(it))/(2*f%Vstar(it))
+        dmu_dv = dmu_dv*f%a(it)/(sqrt(1+(dmu_dv*v)**2))
+        dfunc_dv = -Z - sigma*dmu_dv
+    end select
+       
 end subroutine nr_fric_func_v
 
 !---------------------------------------------------------------------
