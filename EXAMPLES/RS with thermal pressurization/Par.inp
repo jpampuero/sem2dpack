@@ -1,0 +1,123 @@
+# Kaneko et al., 2011, RSF cycle with homogeneous elastic off-fault material
+#
+# Anti-plane shear mode III 
+#
+
+# see the manual on how to specify general parameters
+# iexec= 1 or 0, execute or testing (no time loop)
+# ngll: number of gll node for each sem element, order of accuracy
+# fmax: maximum frequency you want to resolve
+# ndof: 1 or 2 (antiplane shear or inplane shear)
+# itInfo: every how many time step you want the program to output information
+#
+# ----------------- General Parameters ---------------------
+&GENERAL iexec=1, ngll=5, fmax=2d0, W=20d3,ndof=1,
+         title = 'kaneko 2011 rsf elastic mode 3',
+         verbose='1111', itInfo = 100 /
+
+# see the manual on how to define a mesh
+#
+# ----------------- Build/import mesh  ---------------------
+&MESH_DEF  method = 'CARTESIAN' /
+&MESH_CART xlim=-50d3,50d3,
+           zlim=0d0, 50d3, nelem=500,250 / # element size h=1
+
+# see the manual on how to define a material
+# all the material properties, rho, cp, cs can be defined as 
+# spatial distribution, rhoh, cph, csh, you will see examples
+#
+# ----------------- Material Parameters (Elastic) ----------
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2670.d0, cp=6400.d0, cs=3464.d0 /
+
+
+# see the manual for defining boundary condition
+# ABSORB: absorbing boundary condition, bc_abso.f90
+# DYNFLT: dynamic fault, bc_dynflt.f90 
+# ----------------- Boundary conditions --------------------
+# absorbing bc for all external boundaries
+
+&BC_DEF  Tag = 1, Kind = 'ABSORB' /
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /
+
+&BC_DEF  Tag = 3, Kind = 'DYNFLT' /
+&BC_DYNFLT friction='RSF', Tn=-50d6, TtH='ORDER0',
+           V=1d-3, vlock=0d0, ot1 = 0d0,
+           otdD=1d-2, otdS = 1d6 /
+
+# Tn: fault normal stress, defined here as a constant, negative (compression)
+# Tt: fault shear stress
+#     TtH define Tt as a distribution 
+# V: initial fault slip velocity
+# vlock: defining which part of the fault is locked
+#        vlockH defining vlock as a distribution
+# ot1: time of the first output
+# otd: output time step in sec during dynamic rupture
+# ots: output time step in sec during quasi-static steps
+#
+# Defining order0cos distribution for TtH
+# basically, piece-wise constant with cos transition between the jumps
+# first jump centered around -1.5 with transition length of 3, left side
+# value is 72 and right side value is 81.6
+#
+
+&DIST_ORDER0 xn = 5, zn=1 /
+  -40d3  -1.5d3  1.5d3   40d3
+30d6 18d6  36d6  18d6  30d6  
+
+# Define dynamic fault type and parameters 
+# dynamic RSF fault boundary:
+#
+# RSF properties
+# NOTE: theta is internally reinitialized by initial stress
+#  Dc: characteristic slip weakening distance 
+#  Mus: reference frictional coefficient 0.6
+#  a: rate and state a parameter
+#  b: rate and state b parameter, bH means b is defined as spatial distribution
+#  vstar: reference slip rate
+#  vplate: plate loading velocity (back-slip approach applied)
+#  theta: initial state parameter, internally reinitialized by initial stress
+#  vmaxS2D: threshold slip rate to switch from static to dynamic time stepping
+#  vmaxD2S: threshold slip rate to switch from dynamic to static time stepping
+#  vmaxD2S_VS: a separate threshold for velocity strengthening region
+#  NRTol : tolerance for Newton-Raphson iteration in dynamic solver
+#
+#
+&BC_DYNFLT_RSF kind=4, Dc=7.5d-3, MuS=0.6d0, aH='ORDER0',
+               bH='ORDER0', Vstar=1.0d-6, vplate=1d-9,
+               theta=0d0, vmaxS2D=5d-3, vmaxD2S=2d-3,vmaxD2S_VS=5d-3,
+               NRTol=1.0d-4 /
+# define the spatial distribution for hH
+# as you can see, for each distribution you define, you will need to follow 
+# a block that define the parameters for the distribution.
+
+&DIST_ORDER0 xn=3, zn=1 / # Initial b parameter
+             -40d3         40d3
+   0.015d0        0.01d0       0.015d0
+
+
+&DIST_ORDER0 xn=3, zn=1 / # Initial b parameter
+             -40d3         40d3
+   0.005d0        0.015d0       0.005d0
+
+# ----------------- Time Step  --------------------
+# kind: kind of time stepping, we choose 'adaptive' for earthquake cycle simulation
+# kind_dyn: kind of time stepping for dynamic rupture, we choose leapfrog
+# Courant: CFL number
+# Totaltime: 1000 years, 6.3072d09
+# dt_incf: maximum increase factor for each time step, we choose 1.2
+# max time step: 5 days
+# tolerance for linear solver: 1E-6
+# maximum linear iteration number: 4000
+# default dynamic solver: leapfog
+# EQNumMax: maximum number of earthquake event
+# 
+
+&TIME kind='adaptive', Courant=0.5d0, TotalTime=10.10d10, kind_dyn='leapfrog',
+      dt_incf=1.2, dtev_max=83200000d0, TolLin=1d-6, MaxIterLin=4000, EQNumMax=50 /
+
+#&TIME_NEWMARK gamma=0.5d0, beta=0d0/
+# ------------ Output block -----------------------------
+# Do not output any 2D fields
+&SNAP_DEF it1=1200, itd=5000000, fields ='', components='y', ps=F/
