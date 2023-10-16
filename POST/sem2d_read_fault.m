@@ -55,7 +55,6 @@ if ~exist('name','var')
   end
 end
 
-
 % Read parameters from header file
 hdr = strcat(wdir,'/',name,'_sem2d.hdr');
 if ~exist(hdr,'file')
@@ -87,10 +86,11 @@ if exist([wdir,'/',name '_init_sem2d.tab'],'file')
   data.sn0 = raw(:,2);
   data.mu0 = raw(:,3);
   if size(raw, 2)>3
-     data.theta0=raw(:,4); 
-     data.v0=raw(:,5); 
-     data.rsf_a = raw(:, 6);
-     data.rsf_b = raw(:, 7);
+     data.phi   = raw(:, 4);% Marco's implemention added phi
+     data.theta0=raw(:,5); 
+     data.v0=raw(:,6); 
+     data.rsf_a = raw(:, 7);
+     data.rsf_b = raw(:, 8);
   end
 end
 
@@ -111,6 +111,9 @@ data.mu  = squeeze(raw(:,5,:));
 switch ndat
     case 5+1
       data.theta=squeeze(raw(:,6,:));
+    case 5+2
+      data.theta=squeeze(raw(:,6,:));
+      data.phi = squeeze(raw(:,7,:));
     case 5+4
       data.d1t  = squeeze(raw(:,6,:)); 
       data.d2t  = squeeze(raw(:,7,:)); 
