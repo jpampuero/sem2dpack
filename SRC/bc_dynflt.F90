@@ -730,7 +730,7 @@ contains
   NDAT = 5
   if (bc%osides) NDAT = NDAT + 4*ndof
   ! output state variable if rsf is associated
-  if (associated(bc%rsf)) NDAT = NDAT + 1
+  if (associated(bc%rsf)) NDAT = NDAT + 2
 
 !  onx = (bc%oixn-bc%oix1)/bc%oixd +1
 
@@ -765,7 +765,7 @@ contains
   else
     ! if do not output sides
     if (associated(bc%rsf)) then
-        write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:theta'
+        write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:Theta:Phi'
     else
         write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
     end if
@@ -1438,8 +1438,8 @@ end subroutine BC_DYNFLT_AppendDofFix
     call export_side(bc,get_side(bc,v,1))
     call export_side(bc,get_side(bc,v,2))
   endif
-  call export_phi(bc) ! export state variable
   call export_theta(bc) ! export state variable
+  call export_phi(bc) ! export state variable
   ! update the next output time step index
   adapt_time = (time%kind=='adaptive') &
                .and. (.not.time%fixdt)
