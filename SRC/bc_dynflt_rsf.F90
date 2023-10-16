@@ -626,7 +626,7 @@ contains
 
     case(4) 
       !!! Psi_2 is used to cancel the thermal weakening on VS regions
-      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))      
+      psi_2=1/(1+exp(-90000.000*(f%b-f%a)))      
       !!! rate and state fss
       theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
       !!! THERMAL_WEAKENING IMPLEMENTATION
@@ -637,7 +637,7 @@ contains
       theta_new = (theta-theta_new)*exp(-f%dt*abs(v)/f%Dc)+theta_new
     case(5)
       !!! Psi_2 is used to cancel Fash_heating on VS regions
-      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))
+      psi_2=1/(1+exp(-90000.000*(f%b-f%a)))
       !!! rate and state fss
       theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
       !!! FLASH HEATING IMPLEMENTATION
@@ -649,7 +649,7 @@ contains
       theta_new = (theta-theta_new)*exp(-f%dt*abs(v)/f%Dc)+theta_new
     case(6)
       !!! Psi_2 is used to cancel Flash_heating_thermal_weakening on VS regions
-      psi_2=1/(1+exp(-9000.000*(f%b-f%a)))
+      psi_2=1/(1+exp(-90000.000*(f%b-f%a)))
       !!! rate and state fss
       theta_new=f%a*asinh(abs(v)/2.0/f%Vstar*exp((f%mus+f%b*log(f%Vstar/abs(v)))/f%a))
       !!! FLASH_HEATING +THERMAL WEAKENING
