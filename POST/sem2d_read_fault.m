@@ -9,6 +9,12 @@
 % OUTPUT	data.nx		number of fault nodes
 %		data.nt		number of time samples
 %		data.dt		time step
+%       data.t      time in second
+%       data.it     time step index
+%       data.eqnum  earthquake number
+%       data.isdynamic flag, if this step using dynamic stepping
+%       data.isswitch flag, if this step switched time steppings scheme
+%       data.isEQ  flag, if an earthquake is happening at this step.
 %		data.x,data.z	coordinates of fault nodes
 %		data.d		slip [nx,nt]
 %		data.v		slip rate
@@ -16,10 +22,15 @@
 %		data.sn		normal stress
 %		data.mu		friction coefficient
 %		data.theta  state variable	
+%       data.phi    state variable for thermal pressurization by Marco
+%		data.v0	    initial slip rate
 %		data.st0	initial value of shear stress
 %		data.sn0	initial value of normal stress
 %		data.mu0	initial value of friction coefficient
-%		data.theta0	initial value of state variable 
+%		data.theta0	initial value of state variable
+%		data.rsf_a	rate and state
+%		data.rsf_b	initial value of state variable
+%       data.phi0   initial state variable for thermal pressurization by Marco
 % 
 %		If output on each side of the fault (osides=T):
 %  		data.d1t	displacement on side 1, fault parallel component
@@ -55,7 +66,6 @@ if ~exist('name','var')
   end
 end
 
-
 % Read parameters from header file
 hdr = strcat(wdir,'/',name,'_sem2d.hdr');
 if ~exist(hdr,'file')
@@ -87,10 +97,11 @@ if exist([wdir,'/',name '_init_sem2d.tab'],'file')
   data.sn0 = raw(:,2);
   data.mu0 = raw(:,3);
   if size(raw, 2)>3
-     data.theta0=raw(:,4); 
-     data.v0=raw(:,5); 
-     data.rsf_a = raw(:, 6);
-     data.rsf_b = raw(:, 7);
+     data.phi0   = raw(:, 4);% Marco's implemention added phi
+     data.theta0=raw(:,5); 
+     data.v0=raw(:,6); 
+     data.rsf_a = raw(:, 7);
+     data.rsf_b = raw(:, 8);
   end
 end
 
@@ -111,6 +122,9 @@ data.mu  = squeeze(raw(:,5,:));
 switch ndat
     case 5+1
       data.theta=squeeze(raw(:,6,:));
+    case 5+2
+      data.phi = squeeze(raw(:,6,:));
+      data.theta=squeeze(raw(:,7,:));
     case 5+4
       data.d1t  = squeeze(raw(:,6,:)); 
       data.d2t  = squeeze(raw(:,7,:)); 
