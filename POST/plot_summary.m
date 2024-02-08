@@ -1,4 +1,4 @@
-% plot_summary plot rupture speeds along strike and time
+% plot_summary plot rupture speeds along strike and time. Written by Liuwei Xu
 %
 % SYNTAX	[Trup,Tpz] = plot_summary(V,Veps,D,Dc,X,DT)
 %
