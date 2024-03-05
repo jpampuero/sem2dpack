@@ -151,7 +151,8 @@ subroutine MESH_build(grid,mesh)
 
   ounit = IO_new_unit()
   open(ounit,file='ElmtNodes_sem2d.tab')
-  write(fmt,'(a,i1,a)') "(", grid%ngnod, "(1x,i6))" 
+!  write(fmt,'(a,i1,a)') "(", grid%ngnod, "(1x,i6))" 
+  write(fmt,'(a,i1,a)') "(", grid%ngnod, "(1x,i8))" 
   do e=1,grid%nelem
     write(ounit,fmt) grid%knods(:,e)
   enddo
