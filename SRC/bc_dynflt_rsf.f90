@@ -264,7 +264,7 @@ contains
 
   double precision, dimension(:), intent(in) :: v,theta
   type(rsf_type), intent(in) :: f
-  double precision, dimension(size(v)) :: theta_new
+  double precision, dimension(size(v)) :: theta_new, x, exp_x
   integer :: it
 
   select case(f%kind)
@@ -281,21 +281,24 @@ contains
       enddo
 
 
-    case(2) 
+    case(2,4) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
      ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
-      theta_new = f%Dc/abs(v)
-      theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
+      x = abs(v)/f%Dc
+      exp_x = exp( -f%dt*x )
+      where (f%dt*x > 1d-8)
+        theta_new = theta*exp_x + (1d0-exp_x)/x
+      elsewhere
+        ! use second-order Taylor expansion when v*dt/Dc is too small
+        theta_new  = theta*exp_x + f%dt*(1d0-0.5d0*f%dt*x)
+      end where 
+
     case(3) 
      ! Kaneko et al (2008) eq 20 - "Slip Law"
      ! theta_new = Dc/v *(theta*v/Dc)**exp(-v*dt/Dc)
       theta_new = f%Dc/abs(v)
       theta_new = theta_new *(theta/theta_new)**exp(-f%dt/theta_new)
-    case(4) 
-     ! Kaneko et al (2008) eq 19 - "Aging Law"
-     ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
-      theta_new = f%Dc/abs(v)
-      theta_new = (theta-theta_new)*exp(-f%dt/theta_new) + theta_new
+
   end select
 
   end function rsf_update_theta
@@ -321,7 +324,7 @@ contains
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
-  integer :: it
+  integer :: i
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
@@ -342,12 +345,12 @@ contains
     case(2,3,4) 
      ! "Aging Law and Slip Law"
      ! Find each element's velocity:
-     do it=1,size(tau_stick)
+     do i=1,size(tau_stick)
        !DEVEL: What are the accepted tolerances and bounds? User-input? 
-       tolerance=0.001*f%a(it)*sigma(it) ! As used by Kaneko in MATLAB code
-       estimateLow = 1e-9
-       estimateHigh = tau_stick(it)*2.0
-       v(it)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,it,theta(it),tau_stick(it),sigma(it),Z(it))
+       tolerance = - 0.001d0*f%a(i)*sigma(i) ! As used by Kaneko in MATLAB code
+       estimateLow  = min( 0d0, tau_stick(i) )
+       estimateHigh = max( 0d0, tau_stick(i) ) 
+       v(i)=nr_solver(nr_fric_func_tau,estimateLow,estimateHigh,tolerance,f,i,theta(i),tau_stick(i),sigma(i),Z(i))
      enddo     
         
   end select
@@ -552,7 +555,7 @@ subroutine nr_fric_func_tau(tau, func_tau, dfunc_dtau, v, f, theta, it, tau_stic
       dv_dtau = cosh(tau/(-sigma*f%a(it)))*tmp/(-sigma*f%a(it))
       dfunc_dtau = -Z*dv_dtau - 1d0
     case(4)
-      tmp = f%mus(it) +f%b(it)*log( f%Vc(it)*theta/f%Dc(it) + 1 )
+      tmp = f%mus(it) +f%b(it)*log( f%Vc(it)*theta/f%Dc(it) + 1d0 )
       tmp = 2d0*f%Vstar(it)*exp(-tmp/f%a(it))
       v = sinh(tau/(-sigma*f%a(it)))*tmp
       func_tau = tau_stick - Z*v - tau
