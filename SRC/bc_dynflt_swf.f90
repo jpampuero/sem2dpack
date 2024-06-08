@@ -8,7 +8,7 @@ module bc_dynflt_swf
   private
 
   type swf_input_type
-    type(cd_type) :: dc, mus, mud, alpha
+    type(cd_type) :: dc, mus, mud, alpha,p
   end type swf_input_type
 
   type swf_type
@@ -16,7 +16,7 @@ module bc_dynflt_swf
     integer :: kind
     double precision :: dt
     logical :: healing
-    double precision, dimension(:), pointer :: dc=>null(), mus=>null(), mud=>null(), theta=>null()
+    double precision, dimension(:), pointer :: dc=>null(), mus=>null(), mud=>null(), theta=>null(), p=>null()
     double precision, dimension(:), pointer :: alpha=>null()
     type(swf_input_type) :: input
   end type swf_type
@@ -61,23 +61,25 @@ contains
   type(swf_type), intent(out) :: swf
   integer, intent(in) :: iin
 
-  double precision :: Dc,MuS,MuD,alpha
-  character(20) :: DcH,MuSH,MuDH,alphaH
+  double precision :: Dc,MuS,MuD,alpha,p
+  character(20) :: DcH,MuSH,MuDH,alphaH,pH
   integer :: kind
   character(20) :: kind_txt
   logical :: healing
 
-  NAMELIST / BC_DYNFLT_SWF / kind,Dc,MuS,MuD,alpha,DcH,MuSH,MuDH,alphaH,healing
+  NAMELIST / BC_DYNFLT_SWF / kind,Dc,MuS,MuD,alpha,p,DcH,MuSH,MuDH,alphaH,pH,healing
 
   kind = 1
   Dc = 0.5d0
   MuS = 0.6d0
   MuD = 0.5d0
   alpha = 0.0d0
+  p=3d0
   DcH = ''
   MuSH = ''
   MuDH = ''
   alphaH = ''
+  pH=''
   healing = .false.
 
   read(iin,BC_DYNFLT_SWF,END=300)
@@ -92,11 +94,11 @@ contains
   swf%healing = healing
   
   call DIST_CD_Read(swf%input%Dc,Dc,DcH,iin,DcH)
-  call DIST_CD_Read(swf%input%MuS,MuS,MuSH,iin,MuSH)
+  call DIST_CD_Read(swf%input%MuS,MuS,MuSH,iin,MuSh)
   call DIST_CD_Read(swf%input%MuD,MuD,MuDH,iin,MuDH)
   call DIST_CD_Read(swf%input%alpha,alpha,alphaH,iin,alphaH)
-
-  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,MuDH,alphaH,healing
+  call DIST_CD_Read(swf%input%p,p,pH,iin,pH)
+  if (echo_input) write(iout,400) kind_txt,DcH,MuSH,MuDH,alphaH,pH,healing
 
   return
 
@@ -106,6 +108,7 @@ contains
             /5x,'  Static friction coefficient . . . .(MuS) = ',A,&
             /5x,'  Dynamic friction coefficient  . . .(MuD) = ',A,&
             /5x,'  Roughness drag coefficient  . . .(alpha) = ',A,&
+            /5x,'  Power-law exponential  . . .(p) = ',A,&
             /5x,'  Instantaneous healing . . . . .(healing) = ',L1)
 
   end subroutine swf_read
@@ -121,6 +124,7 @@ contains
   call DIST_CD_Init(swf%input%dc,coord,swf%dc)
   call DIST_CD_Init(swf%input%mus,coord,swf%mus)
   call DIST_CD_Init(swf%input%mud,coord,swf%mud)
+  call DIST_CD_Init(swf%input%p,coord,swf%p)
   call DIST_CD_Init(swf%input%alpha,coord,swf%alpha)
 
   allocate( swf%theta(size(coord,2)) )
@@ -140,9 +144,9 @@ contains
  !-- linear slip weakening:
   if (f%kind==1) then
     mu = f%mus -(f%mus-f%mud)*min(f%theta/f%dc,1d0)
+ !--  power-law slip weakening:
   else 
- !-- exponential slip weakening:
-    mu = f%mud -(f%mud-f%mus)*exp(-f%theta/f%dc)
+    mu = f%mud+(f%mus-f%mud)*(f%dc**f%p)/((f%theta+f%dc)**f%p)
   endif
 
   mu = mu + f%alpha * f%theta
