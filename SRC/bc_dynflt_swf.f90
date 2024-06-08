@@ -144,8 +144,11 @@ contains
  !-- linear slip weakening:
   if (f%kind==1) then
     mu = f%mus -(f%mus-f%mud)*min(f%theta/f%dc,1d0)
+  elseif (f%kind==2) then 
+ !-- exponential slip weakening:
+    mu = f%mud -(f%mud-f%mus)*exp(-f%theta/f%dc)
  !--  power-law slip weakening:
-  else 
+  elseif (f%kind==3) then  
     mu = f%mud+(f%mus-f%mud)*(f%dc**f%p)/((f%theta+f%dc)**f%p)
   endif
 
