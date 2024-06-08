@@ -88,6 +88,7 @@ contains
   select case (kind)
     case(1); kind_txt = 'Linear'
     case(2); kind_txt = 'Exponential'
+    case(3); kind_txt = 'Power-law'
     case default; call IO_abort('BC_DYNFLT_SWF: invalid kind')
   end select
   swf%kind = kind
