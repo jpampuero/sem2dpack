@@ -43,9 +43,11 @@ contains
 ! ARG: kind     [int] [1] Type of slip weakening function:
 !                       1 = linear
 !                       2 = exponential
+!                       3 = power-law
 ! ARG: Dc       [dble] [0.5d0] Critical slip 
 ! ARG: MuS      [dble] [0.6d0] Static friction coefficient
 ! ARG: MuD      [dble] [0.5d0] Dynamic friction coefficient
+! ARG: p        [dble] [3d0] Exponent of power-law slip-weakening
 ! ARG: alpha    [dble] [0.0d0] Roughness drag coefficient (normalized by Tn)
 ! ARG: healing  [log] [F] Instantaneous healing upon slip arrest
 !               Healing is currently valid only with the leapfrog time scheme
@@ -109,7 +111,7 @@ contains
             /5x,'  Static friction coefficient . . . .(MuS) = ',A,&
             /5x,'  Dynamic friction coefficient  . . .(MuD) = ',A,&
             /5x,'  Roughness drag coefficient  . . .(alpha) = ',A,&
-            /5x,'  Power-law exponential  . . .(p) = ',A,&
+            /5x,'  Power-law exponent  . . . . . . . . .(p) = ',A,&
             /5x,'  Instantaneous healing . . . . .(healing) = ',L1)
 
   end subroutine swf_read
@@ -150,7 +152,7 @@ contains
     mu = f%mud -(f%mud-f%mus)*exp(-f%theta/f%dc)
  !--  power-law slip weakening:
   elseif (f%kind==3) then  
-    mu = f%mud+(f%mus-f%mud)*(f%dc**f%p)/((f%theta+f%dc)**f%p)
+    mu = f%mud + (f%mus-f%mud) / (1d0+f%theta/f%dc)**f%p
   endif
 
   mu = mu + f%alpha * f%theta
