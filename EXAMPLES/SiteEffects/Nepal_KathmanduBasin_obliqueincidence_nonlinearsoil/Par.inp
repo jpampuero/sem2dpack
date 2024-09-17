@@ -1,0 +1,59 @@
+#----- General parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=10d0 , ndof=2,
+title = 'More stats -- theta 30', verbose='1011' , ItInfo = 20000 /
+
+
+# LATEST MESH (23/04/2020)
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'MESH2D' /
+&MESH_MESH2D   file="april10Hz.mesh2d" /
+
+
+#---- Material parameters --------------
+&MATERIAL tag = 1, kind='IWAN'/
+&MAT_IWAN rho=1600d0, cp=416.33d0, cs=200d0, Nspr=50, phi_f=10d0, cohesion=20e3, VEPMOD=T, IS_NEPAL=T /
+&MAT_VEP Qp=40d0, Qs=20d0, fr=1d0 /
+
+&MATERIAL tag = 2, kind='VISLA'/
+&MAT_VISLA  rho=1800d0, cp=810d0, cs=425d0, Qp=80d0, Qs=40d0, fr=1d0/
+
+&MATERIAL tag = 3, kind='VISLA'/
+&MAT_VISLA  rho=2000d0, cp=2298.4d0, cs=1250d0, Qp=230d0, Qs=125d0, fr=1d0/
+
+&MATERIAL tag = 4, kind='VISLA'/
+&MAT_VISLA  rho=2530d0, cp=5500d0, cs=3200d0, Qp=300d0, Qs=150d0, fr=1d0/
+
+
+#----- Boundary conditions ---------------------
+# FREE SURFACE (tag = 3)
+&BC_DEF  Tag = 1, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=F, let_wave=T /
+
+&BC_DEF  Tag = 2, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=F, let_wave=T /
+
+&BC_DEF  Tag = 4, Kind = 'ABSORB' /  
+&BC_ABSORB Stacey=F, let_wave=T /
+
+
+# modified STF
+#---- Sources ----------------------------------
+# tested for theta=30 and 60.
+&SRC_DEF  stf='TAB', Mechanism='WAVE', Coord= 0d0,0d0 /
+&STF_TAB  file='ricker10Hz' /  
+&SRC_WAVE Angle = 30. , phase='S'/
+
+
+
+# modified
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=20d0, dt=1.5d-4, courant = 0.3d0, kind='leapfrog' / 
+
+
+#----- Receivers ---------------------------------
+&REC_LINE file='surface_stations', isamp=20, field='V', AtNode=T, extra=T/
+&REC_LINEX fileE='Xstations', AtNodeE=F /
+
+
+#--------- Snapshot output settings ----------------------
+&SNAP_DEF itd=4000, fields ='V', components='xz', ps=F/

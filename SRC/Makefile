@@ -38,20 +38,20 @@
 #== BEGIN USER SETTINGS =============================================
 
 # 1. Modify next line if you need to place the executable elsewhere:
-EXEC = $(HOME)/bin/sem2dsolve
-
+# EXEC = $(HOME)/bin/sem2dsolve
+EXEC = ../sem2dsolve
 # 2. Uncomment/add/modify the lines corresponding to your compiler:
 
 # GNU 
 #F90 = g95
 #OPT = 
-#F90 = gfortran
-#OPT = -O3 -Wall
+F90 = gfortran
+OPT = -O3 -Wall
 #OPT = -O0 -Wall -g -fbacktrace -fbounds-check
 
 #-- Intel Fortran --
-F90 = ifort
-OPT = -O3 -ip -ipo -unroll
+# F90 = ifort
+# OPT = -O3 -ip -ipo -unroll
 #-no-inline-factor
 #OPT = -O3
 #OPT = -O0 -warn all -C -traceback

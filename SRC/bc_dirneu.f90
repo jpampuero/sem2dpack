@@ -17,6 +17,7 @@ module bc_dirneu
     type(bnd_grid_type), pointer :: topo =>null()
     type (stf_type), pointer  :: hstf =>null(), vstf =>null() 
     double precision, pointer :: B(:) =>null() 
+    logical :: borehole
   end type
 
   integer,parameter :: IS_NEUMANN=1, IS_DIRICHLET=2
@@ -45,6 +46,10 @@ contains
 !                'RICKER', 'TAB', 'USER', etc  (see STF_XXXX input blocks)
 ! ARG: vsrc     [name]['none'] Same for the vertical component
 !
+! ARG: borehole [log][False] Borehole boundary condition for models with available
+!               recordings; velocity field is forced to a given velocity-time 
+!               history instead of force.
+!
 ! END INPUT BLOCK
 
 subroutine bc_DIRNEU_read(bc,iin)
@@ -58,17 +63,21 @@ subroutine bc_DIRNEU_read(bc,iin)
   character(1) :: h,v
   character(15) :: hstf,vstf
   character(10) :: htype,vtype
+  logical :: borehole
 
-  NAMELIST / BC_DIRNEU /  h,v,hstf,vstf
+  NAMELIST / BC_DIRNEU /  h,v,hstf,vstf,borehole
 
   h = 'N'
   v = 'N'
   hstf = 'none'
   vstf = 'none'
+  borehole = .False.
 
   read(iin,BC_DIRNEU,END=100)
 
   allocate(bc)
+  bc%borehole = borehole
+  if (echo_input) write(iout,400) borehole
 
   if (h=='N') then
     bc%kind(1) = IS_NEUMANN
@@ -96,6 +105,10 @@ subroutine bc_DIRNEU_read(bc,iin)
   else
     call IO_abort('bc_DIRNEU_read: h must be N or D')
   endif
+
+  if (h=='D'  .and.  v=='D'  .and.  bc%borehole) &
+  call IO_abort('bc_DIRNEU_read: h and/or v must be N for borehole condition ')
+
   if (echo_input) write(iout,300) vtype,vstf
   if (vstf/='none') then
     allocate(bc%vstf)
@@ -108,6 +121,7 @@ subroutine bc_DIRNEU_read(bc,iin)
             /5x,'         source time function . . .(hstf) = ',A)
   300 format(5x,'Vertical component. . . . . . . . . . (v) = ',A, &
             /5x,'         source time function . . .(vstf) = ',A)
+  400 format(5x,'Borehole condition . . . . . . .borehole) = ',L3/5x)
 
 end subroutine bc_DIRNEU_read
 
@@ -145,19 +159,65 @@ end subroutine bc_DIRNEU_init
 
 !=======================================================================
 !
-subroutine bc_DIRNEU_apply(bc,field,time)
+! subroutine bc_DIRNEU_apply(bc,field,time)
+
+!   type(bc_DIRNEU_type), intent(in) :: bc
+!   type(timescheme_type), intent(in) :: time
+!   double precision, intent(inout) :: field(:,:)
+
+
+!   if (bc%kind(1)==IS_DIRICHLET) then
+!     field(bc%topo%node,1) = 0.d0
+!   elseif (associated(bc%hstf)) then
+!     field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
+!   endif
+
+!   if (size(field,2)==1) return
+ 
+!   if (bc%kind(2)==IS_DIRICHLET) then
+!     field(bc%topo%node,2) = 0.d0
+!   elseif (associated(bc%vstf)) then
+!     field(bc%topo%node,2) = field(bc%topo%node,2) + STF_get(bc%vstf,time%time)*bc%B
+!   endif
+
+! end subroutine bc_DIRNEU_apply
+
+!=======================================================================
+
+subroutine bc_DIRNEU_apply(bc,field,time,veloc)
 
   type(bc_DIRNEU_type), intent(in) :: bc
   type(timescheme_type), intent(in) :: time
-  double precision, intent(inout) :: field(:,:)
+  double precision, intent(inout) :: field(:,:),veloc(:,:)
 
 
+  if (bc%borehole) then
+    ! Impose velocity
+    if (bc%kind(1)==IS_DIRICHLET) then
+      field(bc%topo%node,1) = 0.d0
+    elseif (associated(bc%hstf)) then
+      field(bc%topo%node,1) = 0.d0      
+      veloc(bc%topo%node,1) = STF_get(bc%hstf,time%time)
+    endif
+    ! if SH return
+    if (size(field,2)==1) return
+    ! if P-SV, vertical component:
+    if (bc%kind(2)==IS_DIRICHLET) then
+      field(bc%topo%node,2) = 0.d0
+    elseif (associated(bc%vstf)) then
+      field(bc%topo%node,2) = 0.d0
+      veloc(bc%topo%node,2) = STF_get(bc%vstf,time%time)
+    endif
+    return
+  endif
+
+
+  ! if not borehole, impose force...
   if (bc%kind(1)==IS_DIRICHLET) then
     field(bc%topo%node,1) = 0.d0
   elseif (associated(bc%hstf)) then
     field(bc%topo%node,1) = field(bc%topo%node,1) + STF_get(bc%hstf,time%time)*bc%B
   endif
-
   if (size(field,2)==1) return
  
   if (bc%kind(2)==IS_DIRICHLET) then
@@ -167,5 +227,8 @@ subroutine bc_DIRNEU_apply(bc,field,time)
   endif
 
 end subroutine bc_DIRNEU_apply
+
+
+
 
 end module bc_DIRNEU
