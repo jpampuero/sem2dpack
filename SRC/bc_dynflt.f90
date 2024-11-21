@@ -556,10 +556,6 @@ contains
 ! WARNING: Need compatibility conditions (additional constraints)
 !          when the fault reaches the free surface
 !
-
-!! DEVEL: This subroutine needs significant modifications and refactoring
-!! for rate-and-state friction: a two-loop solver for second order accuracy
-
   subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
 
   use stdio, only: IO_abort
