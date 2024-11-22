@@ -48,7 +48,7 @@ contains
 ! GROUP  : BOUNDARY_CONDITION, DYNAMIC_FAULT
 ! PURPOSE: Dynamic fault with friction
 ! SYNTAX : &BC_DYNFLT friction, cohesion|cohesionH, opening, Tn|TnH, Tt|TtH,
-!                     Sxx|SxxH, Sxy|SxyH, Sxz|SxzH, Syz|SyzH, Szz|SzzH
+!                     Sxx|SxxH, Sxy|SxyH, Sxz|SxzH, Syz|SyzH, Szz|SzzH, V|VH
 !                     ot1, otd, oxi, osides /
 !          followed, in order, by:
 !          1. &DIST_XXX blocks (from the DISTRIBUTIONS group) for arguments
@@ -70,6 +70,7 @@ contains
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
 ! ARG: Tt       [dble] [0d0] Initial tangent traction 
 !                (positive antiplane: y>0; positive inplane: right-lateral slip)
+! ARG: V        [dble] [1d-12] Initial slip velocity for RSF
 ! ARG: Sxx      [dble] [0d0] Initial stress sigma_xx
 ! ARG: Sxy      [dble] [0d0] Initial stress sigma_xy
 ! ARG: Sxz      [dble] [0d0] Initial stress sigma_xz
@@ -86,7 +87,6 @@ contains
 !                The default resets oxi(2) = last fault node
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
-! ARG: V        [dble] [1d-12] Initial velocity (needed for RSF)
 !
 ! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
@@ -214,7 +214,7 @@ contains
             /5x,'               xz . . . . . . . . . .(Sxz) = ',A,&
             /5x,'               yz . . . . . . . . . .(Syz) = ',A,&
             /5x,'               zz . . . . . . . . . .(Szz) = ',A,&
-            /5x,'Initial velocity on boundary . . . . . (V) = ',A,&
+            /5x,'Initial slip velocity . . . . . . . . .(V) = ',A,&
             /5x,'Cohesion  . . . . . . . . . . . (cohesion) = ',A,&
             /5x,'Allow opening . . . . . . . . . .(opening) = ',L1,&
             /5x,'Output first time . . . . . . . . . .(ot1) = ',EN13.3,&
@@ -366,10 +366,12 @@ contains
   allocate(bc%V(npoin,ndof))
   bc%T = 0d0
   bc%D = 0d0
-  !bc%V = 0d0  ! DEVEL: RSF can't have zero slip velocity !
-  call DIST_CD_Init(bc%input%V,bc%coord,V)
-  bc%V(:,1)=V
-  deallocate(V)
+  bc%V = 0d0
+  if (associated(bc%rsf)) then
+    call DIST_CD_Init(bc%input%V,bc%coord,V)
+    bc%V(:,1)=V
+    deallocate(V)
+  endif
 
 ! Initial stress
   allocate(bc%T0(npoin,2))
