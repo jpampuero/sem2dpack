@@ -34,25 +34,35 @@ contains
 ! GROUP  : DYNAMIC_FAULT
 ! PURPOSE: Velocity and state dependent friction
 ! SYNTAX : &BC_DYNFLT_RSF kind, Dc | DcH, Mus | MusH , 
-!                         a | aH, b | bH, Vstar | VstarH /
+!                         a | aH, b | bH, Vstar | VstarH, Vc | VcH ,
+!                         theta | thetaH /
 !          followed by &DIST_XXX blocks (from the DISTRIBUTIONS group) for
 !          arguments with suffix H, if present, in the order listed above.
 !
 ! ARG: kind     [int] [1] Type of rate-and-state friction law:
 !                       1 = strong velocity-weakening at high speed
-!                           as in Ampuero and Ben-Zion (2008)
+!                           as in Ampuero and Ben-Zion (GJI 2008)
+!                       2 = logarithmic rate-and-state with aging state law
+!                       3 = logarithmic rate-and-state with slip state law
+!                       4 = V-shaped rate-and-state with aging law
+!                           as in Weng and Ampuero (Nat Comms 2022, equation 15)
+!                       Options 2-4 include sinh regularization of log(V).
 ! ARG: Dc       [dble] [0.5d0] Critical slip 
 ! ARG: MuS      [dble] [0.6d0] Static friction coefficient
 ! ARG: a        [dble] [0.01d0] Direct effect coefficient
 ! ARG: b        [dble] [0.02d0] Evolution effect coefficient
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
-! ARG: theta    [dble] [1d0] State variable
+! ARG: Vc       [dble] [1d-6] Weakening-to-strengthening transition velocity in V-shaped law
+! ARG: theta    [dble] [0d0] Initial value of state variable
+!
+! NOTE: The initial slip velocity should be set in &BC_DYNFLT.
+!       If the input initial values (V, theta, Tt and Tn) are such that the initial stress 
+!       exceeds the frictional strength, Tt > |Tn|*mu(V,theta), the excess stress provides
+!       an abrupt increase of shear stress at t=0, which can serve to nucleate slip.
 !
 ! END INPUT BLOCK
 
-! not implement yet:
-!                       2 = logarithmic rate-and-state with aging state law
-!                       3 = logarithmic rate-and-state with slip state law
+
 
 ! Read parameters from input file
   subroutine rsf_read(rsf,iin)
