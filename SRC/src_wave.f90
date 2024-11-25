@@ -151,12 +151,20 @@ subroutine WAVE_init(wave,grid,mat,coord)
     coord(2) = maxval(grid%coord(2,:))
   endif
 
-  call SE_find_nearest_node(wave%coord,grid,iglob,coord)
+  ! Elif (10/2019)
+  ! this assigns wave%coord to coord; coord itsels is not used !
+  ! so the above lines become obsolete!!
+  ! it must be wrong !
+  ! call SE_find_nearest_node(wave%coord,grid,iglob,coord)
+  call SE_find_nearest_node(coord,grid,iglob,wave%coord)
 
   call SE_node_belongs_to(iglob,e,i,j,grid)
   call MAT_getProp(wave%cp,mat(e),'cp',i,j)
   call MAT_getProp(wave%cs,mat(e),'cs',i,j)
   call MAT_getProp(wave%mu,mat(e),'mu',i,j)
+
+   ! Elif (10/2019)
+  ! debug: lambda, mu not assigned for viscoelasticity of visla!!!
   call MAT_getProp(wave%lambda,mat(e),'lambda',i,j)
 
   angle = PI*wave%angle/180.d0
@@ -175,6 +183,13 @@ subroutine WAVE_init(wave,grid,mat,coord)
     write(iout,'(2X,A,EN12.3,A)') 'Incident wave phase velocity = ',c,' m/s' 
     write(iout,'(2X,A,2EN12.3)') 'Reference point = ',wave%coord
   endif
+
+  ! DEBUGGING - to remove later (Elif, 12/19)
+  write(*,*) '*** considered point    :', coord(1), coord(2)
+  write(*,*) '*** closest point       :', wave%coord
+  write(*,*) '*** grid xmax and zmin  :', maxval(grid%coord(1,:)),minval(grid%coord(2,:))
+  write(*,*) '*** wave angle          :', wave%angle
+
 
 end subroutine WAVE_init
 

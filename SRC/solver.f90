@@ -136,21 +136,28 @@ end subroutine solve_HHT_alpha
 ! d[n+1] = d[n] + dt*v[n+1/2]
 !
 ! also: a[n] = (v[n+1/2] - v[n-1/2])/dt
+!
+! added by Elif (01/2020)
+! Esigeps is the pointer to write out stress-strain values
+! for nonlinear basin simulations of Nepal.
 
 subroutine solve_leapfrog(pb)
 
   type(problem_type), intent(inout) :: pb
   
   double precision, dimension(:,:), pointer :: d,v_mid,a,f
+  double precision, dimension(:,:), pointer :: Esigeps
 
   d => pb%fields%displ
   v_mid => pb%fields%veloc
   a => pb%fields%accel
   f => a
-                       
+
+  Esigeps => pb%fields%sigeps
+
   d = d + pb%time%dt * v_mid
    
-  call compute_Fint(f,d,v_mid,pb)
+  call compute_Fint(f,d,v_mid,pb,Esigeps)
   call SO_add(pb%src, pb%time%time, f)
   call BC_apply(pb%bc,pb%time,pb%fields,f)
 
@@ -270,16 +277,18 @@ end subroutine solve_quasi_static
 
 !=====================================================================
 !
-subroutine compute_Fint(f,d,v,pb)
+subroutine compute_Fint(f,d,v,pb,Esigeps)
 
-  use fields_class, only : FIELD_get_elem, FIELD_add_elem
+  use fields_class, only : FIELD_get_elem, FIELD_add_elem, FIELD_add_elem_cumul
   use mat_gen, only : MAT_Fint
 
   double precision, dimension(:,:), intent(out) :: f
   double precision, dimension(:,:), intent(in) :: d,v
   type(problem_type), intent(inout) :: pb
+  double precision, optional, dimension(:,:), intent(out) :: Esigeps
 
   double precision, dimension(pb%grid%ngll,pb%grid%ngll,pb%fields%ndof) :: dloc,vloc,floc
+  double precision, dimension(pb%grid%ngll,pb%grid%ngll,2) :: sigepsloc
   double precision :: E_ep, E_el, sg(3), sgp(3)
   integer :: e
 
@@ -288,13 +297,34 @@ subroutine compute_Fint(f,d,v,pb)
   pb%energy%sg   = 0d0
   pb%energy%sgp  = 0d0
 
-  do e = 1,pb%grid%nelem
-    dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
-    vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
-    call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
-                   pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
-                   E_ep,E_el,sg,sgp)
-    call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+  select case (pb%time%kind)
+
+    case ('leapfrog')
+      do e = 1,pb%grid%nelem
+        dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
+        vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+        sigepsloc = 0d0
+
+        call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
+                       pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
+                       E_ep,E_el,sg,sgp,sigepsloc)
+        call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+
+        ! to write out stress-strain data
+        call FIELD_add_elem_cumul(sigepsloc,Esigeps,pb%grid%ibool(:,:,e))
+      enddo
+
+    case default
+      do e = 1,pb%grid%nelem
+        dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
+        vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+
+        call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
+                        pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
+                        E_ep,E_el,sg,sgp)
+        call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+      enddo
+    end select
 
    ! total elastic energy change
     pb%energy%E_el = pb%energy%E_el +E_el
@@ -302,9 +332,8 @@ subroutine compute_Fint(f,d,v,pb)
     pb%energy%E_ep = pb%energy%E_ep +E_ep
    ! cumulated stress glut
     pb%energy%sg = pb%energy%sg + sg
-    pb%energy%sgp = pb%energy%sgp + sgp
+    pb%energy%sgp = pb%energy%sgp + sgp    
 
-  enddo
 
 !DEVEL: to parallelize this loop for multi-cores (OpenMP)
 !DEVEL: reorder the elements to avoid conflict during assembly (graph coloring)
