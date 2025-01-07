@@ -79,7 +79,9 @@ contains
 !                This parameter is not used in computations, only for checking.
 !                To improve the resolution for a given fmax you must increase ngll 
 !                (but you will have to use shorter timesteps) or refine the mesh.
-! ARG: W       [dble] [huge] The seismogenic width. Infinity means 2D problem and finite W means 2.5D problem (use for elastic material)
+! ARG: W        [dble] [huge] Seismogenic width in 2.5D elastic simulations. 
+!                To run 2.5D simulations: set this parameter to a finite value.
+!                To run 2D simulations: make sure this parameter is absent, remove it.
 ! ARG: ndof     [int] [2] Number of degrees of freedom per node
 !                       1 = SH waves, anti-plane
 !                       2 = P-SV waves, in-plane
