@@ -369,8 +369,7 @@ subroutine MAT_init_work(matwrk,matpro,grid,ndof,dt)
       allocate(matwrk(e)%derint)
       allocate(matwrk(e)%plast)
       call MAT_set_derint(matwrk(e)%derint,grid,e)
-      call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt)
-      !call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt, SE_elem_coord(grid,e))
+      call MAT_PLAST_init_elem_work(matwrk(e)%plast,matpro(e),grid%ngll,dt,grid,e,ndof)
 
     elseif (MAT_isDamage(matpro(e))) then
       allocate(matwrk(e)%derint)
@@ -444,6 +443,12 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
     E_el = 0d0
     sg = 0d0
     sgp = 0d0
+  elseif (MAT_isPlastic(matpro)) then
+    e  = MAT_strain(d,matwrk,ngll,ndof)
+    call MAT_stress(s,e,matwrk,matpro,ngll,ndof,.true.,dt,E_ep,E_el,sg,sgp)
+    f = MAT_forces(s,matwrk%derint,ngll,ndof)
+    if (grid%W < huge(1d0)) call MAT_PLAST_add_25D_f(f,d,matwrk%plast,ngll,ndof)
+
   else
     e  = MAT_strain(d,matwrk,ngll,ndof)
 ! DEVEL: the Kelvin-Voigt term should involve only the elastic strain rate (total - plastic)
