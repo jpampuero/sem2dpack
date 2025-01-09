@@ -275,7 +275,6 @@ contains
   double precision, dimension(:), intent(in) :: v,theta
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(v)) :: theta_new, x, exp_x
-  integer :: it
 
   select case(f%kind)
     case(1) 
@@ -284,13 +283,8 @@ contains
      ! coeft = exp(-dt/Tc)
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
      ! remove the accumulation of numeric errors
-      do it=1,size(theta_new)          
-         if(abs(theta_new(it))<1.0d-12) then
-              theta_new(it) = 0.0
-         endif
-      enddo
-
-
+      where (theta_new < 1.0d-12) theta_new(it) = 0d0
+    
     case(2,4) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
      ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
@@ -334,7 +328,7 @@ contains
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(tau_stick)) :: v
   double precision :: tmp(size(tau_stick)), tolerance, estimateLow, estimateHigh
-  integer :: i, it
+  integer :: i
 
 !  strength = -sigma*rsf_mu_no_direct(v,f) 
 !  v = (tau_stick-strength)/Z
@@ -346,12 +340,8 @@ contains
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
      ! remove the accumulation of numeric errors
-      do it=1,size(v)
-         if(abs(v(it))<1.0d-12) then
-              v(it) = 0.0
-         endif
-      enddo
- 
+      where (v < 1.0d-12) v = 0d0
+       
     case(2,3,4) 
      ! "Aging Law and Slip Law"
      ! Find each element's velocity:
