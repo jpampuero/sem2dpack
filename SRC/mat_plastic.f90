@@ -28,7 +28,7 @@ module mat_plastic
           , MAT_isPlastic, MAT_anyPlastic, MAT_PLAST_read, MAT_PLAST_init_elem_prop &
           , MAT_PLAST_init_elem_work, MAT_PLAST_stress, MAT_PLAST_export &
           , MAT_PLAST_mempro, MAT_PLAST_memwrk &
-          , MAT_PLAST_add_25D_f
+          , MAT_PLAST_add_25D_f, MAT_PLAST_get_beta
   
 contains
 
@@ -239,6 +239,22 @@ contains
   endif
 
 end subroutine MAT_PLAST_init_25D
+
+!=======================================================================
+! Get beta subroutine
+!
+subroutine MAT_PLAST_get_beta(m, beta_out)
+  type(matwrk_plast_type), intent(in) :: m
+  double precision, intent(out) :: beta_out(:,:)
+
+  beta_out = 0d0
+
+  if (.not. associated(m%beta)) then
+    return  ! Do nothing and leave beta_out as 0
+  endif
+
+  beta_out = m%beta
+end subroutine MAT_PLAST_get_beta
 
 !=======================================================================
 ! Compute the forces acted on "crustal plane" approximated by Lapusta and Rice

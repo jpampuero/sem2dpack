@@ -29,7 +29,7 @@ module mat_elastic
           , MAT_ELAST_init_elem_prop, MAT_ELAST_init_elem_work &
           , MAT_ELAST_f, MAT_ELAST_stress &
           , MAT_ELAST_memwrk, MAT_ELAST_mempro &
-          , MAT_ELAST_add_25D_f
+          , MAT_ELAST_add_25D_f, MAT_ELAST_get_beta
 
 
 contains
@@ -422,6 +422,22 @@ end subroutine MAT_ELAST_init_25D
   endif
 
   end subroutine MAT_ELAST_f
+  
+!=======================================================================
+! Get beta subroutine
+!
+subroutine MAT_ELAST_get_beta(m, beta_out)
+  type(matwrk_elast_type), intent(in) :: m
+  double precision, intent(out) :: beta_out(:,:)
+
+  beta_out = 0d0
+
+  if (.not. associated(m%beta)) then
+    return  ! Do nothing and leave beta_out as 0
+  endif
+
+  beta_out = m%beta
+end subroutine MAT_ELAST_get_beta
 
 !=======================================================================
 ! Compute the forces acted on "crustal plane" approximated by Lapusta and Rice
