@@ -283,7 +283,7 @@ contains
      ! coeft = exp(-dt/Tc)
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
      ! remove the accumulation of numeric errors
-      where (theta_new < 1.0d-12) theta_new(it) = 0d0
+      where (theta_new < 1.0d-12) theta_new = 0d0
     
     case(2,4) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
