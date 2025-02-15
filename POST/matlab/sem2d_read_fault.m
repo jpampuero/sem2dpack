@@ -15,10 +15,11 @@
 %		data.st		shear stress
 %		data.sn		normal stress
 %		data.mu		friction coefficient
+%   data.sts	shear stress T "stick" (for rupture velocity calculations)
 %		data.st0	initial value of shear stress
 %		data.sn0	initial value of normal stress
 %		data.mu0	initial value of friction coefficient
-% 
+%   data.wei	node weights
 %		If output on each side of the fault (osides=T):
 %  		data.d1t	displacement on side 1, fault parallel component
 %  		data.d2t	displacement on side 2, fault parallel component
@@ -65,6 +66,9 @@ if exist([name '_init_sem2d.tab'],'file')
   data.st0 = raw(:,1);
   data.sn0 = raw(:,2);
   data.mu0 = raw(:,3);
+  if size(raw,2) == 4
+      data.wei = raw(:,4);            % save weights if they are in the file
+  end
 end
 
 % Read fault data in a big matrix
@@ -81,18 +85,27 @@ data.v  = squeeze(raw(:,2,:));
 data.st = squeeze(raw(:,3,:)); 
 data.sn = squeeze(raw(:,4,:)); 
 data.mu  = squeeze(raw(:,5,:)); 
-if ndat==5+4
-  data.d1t  = squeeze(raw(:,6,:)); 
-  data.d2t  = squeeze(raw(:,7,:)); 
-  data.v1t  = squeeze(raw(:,8,:)); 
-  data.v2t  = squeeze(raw(:,9,:)); 
-elseif ndat==5+4*2
-  data.d1t  = squeeze(raw(:,6,:)); 
-  data.d1n  = squeeze(raw(:,7,:)); 
-  data.d2t  = squeeze(raw(:,8,:)); 
-  data.d2n  = squeeze(raw(:,9,:)); 
-  data.v1t  = squeeze(raw(:,10,:)); 
-  data.v1n  = squeeze(raw(:,11,:)); 
-  data.v2t  = squeeze(raw(:,12,:)); 
-  data.v2n  = squeeze(raw(:,13,:)); 
+
+% Backwards compatibility with output before Tstick
+if ismember(ndat, [6, 6+4, 6+4*2])
+    data.sts = squeeze(raw(:,6,:)); 
+    core = 6;
+elseif ismember(ndat, [5, 5+4, 5+4*2])
+    core = 5;
+end
+
+if ismember(ndat, [6+4, 5+4])
+  data.d1t  = squeeze(raw(:,core+1,:)); 
+  data.d2t  = squeeze(raw(:,core+2,:)); 
+  data.v1t  = squeeze(raw(:,core+3,:)); 
+  data.v2t  = squeeze(raw(:,core+4,:)); 
+elseif ismember(ndat, [6+4*2, 5+4*2])
+  data.d1t  = squeeze(raw(:,core+1,:)); 
+  data.d1n  = squeeze(raw(:,core+2,:)); 
+  data.d2t  = squeeze(raw(:,core+3,:)); 
+  data.d2n  = squeeze(raw(:,core+4,:)); 
+  data.v1t  = squeeze(raw(:,core+5,:)); 
+  data.v1n  = squeeze(raw(:,core+6,:)); 
+  data.v2t  = squeeze(raw(:,core+7,:)); 
+  data.v2n  = squeeze(raw(:,core+8,:)); 
 end

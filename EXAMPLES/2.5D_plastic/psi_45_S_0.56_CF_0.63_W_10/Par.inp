@@ -1,0 +1,36 @@
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , W=10d3, ndof=2 ,
+  title = '2.5D plastic in-plane model', verbose='1111' , ItInfo = 400/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+&MESH_CART ezflt=-1, xlim=0d3,100d3, zlim=-50d3,50d3, nelem=160,160/
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='PLAST'  /
+&MAT_PLASTIC cp=5770.d0, cs=3330.d0, rho=2705.d0, phi = 30.d0, coh = 9.669501d6, Tv = 0.0561d0,
+                 e0 = -4.162378e-04, -4.162378e-04, 3.504802e-04 /
+
+#----- Boundary conditions ---------------------
+&BC_DEF  tags = 5,6 , kind = 'DYNFLT' /
+&BC_DYNFLT friction='SWF','TWF', Tn=-50d6, Tt=2.102564d7 /
+&BC_DYNFLT_SWF Dc=2d0, MuS=0.6d0, MuD=0.1d0 /
+&BC_DYNFLT_TWF kind=1, MuS=0.6d0, MuD=0.1d0, Mu0=0.6d0,
+               X=0.d0, Z=0.d0, V=0.333d3, L=0.1665d3, T=60d0 /
+
+&BC_DEF  tag = 1 , kind = 'ABSORB' /
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+#---- Time scheme settings ----------------------
+&TIME  kind='leapfrog', TotalTime=80 /
+
+#----- Receivers ---------------------------------
+#&REC_LINE number = 10 , first = 0d3,10d3, last = 50.d3,10d3, isamp=20, AtNode=F /
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields ='DVSE',bin=T,ps=F /
+&SNAP_PS  vectors=F, interpol=T, DisplayPts=6, ScaleField=0d0   /
+
