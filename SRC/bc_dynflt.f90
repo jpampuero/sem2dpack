@@ -21,7 +21,7 @@ module bc_dynflt
     integer, dimension(:), pointer :: node1=>null(), node2=>null()
     double precision :: CoefA2V,CoefA2D
     double precision, dimension(:,:), pointer:: n1=>null(),B=>null(), &
-      invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),T=>null(),V=>null(),&
+      invM1=>null(),invM2=>null(),Z=>null(),T0=>null(),Tstick=>null(),T=>null(),V=>null(),&
       D=>null(),coord=>null()
     double precision, dimension(:), pointer:: MU=>null(),cohesion=>null()
     type(swf_type), pointer :: swf => null()
@@ -48,7 +48,7 @@ contains
 ! GROUP  : BOUNDARY_CONDITION, DYNAMIC_FAULT
 ! PURPOSE: Dynamic fault with friction
 ! SYNTAX : &BC_DYNFLT friction, cohesion|cohesionH, opening, Tn|TnH, Tt|TtH,
-!                     Sxx|SxxH, Sxy|SxyH, Sxz|SxzH, Syz|SyzH, Szz|SzzH
+!                     Sxx|SxxH, Sxy|SxyH, Sxz|SxzH, Syz|SyzH, Szz|SzzH, V|VH
 !                     ot1, otd, oxi, osides /
 !          followed, in order, by:
 !          1. &DIST_XXX blocks (from the DISTRIBUTIONS group) for arguments
@@ -70,6 +70,7 @@ contains
 ! ARG: Tn       [dble] [0d0] Initial normal traction (positive = tensile)
 ! ARG: Tt       [dble] [0d0] Initial tangent traction 
 !                (positive antiplane: y>0; positive inplane: right-lateral slip)
+! ARG: V        [dble] [1d-12] Initial slip velocity for RSF
 ! ARG: Sxx      [dble] [0d0] Initial stress sigma_xx
 ! ARG: Sxy      [dble] [0d0] Initial stress sigma_xy
 ! ARG: Sxz      [dble] [0d0] Initial stress sigma_xz
@@ -86,7 +87,6 @@ contains
 !                The default resets oxi(2) = last fault node
 ! ARG: osides   [log] [F] Export displacement and velocities on each side
 !                of the fault
-! ARG: V        [dble] [1d-12] Initial velocity (needed for RSF)
 !
 ! NOTE: The initial stress can be set as a stress tensor (Sxx,etc), as
 !       initial tractions on the fault plane (Tn and Tt) or as the sum of both.
@@ -214,7 +214,7 @@ contains
             /5x,'               xz . . . . . . . . . .(Sxz) = ',A,&
             /5x,'               yz . . . . . . . . . .(Syz) = ',A,&
             /5x,'               zz . . . . . . . . . .(Szz) = ',A,&
-            /5x,'Initial velocity on boundary . . . . . (V) = ',A,&
+            /5x,'Initial slip velocity . . . . . . . . .(V) = ',A,&
             /5x,'Cohesion  . . . . . . . . . . . (cohesion) = ',A,&
             /5x,'Allow opening . . . . . . . . . .(opening) = ',L1,&
             /5x,'Output first time . . . . . . . . . .(ot1) = ',EN13.3,&
@@ -362,14 +362,18 @@ contains
   endif
 
   allocate(bc%T(npoin,2))
+  allocate(bc%Tstick(npoin,2))
   allocate(bc%D(npoin,ndof))
   allocate(bc%V(npoin,ndof))
   bc%T = 0d0
   bc%D = 0d0
-  !bc%V = 0d0  ! DEVEL: RSF can't have zero slip velocity !
-  call DIST_CD_Init(bc%input%V,bc%coord,V)
-  bc%V(:,1)=V
-  deallocate(V)
+  bc%V = 0d0
+  bc%Tstick = 0d0
+  if (associated(bc%rsf)) then
+    call DIST_CD_Init(bc%input%V,bc%coord,V)
+    bc%V(:,1)=V
+    deallocate(V)
+  endif
 
 ! Initial stress
   allocate(bc%T0(npoin,2))
@@ -433,11 +437,17 @@ contains
   bc%ou_pot = IO_new_unit()
   open(bc%ou_pot,file=oname,status='replace')
 
+! INITIAL FILE FORMAT: initial values for each node
+! 1: Shear stress
+! 2: Normal stress
+! 3: Friction coefficient
+! 4: Node weights
+!
   write(oname,'("Flt",I2.2,"_init_sem2d.tab")') tags(1)
   ounit = IO_new_unit()
   open(ounit,file=oname,status='replace')
   do i=bc%oix1,bc%oixn,bc%oixd
-    write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i)
+    write(ounit,*) bc%T0(i,1),bc%T0(i,2),bc%MU(i),bc%B(i,1)
   enddo
   close(ounit)
 
@@ -467,7 +477,7 @@ contains
  !      => number of columns in output file = nb of data columns +2
  !
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
-  NDAT = 5
+  NDAT = 6
   if (bc%osides) NDAT = NDAT + 4*ndof
   NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
   hunit = IO_new_unit()
@@ -478,12 +488,12 @@ contains
   write(hunit,*) onx,NDAT,NSAMP,bc%odt
   if (bc%osides) then 
     if (ndof==1) then
-      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D2t:V1t:V2t'
+      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:T_stick:D1t:D2t:V1t:V2t'
     else
-      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n'
+      write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:T_stick:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n'
     endif
   else
-    write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
+    write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:T_stick'
   endif
   write(hunit,*) 'XPTS ZPTS'
   do i=bc%oix1,bc%oixn,bc%oixd
@@ -556,10 +566,6 @@ contains
 ! WARNING: Need compatibility conditions (additional constraints)
 !          when the fault reaches the free surface
 !
-
-!! DEVEL: This subroutine needs significant modifications and refactoring
-!! for rate-and-state friction: a two-loop solver for second order accuracy
-
   subroutine BC_DYNFLT_apply(bc,MxA,V,D,time)
 
   use stdio, only: IO_abort
@@ -572,7 +578,7 @@ contains
   double precision, intent(inout) :: MxA(:,:)
 
   double precision, dimension(bc%npoin) :: strength
-  double precision, dimension(bc%npoin,2) :: T
+  double precision, dimension(bc%npoin,2) :: T,Tstick
   double precision, dimension(bc%npoin,size(V,2)) :: dD,dV,dA
   integer :: ndof
 
@@ -655,15 +661,18 @@ contains
     strength = bc%cohesion - bc%MU * normal_getSigma(bc%normal)
                                          
    ! Solve for shear stress
+    Tstick = T;
     T(:,1) = sign( min(abs(T(:,1)),strength), T(:,1))
                                   
   endif
 
 ! Subtract initial stress
   T = T - bc%T0
+  Tstick = Tstick - bc%T0
 
 ! Save tractions
   bc%T = T
+  bc%Tstick = Tstick
 
 ! Rotate tractions back to (x,z) frame 
   if (ndof==2) T = rotate(bc,T,-1)
@@ -731,12 +740,13 @@ contains
 
 
 !=====================================================================
-! OUTPUT FORMAT: at each time, 5 data lines, one column per fault node
+! OUTPUT FORMAT: at each time, 6 data lines, one column per fault node
 ! 1: Slip
 ! 2: Slip rate
 ! 3: Shear stress 
 ! 4: Normal stress 
 ! 5: Friction coefficient
+! 6: T stick shear stress
 !
   subroutine BC_DYNFLT_write(bc,itime,d,v)
 
@@ -754,6 +764,7 @@ contains
   write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,1) )
   write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,2) )
   write(bc%ounit) real( bc%MU(bc%oix1:bc%oixn:bc%oixd) )
+  write(bc%ounit) real( bc%Tstick(bc%oix1:bc%oixn:bc%oixd,1) )
 
   if (bc%osides) then
     call export_side(bc,get_side(bc,d,1))

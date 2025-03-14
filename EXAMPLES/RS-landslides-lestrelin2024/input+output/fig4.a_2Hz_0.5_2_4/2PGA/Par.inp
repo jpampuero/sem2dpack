@@ -1,0 +1,25 @@
+SMTD evaluated as RS friction fault / parameter evaluated = svw_pga15ref_noKV
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , ndof=1 ,
+title = ' svw_pga15ref_noKV ', verbose='0000' , ItInfo =1000000 /
+&MESH_DEF  method = 'CARTESIAN'/
+&MESH_CART xlim=-1,1, zlim=-1,15, nelem=4,32, ezflt=4/
+&MESH_CART_DOMAIN tag=1, ex= 1,4, ez=1,5 /
+&MESH_CART_DOMAIN tag=2, ex= 1,4, ez=6,32 /
+&MATERIAL tag=1, kind='ELAST' /
+&MAT_ELASTIC rho=2000, cp=489.89794855663564, cs=300 /
+&MATERIAL tag=2, kind='ELAST' /
+&MAT_ELASTIC rho=2000, cp=489.89794855663564, cs=300 /
+&BC_DEF  tag = 1, kind = 'ABSORB' /
+&BC_DEF  tags = 2,4, kind = 'PERIOD' /
+&BC_DEF  tags = 5,6,   kind = 'DYNFLT' /
+&BC_DYNFLT friction='RSF', Tn=-293180.09964840073, Tt=25649.935090635798, V=1e-09, pp='GAUSSXSIN', sk=0, fa=-5, cs=200, gg=100000000 /
+&STF_GAUSSXSIN ampli=0.15613099917314935 onset=30 f0=2 std=6 /
+&BC_DYNFLT_RSF kind=2, Dc=0.0004, MuS=0.087488663525924, a=0.01, b=0.015, Vstar=1e-09, theta=400000.0 /
+&TIME  TotalTime=60, Courant=0.55, kind='newmark' /
+&SRC_DEF stf='GAUSSXSIN', mechanism='WAVE', coord=0,0 /
+#&SRC_DEF stf='TAB', mechanism='WAVE', file='xxxxxxx' /
+&STF_GAUSSXSIN ampli=0.15613099917314935 onset=30 f0=2 std=6 /
+#&STF_TAB file='xxxxxxx' /
+&SRC_WAVE angle=0 phase='S' /
+&REC_LINE number = 3, first = 0,-1, last = 0,15, isamp=1, field='V' /
+&SNAP_DEF itd=100000000, fields ='V', components='xyz',bin=T,ps=F /

@@ -34,25 +34,35 @@ contains
 ! GROUP  : DYNAMIC_FAULT
 ! PURPOSE: Velocity and state dependent friction
 ! SYNTAX : &BC_DYNFLT_RSF kind, Dc | DcH, Mus | MusH , 
-!                         a | aH, b | bH, Vstar | VstarH /
+!                         a | aH, b | bH, Vstar | VstarH, Vc | VcH ,
+!                         theta | thetaH /
 !          followed by &DIST_XXX blocks (from the DISTRIBUTIONS group) for
 !          arguments with suffix H, if present, in the order listed above.
 !
 ! ARG: kind     [int] [1] Type of rate-and-state friction law:
 !                       1 = strong velocity-weakening at high speed
-!                           as in Ampuero and Ben-Zion (2008)
+!                           as in Ampuero and Ben-Zion (GJI 2008)
+!                       2 = logarithmic rate-and-state with aging state law
+!                       3 = logarithmic rate-and-state with slip state law
+!                       4 = V-shaped rate-and-state with aging law
+!                           as in Weng and Ampuero (Nat Comms 2022, equation 15)
+!                       Options 2-4 include sinh regularization of log(V).
 ! ARG: Dc       [dble] [0.5d0] Critical slip 
 ! ARG: MuS      [dble] [0.6d0] Static friction coefficient
 ! ARG: a        [dble] [0.01d0] Direct effect coefficient
 ! ARG: b        [dble] [0.02d0] Evolution effect coefficient
 ! ARG: Vstar    [dble] [1d0] Characteristic or reference slip velocity
-! ARG: theta    [dble] [1d0] State variable
+! ARG: Vc       [dble] [1d-6] Weakening-to-strengthening transition velocity in V-shaped law
+! ARG: theta    [dble] [0d0] Initial value of state variable
+!
+! NOTE: The initial slip velocity should be set in &BC_DYNFLT.
+!       If the input initial values (V, theta, Tt and Tn) are such that the initial stress 
+!       exceeds the frictional strength, Tt > |Tn|*mu(V,theta), the excess stress provides
+!       an abrupt increase of shear stress at t=0, which can serve to nucleate slip.
 !
 ! END INPUT BLOCK
 
-! not implement yet:
-!                       2 = logarithmic rate-and-state with aging state law
-!                       3 = logarithmic rate-and-state with slip state law
+
 
 ! Read parameters from input file
   subroutine rsf_read(rsf,iin)
@@ -265,7 +275,6 @@ contains
   double precision, dimension(:), intent(in) :: v,theta
   type(rsf_type), intent(in) :: f
   double precision, dimension(size(v)) :: theta_new, x, exp_x
-  integer :: it
 
   select case(f%kind)
     case(1) 
@@ -274,13 +283,8 @@ contains
      ! coeft = exp(-dt/Tc)
       theta_new = theta*f%coeft +f%Tc*abs(v)*(1d0-f%coeft)
      ! remove the accumulation of numeric errors
-      do it=1,size(theta_new)          
-         if(abs(theta_new(it))<1.0d-12) then
-              theta_new(it) = 0.0
-         endif
-      enddo
-
-
+      where (theta_new < 1.0d-12) theta_new = 0d0
+    
     case(2,4) 
      ! Kaneko et al (2008) eq 19 - "Aging Law"
      ! theta_new = (theta-Dc/v)*exp(-v*dt/Dc) + Dc/v
@@ -336,12 +340,8 @@ contains
       v = 0.5d0*( tmp +sqrt(tmp*tmp +4d0*v*f%Vstar) )
       v = max(0d0,v)  ! arrest if v<0 
      ! remove the accumulation of numeric errors
-      do it=1,size(v)
-         if(abs(v(it))<1.0d-12) then
-              v(it) = 0.0
-         endif
-      enddo
- 
+      where (v < 1.0d-12) v = 0d0
+       
     case(2,3,4) 
      ! "Aging Law and Slip Law"
      ! Find each element's velocity:

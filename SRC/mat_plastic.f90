@@ -1,5 +1,5 @@
 module mat_plastic
-! plane strain Coulomb plasticity following Andrews (2005)
+! plane strain Coulomb plasticity following Andrews (2005) with added W term option
 
   use prop_mat
   use stdio, only : IO_abort
@@ -10,6 +10,7 @@ module mat_plastic
  !-- elasto-visco-plasticity
   type matwrk_plast_type
     private
+    double precision, pointer :: a(:,:,:) => null(), beta(:,:) => null()
 !    double precision, pointer, dimension(:,:) :: mu => null(), lambda => null()
     double precision :: mu, lambda
     double precision, pointer, dimension(:,:,:) :: ep => null()
@@ -26,7 +27,8 @@ module mat_plastic
   public :: matwrk_plast_type &
           , MAT_isPlastic, MAT_anyPlastic, MAT_PLAST_read, MAT_PLAST_init_elem_prop &
           , MAT_PLAST_init_elem_work, MAT_PLAST_stress, MAT_PLAST_export &
-          , MAT_PLAST_mempro, MAT_PLAST_memwrk
+          , MAT_PLAST_mempro, MAT_PLAST_memwrk &
+          , MAT_PLAST_add_25D_f, MAT_PLAST_get_beta
   
 contains
 
@@ -143,14 +145,17 @@ contains
   end subroutine MAT_PLAST_init_elem_prop
 
 !=======================================================================
-  subroutine MAT_PLAST_init_elem_work(m,p,ngll,dt)
+  subroutine MAT_PLAST_init_elem_work(m,p,ngll,dt,grid,e,ndof)
 
   use constants, only : PI
-
+  use spec_grid, only : sem_grid_type, SE_InverseJacobian, SE_VolumeWeights
+  
+  type(sem_grid_type), intent(in) :: grid
   type(matwrk_plast_type), intent(inout) :: m
   type(matpro_elem_type), intent(in) :: p
   integer, intent(in) :: ngll
   double precision, intent(in) :: dt
+  integer, intent(in) :: e,ndof
 
   double precision :: phi,Tv,lambda,two_mu
 
@@ -204,7 +209,69 @@ contains
 !                   + size(m%lambda) &
 !                   + size(m%mu) &
 
+  if (grid%W < huge(1d0)) then
+     allocate(m%beta(grid%ngll,grid%ngll))
+     call MAT_PLAST_init_25D(m%beta,grid%ngll &
+                   , SE_VolumeWeights(grid,e),grid%W,p,ndof)
+  endif
+
   end subroutine MAT_PLAST_init_elem_work
+
+!==============================================
+  subroutine MAT_PLAST_init_25D(beta,ngll,dvol,W,mat,ndof)
+
+  integer, intent(in) :: ngll,ndof
+  double precision, intent(out) :: beta(ngll,ngll)
+  double precision, dimension(ngll,ngll), intent(in) :: dvol
+  double precision, intent(in) :: W
+  type(matpro_elem_type), intent(in) :: mat
+
+  double precision, dimension(ngll,ngll) :: mu, lambda, nu
+
+  call MAT_getProp(mu,mat,'mu')
+  call MAT_getProp(lambda,mat,'lambda')
+
+  nu(:,:) = lambda(:,:) / (lambda(:,:) + mu(:,:)) / 2.0
+  if(ndof == 1) then
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)/W)**2
+  else
+      beta(:,:) = dvol(:,:) * mu(:,:) * (4.D0*DATAN(1.D0)*(1-nu(:,:))/W)**2
+  endif
+
+end subroutine MAT_PLAST_init_25D
+
+!=======================================================================
+! Get beta subroutine
+!
+subroutine MAT_PLAST_get_beta(m, beta_out)
+  type(matwrk_plast_type), intent(in) :: m
+  double precision, intent(out) :: beta_out(:,:)
+
+  beta_out = 0d0
+
+  if (.not. associated(m%beta)) then
+    return  ! Do nothing and leave beta_out as 0
+  endif
+
+  beta_out = m%beta
+end subroutine MAT_PLAST_get_beta
+
+!=======================================================================
+! Compute the forces acted on "crustal plane" approximated by Lapusta and Rice
+!
+subroutine MAT_PLAST_add_25D_f(f,d,plast,ngll,ndof)
+  integer, intent(in) :: ngll,ndof
+  double precision, intent(out):: f(ngll,ngll,ndof)
+  double precision, intent(in) :: d(ngll,ngll,ndof)
+  type (matwrk_plast_type), intent(in) :: plast
+
+  integer :: k
+
+    do k=1,ndof
+       f(:,:,k) = f(:,:,k) - plast%beta(:,:) * d(:,:,k)
+    enddo
+
+end subroutine MAT_PLAST_add_25D_f
 
 
 !=======================================================================
@@ -284,6 +351,7 @@ contains
     if (COMPUTE_ENERGIES) then
      ! increment of plastic energy dissipation
       E_ep = s(:,:,1)*dep(:,:,1) + s(:,:,2)*dep(:,:,2) + 2d0*s(:,:,3)*dep(:,:,3)
+  
      ! total elastic energy change
       i1_0 = m%e0(1) + m%e0(2)
       i2_0 = m%e0(1)*m%e0(1) +m%e0(2)*m%e0(2) +2d0*m%e0(3)*m%e0(3)
