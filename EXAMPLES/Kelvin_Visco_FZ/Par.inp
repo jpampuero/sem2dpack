@@ -1,0 +1,37 @@
+#----- Some general parameters ----------------
+&GENERAL iexec=1, ngll=5, fmax=3.d0 , W=20d3, ndof=1 ,
+  title = 'SEM2.5D-KV_fault_zone_example', verbose='1111' , ItInfo = 50/ 
+
+#----- Build the mesh ---------------------------
+&MESH_DEF  method = 'CARTESIAN'/
+&MESH_CART xlim=0d3,100d3, zlim=0d3,50d3, nelem=200,100, ezflt=0/
+&MESH_CART_DOMAIN tag=1, ex= 1,200, ez=1,10 /
+&MESH_CART_DOMAIN tag=2, ex= 1,200, ez=11,100 /
+
+#---- Material parameters --------------
+&MATERIAL tag=1, kind='ELAST','KV'  /
+&MAT_ELASTIC rho=2.705d3, cp=5.76816d3, cs=3.33025d3 /
+&MAT_KV eta=0.02d0, ETAxDT=F/
+
+&MATERIAL tag=2, kind='ELAST'  /
+&MAT_ELASTIC rho=2.705d3, cp=5.76816d3, cs=3.33025d3 /
+
+#----- Boundary conditions ---------------------
+&BC_DEF  tag = 1, kind = 'DYNFLT' /
+&BC_DYNFLT friction='SWF','TWF', Tn=-50d6, Tt=26.7247d6 /
+&BC_DYNFLT_SWF Dc=0.0848826d0, MuS=0.6d0, MuD=0.51d0 /
+&BC_DYNFLT_TWF kind=1, MuS=0.6d0, MuD=0.51d0, Mu0=0.6d0,
+               X=0.d0, Z=0.d0, V=1.665d3, L=0.5d3, T=24.024d0 /
+
+### Due to symmetries, only one quater of domain is needed.
+&BC_DEF  tag = 2 , kind = 'ABSORB' /
+&BC_DEF  tag = 3 , kind = 'ABSORB' /
+&BC_DEF  tag = 4 , kind = 'DIRNEU' /
+&BC_DIRNEU h='N', v='D' /
+
+#---- Time scheme settings ----------------------
+&TIME  TotalTime=40.111d0, Courant=0.1d0, kind='newmark' /
+
+#--------- Plots settings ----------------------
+&SNAP_DEF itd=1000, fields ='ESV',bin=F,ps=F /
+&SNAP_PS  vectors=F, interpol=F, DisplayPts=6, ScaleField=0d0   /
