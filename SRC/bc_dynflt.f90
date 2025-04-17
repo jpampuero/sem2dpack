@@ -302,8 +302,11 @@ contains
   bc%coord = grid%coord(:,bc%node1)
   if ( two_sides ) then
     if ( any(abs(bc%coord(1,:)-grid%coord(1,bc%node2))>TINY_XABS) &
-      .OR.any(abs(bc%coord(2,:)-grid%coord(2,bc%node2))>TINY_XABS) )&
+      .OR.any(abs(bc%coord(2,:)-grid%coord(2,bc%node2))>TINY_XABS) ) then
+      print*, 'Warning: allowed gap vs detected gap (dx)', TINY_XABS,  minval(abs(bc%coord(1,:)-grid%coord(1,bc%node2)) )
+      print*, 'Warning: allowed gap vs detected gap (dz)', TINY_XABS,  minval(abs(bc%coord(2,:)-grid%coord(2,bc%node2)) )
       call IO_abort('bc_dynflt_init: coordinates on boundaries do not match properly')
+    endif
   endif
 
 ! NOTE: the mesh being conformal, the weights B=GLL_weights*jac1D are equal on both
@@ -468,6 +471,8 @@ contains
  !
   write(hname,'("Flt",I2.2,"_sem2d")') tags(1)
   NDAT = 5
+  ! if ndof=2 write out opening (uplift)
+  if ( size(bc%D,2) .eq. 2) NDAT= NDAT+ 1 
   if (bc%osides) NDAT = NDAT + 4*ndof
   NSAMP = (TIME_getNbTimeSteps(time) -bc%oit)/bc%oitd +1
   hunit = IO_new_unit()
@@ -482,8 +487,10 @@ contains
     else
       write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction:D1t:D1n:D2t:D2n:V1t:V1n:V2t:V2n'
     endif
-  else
+  else  if (ndof == 1) then  
     write(hunit,'(A)') ' Slip:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
+  else
+    write(hunit,'(A)') ' Slip_1:Slip_2:Slip_Rate:Shear_Stress:Normal_Stress:Friction'
   endif
   write(hunit,*) 'XPTS ZPTS'
   do i=bc%oix1,bc%oixn,bc%oixd
@@ -750,6 +757,9 @@ contains
 
   !DEVEL: use direct access, and rec
   write(bc%ounit) real( bc%D(bc%oix1:bc%oixn:bc%oixd,1) )
+  ! if ndof=2, write out opening (uplift)
+  if (size(bc%D, 2) .eq. 2 ) &
+  write(bc%ounit) real( bc%D(bc%oix1:bc%oixn:bc%oixd,2) )
   write(bc%ounit) real( bc%V(bc%oix1:bc%oixn:bc%oixd,1) )
   write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,1) )
   write(bc%ounit) real( bc%T(bc%oix1:bc%oixn:bc%oixd,2) )
