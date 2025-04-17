@@ -33,7 +33,7 @@ module constants
 ! and sd = damage-related stress glut
 
 ! Tolerance (in meters) for comparing locations and spatial coordinates
-  double precision, parameter :: TINY_XABS = 1d-3
+  double precision, parameter :: TINY_XABS = 5d-3  !1d-3
 
 
 
