@@ -272,7 +272,7 @@ end subroutine solve_quasi_static
 !
 subroutine compute_Fint(f,d,v,pb)
 
-  use fields_class, only : FIELD_get_elem, FIELD_add_elem
+  use fields_class, only : FIELD_get_elem_sub, FIELD_add_elem
   use mat_gen, only : MAT_Fint
 
   double precision, dimension(:,:), intent(out) :: f
@@ -289,8 +289,9 @@ subroutine compute_Fint(f,d,v,pb)
   pb%energy%sgp  = 0d0
 
   do e = 1,pb%grid%nelem
-    dloc = FIELD_get_elem(d,pb%grid%ibool(:,:,e))
-    vloc = FIELD_get_elem(v,pb%grid%ibool(:,:,e))
+    
+    call FIELD_get_elem_sub(d,pb%grid%ibool(:,:,e),dloc)
+    call FIELD_get_elem_sub(v,pb%grid%ibool(:,:,e),vloc)
     call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
                    pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
                    E_ep,E_el,sg,sgp)

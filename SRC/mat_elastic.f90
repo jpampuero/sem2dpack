@@ -414,11 +414,12 @@ end subroutine MAT_ELAST_init_25D
       f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
     endif
   else
-    if (OPT_NGLL==ngll) then
-      f = ELAST_KD2_PSV(d,m%a,nelast,H,Ht)
-    else
-      f = ELAST_KD1_PSV(d,m%a,nelast,ngll,H,Ht)
-    endif
+    call ELAST_KD_PSV_inlined(d,m%a,nelast,H,Ht,f)
+    !if (OPT_NGLL==ngll) then
+    !  f = ELAST_KD2_PSV(d,m%a,nelast,H,Ht)
+    !else
+    !  f = ELAST_KD1_PSV(d,m%a,nelast,ngll,H,Ht)
+    !endif
   endif
 
   end subroutine MAT_ELAST_f
@@ -479,7 +480,7 @@ end subroutine MAT_ELAST_add_25D_f
 
 !-- Elementwise forces
 
-   if (size(a,3)==6) then
+   if (nelast==6) then
 
     tmp = a(:,:,1)*dUx_dxi + a(:,:,2)*dUz_deta
     f(:,:,1) = mxm( H, tmp, ngll )
@@ -517,6 +518,72 @@ end subroutine MAT_ELAST_add_25D_f
 
 !----------------------------------------------------------------
 
+subroutine ELAST_KD_PSV_inlined(displ,a,nelast,ngll,H,Ht,f)
+  
+  integer, intent(in) :: ngll, nelast
+  double precision, dimension(ngll,ngll,nelast), intent(in) :: a
+  double precision, dimension(ngll,ngll), intent(in) :: H, Ht
+  double precision, dimension(ngll,ngll,2), intent(in) :: displ
+  double precision, dimension(ngll,ngll,2), intent(out) :: f
+
+  double precision, dimension(ngll,ngll)   :: dUx_dxi, dUz_dxi, dUx_deta, dUz_deta
+
+  integer :: i, j, k
+
+  f = 0d0
+  dUx_dxi  = 0d0
+  dUz_dxi  = 0d0
+  dUx_deta = 0d0
+  dUz_deta = 0d0
+
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        dUx_dxi(i,j)  = dUx_dxi(i,j)  + Ht(i,k) * displ(k,j,1)
+        dUz_dxi(i,j)  = dUz_dxi(i,j)  + Ht(i,k) * displ(k,j,2)
+        dUx_deta(i,j) = dUx_deta(i,j) + displ(i,k,1) * H(k,j)
+        dUz_deta(i,j) = dUz_deta(i,j) + displ(i,k,2) * H(k,j)
+      end do
+    end do
+  end do
+
+  if (nelast == 6) then
+    do j = 1, ngll
+      do k = 1, ngll
+        do i = 1, ngll
+          f(i,j,1) = f(i,j,1) &
+                   + H(i,k) * ( a(k,j,1)*dUx_dxi(k,j) + a(k,j,2)*dUz_deta(k,j) ) &
+                   + ( a(i,k,4)*dUx_deta(i,k) + a(i,k,5)*dUz_dxi(i,k) ) * Ht(k,j)
+          f(i,j,2) = f(i,j,2) &
+                   + H(i,k) * ( a(k,j,5)*dUx_deta(k,j) + a(k,j,6)*dUz_dxi(k,j) ) &
+                   + ( a(i,k,2)*dUx_dxi(i,k) + a(i,k,3)*dUz_deta(i,k) ) * Ht(k,j)
+        end do
+      end do
+    end do
+    
+  else
+    do j = 1, ngll
+      do k = 1, ngll
+        do i = 1, ngll
+          f(i,j,1) = f(i,j,1) &
+                   + H(i,k)  * ( a(k,j,1)*dUx_dxi(k,j) + a(k,j,7)*dUx_deta(k,j)   &
+                               + a(k,j,8)*dUz_dxi(k,j) + a(k,j,2)*dUz_deta(k,j) ) &
+                   + Ht(k,j) * ( a(i,k,7)*dUx_dxi(i,k) + a(i,k,4)*dUx_deta(i,k)   &
+                               + a(i,k,5)*dUz_dxi(i,k) + a(i,k,9)*dUz_deta(i,k) )
+          f(i,j,2) = f(i,j,2) &
+                   + H(i,k)  * ( a(k,j,8)*dUx_dxi(k,j) + a(k,j,5)*dUx_deta(k,j)    &
+                               + a(k,j,6)*dUz_dxi(k,j) + a(k,j,10)*dUz_deta(k,j) ) &
+                   + Ht(k,j) * ( a(i,k,2)*dUx_dxi(i,k) + a(i,k,9)*dUx_deta(i,k)    &
+                               + a(i,k,10)*dUz_dxi(i,k)+ a(i,k,3)*dUz_deta(i,k) )
+        end do
+      end do
+    end do
+  end if
+
+end subroutine ELAST_KD_PSV_inlined
+
+!----------------------------------------------------------------
+
   function ELAST_KD1_SH(displ,a,nelast,ngll,H,Ht) result(f)
 
   use mxmlib 
@@ -535,7 +602,7 @@ end subroutine MAT_ELAST_add_25D_f
 
 !-- Elementwise forces
 
-    if (size(a,3)==2) then
+    if (nelast==2) then
 
       tmp = a(:,:,1)*dU_dxi
       f = mxm( H, tmp, ngll)
