@@ -19,7 +19,7 @@ module fields_class
   end interface FIELD_add_elem
 
   public :: fields_type, FIELDS_read, FIELDS_init &
-          , FIELD_get_elem, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
+          , FIELD_get_elem, FIELD_get_elem_sub, FIELD_add_elem, FIELD_strain_elem, FIELD_divcurl_elem
 
 contains
 
@@ -168,6 +168,25 @@ function FIELD_get_elem_2(Fin,ibool) result(fout)
   enddo
 
 end function FIELD_get_elem_2
+
+!-----------------------------------------------------------------------------
+subroutine FIELD_get_elem_sub(Fin,ibool,fout)
+
+  double precision, intent(in) :: Fin(:,:)
+  integer, intent(in) :: ibool(:,:)
+  double precision, intent(out) :: fout(size(ibool,1),size(ibool,2),size(Fin,2))
+
+  integer :: i,j,k,ngll
+
+  ngll = size(ibool,1)
+  do j=1,ngll
+  do i=1,ngll
+    k = ibool(i,j)
+    fout(i,j,:) = Fin(k,:)
+  enddo
+  enddo
+
+end subroutine FIELD_get_elem_sub
 
 !=============================================================================
 function FIELD_strain_elem(Uloc,ngll,ndof,grid,e) result(eij)
