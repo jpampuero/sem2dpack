@@ -290,8 +290,8 @@ subroutine compute_Fint(f,d,v,pb)
 
   do e = 1,pb%grid%nelem
     
-    call FIELD_get_elem(d,pb%grid%ibool(:,:,e),dloc)
-    call FIELD_get_elem(v,pb%grid%ibool(:,:,e),vloc)
+    call FIELD_get_elem_sub(d,pb%grid%ibool(:,:,e),dloc)
+    call FIELD_get_elem_sub(v,pb%grid%ibool(:,:,e),vloc)
     call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
                    pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
                    E_ep,E_el,sg,sgp)
