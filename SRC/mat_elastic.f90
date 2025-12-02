@@ -408,13 +408,14 @@ end subroutine MAT_ELAST_init_25D
   nelast = size(m%a,3)
 
   if ( ndof==1 ) then
-    if (OPT_NGLL==ngll) then
-      f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
-    else
-      f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
-    endif
+    call ELAST_KD_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
+    !if (OPT_NGLL==ngll) then
+    !  f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+    !else
+    !  f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+    !endif
   else
-    call ELAST_KD_PSV_inlined(d,m%a,nelast,H,Ht,f)
+    call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
     !if (OPT_NGLL==ngll) then
     !  f = ELAST_KD2_PSV(d,m%a,nelast,H,Ht)
     !else
@@ -583,49 +584,8 @@ subroutine ELAST_KD_PSV_inlined(displ,a,nelast,ngll,H,Ht,f)
 end subroutine ELAST_KD_PSV_inlined
 
 !----------------------------------------------------------------
-
-  function ELAST_KD1_SH(displ,a,nelast,ngll,H,Ht) result(f)
-
-  use mxmlib 
-
-  integer, intent(in) :: ngll,nelast
-  double precision, dimension(ngll,ngll,nelast), intent(in) :: a
-  double precision, dimension(ngll,ngll), intent(in) :: H,Ht,displ
-
-  double precision, dimension(ngll,ngll) :: f
-  double precision, dimension(ngll,ngll) :: tmp, dU_dxi, dU_deta
-
-
-!-- Local gradient
-    dU_dxi  = mxm( Ht, displ, ngll)
-    dU_deta = mxm( displ, H, ngll)
-
-!-- Elementwise forces
-
-    if (nelast==2) then
-
-      tmp = a(:,:,1)*dU_dxi
-      f = mxm( H, tmp, ngll)
-
-      tmp = a(:,:,2)*dU_deta
-      f = f + mxm( tmp, Ht, ngll)
-    
-    else
-
-      tmp = a(:,:,1)*dU_dxi + a(:,:,3)*dU_deta
-      f = mxm( H, tmp, ngll)
-
-      tmp = a(:,:,3)*dU_dxi + a(:,:,2)*dU_deta
-      f = f + mxm( tmp, Ht, ngll)
-
-    endif
-
-  end function ELAST_KD1_SH
-
-
-!=======================================================================
 ! Version 2: OPT_NGLL declared statically, allows for compiler optimizations
-! 
+
   function ELAST_KD2_PSV(displ,a,nelast,H,Ht) result(f)
 
   use constants, only : OPT_NGLL 
@@ -680,6 +640,99 @@ end subroutine ELAST_KD_PSV_inlined
 
   end function ELAST_KD2_PSV
 
+!=======================================================================
+
+  function ELAST_KD1_SH(displ,a,nelast,ngll,H,Ht) result(f)
+
+  use mxmlib 
+
+  integer, intent(in) :: ngll,nelast
+  double precision, dimension(ngll,ngll,nelast), intent(in) :: a
+  double precision, dimension(ngll,ngll), intent(in) :: H,Ht,displ
+
+  double precision, dimension(ngll,ngll) :: f
+  double precision, dimension(ngll,ngll) :: tmp, dU_dxi, dU_deta
+
+
+!-- Local gradient
+    dU_dxi  = mxm( Ht, displ, ngll)
+    dU_deta = mxm( displ, H, ngll)
+
+!-- Elementwise forces
+
+    if (nelast==2) then
+
+      tmp = a(:,:,1)*dU_dxi
+      f = mxm( H, tmp, ngll)
+
+      tmp = a(:,:,2)*dU_deta
+      f = f + mxm( tmp, Ht, ngll)
+    
+    else
+
+      tmp = a(:,:,1)*dU_dxi + a(:,:,3)*dU_deta
+      f = mxm( H, tmp, ngll)
+
+      tmp = a(:,:,3)*dU_dxi + a(:,:,2)*dU_deta
+      f = f + mxm( tmp, Ht, ngll)
+
+    endif
+
+  end function ELAST_KD1_SH
+
+!----------------------------------------------------------------
+
+subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
+
+  integer, intent(in) :: ngll, nelast
+  double precision, intent(in) :: displ(ngll,ngll)
+  double precision, intent(in) :: a(ngll,ngll,nelast)
+  double precision, intent(in) :: H(ngll,ngll), Ht(ngll,ngll)
+  double precision, intent(out) :: f(ngll,ngll)
+
+  double precision :: dU_dxi(ngll,ngll), dU_deta(ngll,ngll)
+  integer :: i, j, k
+
+  f = 0.0d0
+  dU_dxi  = 0.0d0
+  dU_deta = 0.0d0 
+  
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        dU_dxi(i,j)  = dU_dxi(i,j)  + Ht(i,k) * displ(k,j)
+        dU_deta(i,j) = dU_deta(i,j) + displ(i,k) * H(k,j)
+      end do
+    end do
+  end do
+
+  if (nelast == 2) then
+
+    do j = 1, ngll
+      do k = 1, ngll
+        do i = 1, ngll
+          f(i,j) = f(i,j)  &
+                 + H(i,k) * a(k,j,1) * dU_dxi(k,j)  &
+                 + a(i,k,2) * dU_deta(i,k) * Ht(k,j)
+        end do
+      end do
+    end do
+
+  else
+
+    do j = 1, ngll
+      do k = 1, ngll
+        do i = 1, ngll
+          f(i,j) = f(i,j)  &
+                 + H(i,k) * ( a(k,j,1)*dU_dxi(k,j) + a(k,j,3)*dU_deta(k,j) )  &
+                 + ( a(i,k,3)*dU_dxi(i,k) + a(i,k,2)*dU_deta(i,k) ) * Ht(k,j)
+        end do
+      end do
+    end do
+
+  end if
+
+end subroutine ELAST_KD_SH_inlined
 
 !----------------------------------
 
