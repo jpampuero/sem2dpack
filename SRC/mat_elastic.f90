@@ -408,19 +408,19 @@ end subroutine MAT_ELAST_init_25D
   nelast = size(m%a,3)
 
   if ( ndof==1 ) then
-    call ELAST_KD_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
-    !if (OPT_NGLL==ngll) then
-    !  f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
-    !else
-    !  f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
-    !endif
+    !call ELAST_KD_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
+    if (OPT_NGLL==ngll) then
+      f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+    else
+      f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+    endif
   else
-    call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
-    !if (OPT_NGLL==ngll) then
-    !  f = ELAST_KD2_PSV(d,m%a,nelast,H,Ht)
-    !else
-    !  f = ELAST_KD1_PSV(d,m%a,nelast,ngll,H,Ht)
-    !endif
+    !call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
+    if (OPT_NGLL==ngll) then
+      f = ELAST_KD2_PSV(d,m%a,nelast,H,Ht)
+    else
+      f = ELAST_KD1_PSV(d,m%a,nelast,ngll,H,Ht)
+    endif
   endif
 
   end subroutine MAT_ELAST_f
