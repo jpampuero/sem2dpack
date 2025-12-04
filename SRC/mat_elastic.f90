@@ -407,12 +407,13 @@ end subroutine MAT_ELAST_init_25D
 
   nelast = size(m%a,3)
 
-  if ( ndof==1 ) then
-    !call ELAST_KD_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
+  if ( ndof==1 ) then    
     if (OPT_NGLL==ngll) then
-      f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+      !f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+      call ELAST_KD2_SH_inlined(d(:,:,1),m%a,nelast,H,Ht,f)
     else
-      f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+      !f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+      call ELAST_KD1_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
     endif
   else
     !call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
@@ -671,7 +672,7 @@ end subroutine ELAST_KD_PSV_inlined
 
 !----------------------------------------------------------------
 
-subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
+subroutine ELAST_KD1_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
 
   integer, intent(in) :: ngll, nelast
   double precision, intent(in) :: displ(ngll,ngll)
@@ -711,7 +712,7 @@ subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
     end do
   end do
 
-end subroutine ELAST_KD_SH_inlined
+end subroutine ELAST_KD1_SH_inlined
 
 !----------------------------------
 
@@ -753,6 +754,51 @@ end subroutine ELAST_KD_SH_inlined
 
   end function ELAST_KD2_SH
 
+!----------------------------------------------------------------
+
+subroutine ELAST_KD2_SH_inlined(displ,a,nelast,H,Ht,f)
+
+  use constants, only : ngll => OPT_NGLL 
+  
+  integer, intent(in) :: nelast
+  double precision, intent(in) :: displ(ngll,ngll)
+  double precision, intent(in) :: a(ngll,ngll,nelast)
+  double precision, intent(in) :: H(ngll,ngll), Ht(ngll,ngll)
+  double precision, intent(out) :: f(ngll,ngll)
+
+  double precision, dimension(ngll,ngll) :: dU_dxi, dU_deta, tmp1, tmp2
+  integer :: i, j, k
+
+  f = 0.0d0
+  dU_dxi  = 0.0d0
+  dU_deta = 0.0d0 
+  
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        dU_dxi(i,j)  = dU_dxi(i,j)  + Ht(i,k) * displ(k,j)
+        dU_deta(i,j) = dU_deta(i,j) + displ(i,k) * H(k,j)
+      end do
+    end do
+  end do
+
+  if (nelast == 2) then
+    tmp1 = a(:,:,1) * dU_dxi
+    tmp2 = a(:,:,2) * dU_deta
+  else
+    tmp1 = a(:,:,1) * dU_dxi + a(:,:,3) * dU_deta
+    tmp2 = a(:,:,3) * dU_dxi + a(:,:,2) * dU_deta
+  end if
+      
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        f(i,j) = f(i,j) + H(i,k) * tmp1(k,j) + tmp2(i,k) * Ht(k,j) 
+      end do
+    end do
+  end do
+
+end subroutine ELAST_KD2_SH_inlined
 
 !----------------------------------
   function My_MATMUL(A,B) result(C)
