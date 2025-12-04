@@ -410,10 +410,10 @@ end subroutine MAT_ELAST_init_25D
   if ( ndof==1 ) then    
     if (OPT_NGLL==ngll) then
       !f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
-      call ELAST_KD2_SH_inlined(d(:,:,1),m%a,nelast,H,Ht,f)
+      call ELAST_KD2_SH_inlined(d(:,:,1),m%a,nelast,H,Ht,f(:,:,1))
     else
       !f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
-      call ELAST_KD1_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
+      call ELAST_KD1_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f(:,:,1))
     endif
   else
     !call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
