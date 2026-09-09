@@ -5,6 +5,9 @@
   use input, only : read_main
   use init, only : init_main
   use solver, only : solve
+#ifdef OPT_FINT_PROFILE
+  use solver, only : FINT_clock_count, FINT_clock_rate
+#endif
   use plot_gen, only : PLOT_FIELD
   use receivers, only : REC_store,REC_write
   use bc_gen, only : BC_write
@@ -17,6 +20,9 @@
   real :: cputime0, cputime1, cputime2,cputime3
   integer :: it,iexec
   integer, parameter :: NT_CHECK=10
+#ifdef OPT_FINT_PROFILE
+  integer(8) :: prof_loop_c0, prof_loop_c1, prof_loop_cr
+#endif
 
   call CPU_TIME(cputime0)
 
@@ -47,6 +53,10 @@
 
   call CPU_TIME( cputime1 )
   cputime0 = cputime1-cputime0
+
+#ifdef OPT_FINT_PROFILE
+  call system_clock(prof_loop_c0, prof_loop_cr)
+#endif
 
   do it = 1, pb%time%nt
 
@@ -97,6 +107,17 @@
     endif
 
   end do
+
+#ifdef OPT_FINT_PROFILE
+  call system_clock(prof_loop_c1)
+  write(iout,'(/A)') '---  FINT PROFILE (wall clock) :'
+  write(iout,'(2X,A,EN14.4)') 'compute_Fint seconds . . . . . =', &
+       dble(FINT_clock_count)/dble(FINT_clock_rate)
+  write(iout,'(2X,A,EN14.4)') 'time-loop seconds  . . . . . . =', &
+       dble(prof_loop_c1-prof_loop_c0)/dble(prof_loop_cr)
+  write(iout,'(2X,A,F10.4)')  'compute_Fint fraction  . . . . =', &
+       dble(FINT_clock_count)/dble(prof_loop_c1-prof_loop_c0)
+#endif
 
 
 

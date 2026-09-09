@@ -13,6 +13,15 @@ module solver
 
   public :: solve
 
+#ifdef OPT_FINT_PROFILE
+ ! Wall-clock accumulator for compute_Fint, used to measure the
+ ! parallelizable fraction directly (see -DOPT_FINT_PROFILE in the
+ ! README). Only compiled in the profiling build, so the normal
+ ! serial and OpenMP builds are unaffected.
+  integer(8), public :: FINT_clock_count = 0_8
+  integer(8), public :: FINT_clock_rate  = 0_8
+#endif
+
 contains
 
 !=====================================================================
@@ -273,7 +282,7 @@ end subroutine solve_quasi_static
 subroutine compute_Fint(f,d,v,pb)
 
   use fields_class, only : FIELD_get_elem_sub, FIELD_add_elem
-  use mat_gen, only : MAT_Fint
+  use mat_gen, only : MAT_Fint, MAT_needs_veloc
 
   double precision, dimension(:,:), intent(out) :: f
   double precision, dimension(:,:), intent(in) :: d,v
@@ -283,16 +292,30 @@ subroutine compute_Fint(f,d,v,pb)
   double precision :: E_ep, E_el, sg(3), sgp(3)
   integer :: e
 
+#ifdef OPT_OMP
+  integer :: icol, ie
+  double precision :: E_ep_total, E_el_total, sg_total(3), sgp_total(3)
+#endif
+
+#ifdef OPT_FINT_PROFILE
+  integer(8) :: prof_c0, prof_c1, prof_cr
+  call system_clock(prof_c0, prof_cr)
+#endif
+
   f = 0d0
   pb%energy%E_el = 0d0
   pb%energy%sg   = 0d0
   pb%energy%sgp  = 0d0
 
+#ifndef OPT_OMP
   do e = 1,pb%grid%nelem
-    
+
     call FIELD_get_elem_sub(d,pb%grid%ibool(:,:,e),dloc)
-    call FIELD_get_elem_sub(v,pb%grid%ibool(:,:,e),vloc)
-    call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), & 
+   ! MAT_Fint reads v only for materials that need it (Kelvin-Voigt), so
+   ! skip the gather otherwise. vloc stays unreferenced in MAT_Fint then.
+    if (MAT_needs_veloc(pb%matpro(e))) &
+      call FIELD_get_elem_sub(v,pb%grid%ibool(:,:,e),vloc)
+    call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), &
                    pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
                    E_ep,E_el,sg,sgp)
     call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
@@ -306,16 +329,64 @@ subroutine compute_Fint(f,d,v,pb)
     pb%energy%sgp = pb%energy%sgp + sgp
 
   enddo
+#else
+  ! Elements within a color never share a global node (validated at grid
+  ! init in COLOR_build_and_validate), so the scatter step below is
+  ! race-free across threads within a color without locks or atomics.
+  ! The implicit barrier at OMP END PARALLEL DO makes color icol+1 wait
+  ! until every thread has finished writing color icol's contribution
+  ! to f, so nodes shared *across* colors are also safe. Do NOT add
+  ! NOWAIT here, that barrier is load-bearing for cross-color correctness.
+  !
+  ! pb is SHARED but the only part written inside the region is
+  ! pb%matwrk(e), and every thread owns a distinct e, so those writes hit
+  ! disjoint entries. DEFAULT(NONE) forces every variable to be classified
+  ! explicitly, so an accidental shared write would fail to compile rather
+  ! than race at runtime.
+  E_ep_total  = 0d0
+  E_el_total  = 0d0
+  sg_total    = 0d0
+  sgp_total   = 0d0
 
-!DEVEL: to parallelize this loop for multi-cores (OpenMP)
-!DEVEL: reorder the elements to avoid conflict during assembly (graph coloring)
-!DEVEL: loop on the colors, with sync at the end of each color
-! do icol=1,size(colors)
-!   do k = 1,colors(icol)%nelem  ! parallelize this loop
-!     e = colors(icol)%elem(k)
-!     ... compute Fint for element #e and assemble ...
-!   enddo
-! enddo
+  do icol = 1, pb%grid%coloring%ncolors
+    !$OMP PARALLEL DO DEFAULT(NONE) &
+    !$OMP& PRIVATE(e,dloc,vloc,floc,E_ep,E_el,sg,sgp) &
+    !$OMP& REDUCTION(+:E_ep_total,E_el_total,sg_total,sgp_total) &
+    !$OMP& SHARED(d,v,f,pb,icol)
+    do ie = 1, pb%grid%coloring%colors(icol)%nelem
+      e = pb%grid%coloring%colors(icol)%elem(ie)
+
+      call FIELD_get_elem_sub(d,pb%grid%ibool(:,:,e),dloc)
+     ! see the serial path: gather v only when the material needs it
+      if (MAT_needs_veloc(pb%matpro(e))) &
+        call FIELD_get_elem_sub(v,pb%grid%ibool(:,:,e),vloc)
+      call MAT_Fint(floc,dloc,vloc,pb%matpro(e),pb%matwrk(e), &
+                     pb%grid%ngll,pb%fields%ndof,pb%time%dt,pb%grid, &
+                     E_ep,E_el,sg,sgp)
+      call FIELD_add_elem(floc,f,pb%grid%ibool(:,:,e)) ! assembly
+
+      E_ep_total  = E_ep_total  + E_ep
+      E_el_total  = E_el_total  + E_el
+      sg_total    = sg_total    + sg
+      sgp_total   = sgp_total   + sgp
+    enddo
+    !$OMP END PARALLEL DO
+  enddo
+
+ ! total elastic energy change
+  pb%energy%E_el = pb%energy%E_el + E_el_total
+ ! cumulated plastic energy
+  pb%energy%E_ep = pb%energy%E_ep + E_ep_total
+ ! cumulated stress glut
+  pb%energy%sg  = pb%energy%sg  + sg_total
+  pb%energy%sgp = pb%energy%sgp + sgp_total
+#endif
+
+#ifdef OPT_FINT_PROFILE
+  call system_clock(prof_c1)
+  FINT_clock_count = FINT_clock_count + (prof_c1 - prof_c0)
+  FINT_clock_rate  = prof_cr
+#endif
 
 end subroutine compute_Fint
 

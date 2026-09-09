@@ -87,6 +87,6 @@ clean:
 .SUFFIXES: .f90 .o
 
 %.o: %.f90
-	$(F90) $(OPT) -c $<
+	$(F90) $(OPT) -cpp -c $<
 
 include Makefile.depend

@@ -4,6 +4,7 @@ module spec_grid
   use constants
   use fem_grid
   use bnd_grid
+  use color_elem, only : elem_coloring_type, COLOR_build_and_validate, COLOR_free
 
   implicit none
   private
@@ -61,6 +62,7 @@ module spec_grid
     integer, pointer :: ibool(:,:,:)  =>null(), &
                         tag(:) =>null()
     type (bnd_grid_type), pointer :: bounds(:) =>null()
+    type(elem_coloring_type) :: coloring
   end type sem_grid_type
 
 !-----------------------------------------------------------------------
@@ -307,10 +309,13 @@ contains
   close(ounit)
   if (echo_init) write(iout,fmtok)
 
+  ! Build element coloring for OpenMP compute_Fint
+  call COLOR_build_and_validate(se%fem%knods, se%nelem, se%fem%ngnod, se%fem%npoin, se%coloring)
+
   return
 
 100 format(5X,A,I0)
-  
+
   end subroutine SE_init_numbering
 
   

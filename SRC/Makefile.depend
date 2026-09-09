@@ -55,6 +55,7 @@ bc_lsf.o: bc_periodic.o bnd_grid.o constants.o echo.o spec_grid.o stdio.o
 bc_periodic.o: bnd_grid.o constants.o echo.o spec_grid.o stdio.o
 bnd_grid.o: constants.o stdio.o
 butterworth_filter.o: stdio.o
+color_elem.o: echo.o stdio.o
 distribution_cd.o: distribution_general.o echo.o stdio.o utils.o
 distribution_gaussian.o: stdio.o
 distribution_general.o: distribution_gaussian.o distribution_gradient.o \
@@ -111,8 +112,8 @@ prop_mat.o: distribution_cd.o echo.o prop_elem.o stdio.o
 receivers.o: constants.o echo.o fields.o memory_info.o spec_grid.o stdio.o \
 	time.o
 solver.o: bc_gen.o fields.o mat_gen.o problem_class.o src_gen.o
-spec_grid.o: bnd_grid.o constants.o echo.o fem_grid.o generic_list.o gll.o \
-	memory_info.o stdio.o utils.o
+spec_grid.o: bnd_grid.o color_elem.o constants.o echo.o fem_grid.o \
+	generic_list.o gll.o memory_info.o stdio.o utils.o
 src_force.o: constants.o echo.o stdio.o
 src_gen.o: constants.o echo.o prop_mat.o spec_grid.o src_force.o src_moment.o \
 	src_wave.o stdio.o stf_gen.o

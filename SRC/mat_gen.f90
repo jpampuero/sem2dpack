@@ -68,7 +68,7 @@ module mat_gen
   integer, save :: MAT_DERINT_memwrk = 0
 
   public :: MAT_read, MAT_init_prop, MAT_init_work, MAT_write, MAT_Fint &
-           ,MAT_stress_dv
+           ,MAT_stress_dv, MAT_needs_veloc
   public :: matwrk_elem_type, &
             matwrk_elast_type, matwrk_plast_type, matwrk_dmg_type, matwrk_kv_type, &
             derint_type, &
@@ -458,6 +458,19 @@ subroutine MAT_Fint(f,d,v,matpro,matwrk,ngll,ndof,dt,grid, E_ep,E_el,sg,sgp)
   endif
 
 end subroutine MAT_Fint
+
+!=======================================================================
+! Does MAT_Fint read the velocity field for this material?
+! Only the Kelvin-Voigt term uses v, so the caller can skip gathering v
+! for materials that do not. Keep this in sync with MAT_Fint: if another
+! material path starts reading v, add it to the condition here.
+ logical function MAT_needs_veloc(matpro)
+
+  type(matpro_elem_type), intent(in) :: matpro
+
+  MAT_needs_veloc = MAT_isKelvinVoigt(matpro)
+
+ end function MAT_needs_veloc
 
 !=======================================================================
  subroutine MAT_stress(s,e,matwrk,matpro,ngll,ndof,update,dt,E_ep,E_el,sg,sgp)
