@@ -407,12 +407,13 @@ end subroutine MAT_ELAST_init_25D
 
   nelast = size(m%a,3)
 
-  if ( ndof==1 ) then
-    !call ELAST_KD_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f)
+  if ( ndof==1 ) then    
     if (OPT_NGLL==ngll) then
-      f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+      !f(:,:,1) = ELAST_KD2_SH(d(:,:,1),m%a,nelast,H,Ht)
+      call ELAST_KD2_SH_inlined(d(:,:,1),m%a,nelast,H,Ht,f(:,:,1))
     else
-      f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+      !f(:,:,1) = ELAST_KD1_SH(d(:,:,1),m%a,nelast,ngll,H,Ht)
+      call ELAST_KD1_SH_inlined(d(:,:,1),m%a,nelast,ngll,H,Ht,f(:,:,1))
     endif
   else
     !call ELAST_KD_PSV_inlined(d,m%a,nelast,ngll,H,Ht,f)
@@ -527,7 +528,8 @@ subroutine ELAST_KD_PSV_inlined(displ,a,nelast,ngll,H,Ht,f)
   double precision, dimension(ngll,ngll,2), intent(in) :: displ
   double precision, dimension(ngll,ngll,2), intent(out) :: f
 
-  double precision, dimension(ngll,ngll)   :: dUx_dxi, dUz_dxi, dUx_deta, dUz_deta
+  double precision, dimension(ngll,ngll) :: dUx_dxi, dUz_dxi, dUx_deta, dUz_deta
+  double precision, dimension(ngll,ngll) :: tmp1, tmp2, tmp3, tmp4
 
   integer :: i, j, k
 
@@ -547,39 +549,27 @@ subroutine ELAST_KD_PSV_inlined(displ,a,nelast,ngll,H,Ht,f)
       end do
     end do
   end do
-
+  
   if (nelast == 6) then
-    do j = 1, ngll
-      do k = 1, ngll
-        do i = 1, ngll
-          f(i,j,1) = f(i,j,1) &
-                   + H(i,k) * ( a(k,j,1)*dUx_dxi(k,j) + a(k,j,2)*dUz_deta(k,j) ) &
-                   + ( a(i,k,4)*dUx_deta(i,k) + a(i,k,5)*dUz_dxi(i,k) ) * Ht(k,j)
-          f(i,j,2) = f(i,j,2) &
-                   + H(i,k) * ( a(k,j,5)*dUx_deta(k,j) + a(k,j,6)*dUz_dxi(k,j) ) &
-                   + ( a(i,k,2)*dUx_dxi(i,k) + a(i,k,3)*dUz_deta(i,k) ) * Ht(k,j)
-        end do
-      end do
-    end do
-    
+    tmp1 = a(:,:,1)*dUx_dxi  + a(:,:,2)*dUz_deta
+    tmp2 = a(:,:,4)*dUx_deta + a(:,:,5)*dUz_dxi
+    tmp3 = a(:,:,5)*dUx_deta + a(:,:,6)*dUz_dxi
+    tmp4 = a(:,:,2)*dUx_dxi  + a(:,:,3)*dUz_deta
   else
-    do j = 1, ngll
-      do k = 1, ngll
-        do i = 1, ngll
-          f(i,j,1) = f(i,j,1) &
-                   + H(i,k)  * ( a(k,j,1)*dUx_dxi(k,j) + a(k,j,7)*dUx_deta(k,j)   &
-                               + a(k,j,8)*dUz_dxi(k,j) + a(k,j,2)*dUz_deta(k,j) ) &
-                   + Ht(k,j) * ( a(i,k,7)*dUx_dxi(i,k) + a(i,k,4)*dUx_deta(i,k)   &
-                               + a(i,k,5)*dUz_dxi(i,k) + a(i,k,9)*dUz_deta(i,k) )
-          f(i,j,2) = f(i,j,2) &
-                   + H(i,k)  * ( a(k,j,8)*dUx_dxi(k,j) + a(k,j,5)*dUx_deta(k,j)    &
-                               + a(k,j,6)*dUz_dxi(k,j) + a(k,j,10)*dUz_deta(k,j) ) &
-                   + Ht(k,j) * ( a(i,k,2)*dUx_dxi(i,k) + a(i,k,9)*dUx_deta(i,k)    &
-                               + a(i,k,10)*dUz_dxi(i,k)+ a(i,k,3)*dUz_deta(i,k) )
-        end do
+    tmp1 = a(:,:,1)*dUx_dxi + a(:,:,7)*dUx_deta + a(:,:,8)*dUz_dxi + a(:,:,2)*dUz_deta
+    tmp2 = a(:,:,7)*dUx_dxi + a(:,:,4)*dUx_deta + a(:,:,5)*dUz_dxi + a(:,:,9)*dUz_deta
+    tmp3 = a(:,:,8)*dUx_dxi + a(:,:,5)*dUx_deta + a(:,:,6)*dUz_dxi + a(:,:,10)*dUz_deta
+    tmp4 = a(:,:,2)*dUx_dxi + a(:,:,9)*dUx_deta + a(:,:,10)*dUz_dxi + a(:,:,3)*dUz_deta
+  end if
+      
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        f(i,j,1) = f(i,j,1) + H(i,k) * tmp1(k,j) + tmp2(i,k) * Ht(k,j) 
+        f(i,j,2) = f(i,j,2) + H(i,k) * tmp3(k,j) + tmp4(i,k) * Ht(k,j) 
       end do
     end do
-  end if
+  end do
 
 end subroutine ELAST_KD_PSV_inlined
 
@@ -682,7 +672,7 @@ end subroutine ELAST_KD_PSV_inlined
 
 !----------------------------------------------------------------
 
-subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
+subroutine ELAST_KD1_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
 
   integer, intent(in) :: ngll, nelast
   double precision, intent(in) :: displ(ngll,ngll)
@@ -690,7 +680,7 @@ subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
   double precision, intent(in) :: H(ngll,ngll), Ht(ngll,ngll)
   double precision, intent(out) :: f(ngll,ngll)
 
-  double precision :: dU_dxi(ngll,ngll), dU_deta(ngll,ngll)
+  double precision, dimension(ngll,ngll) :: dU_dxi, dU_deta, tmp1, tmp2
   integer :: i, j, k
 
   f = 0.0d0
@@ -707,32 +697,22 @@ subroutine ELAST_KD_SH_inlined(displ,a,nelast,ngll,H,Ht,f)
   end do
 
   if (nelast == 2) then
-
-    do j = 1, ngll
-      do k = 1, ngll
-        do i = 1, ngll
-          f(i,j) = f(i,j)  &
-                 + H(i,k) * a(k,j,1) * dU_dxi(k,j)  &
-                 + a(i,k,2) * dU_deta(i,k) * Ht(k,j)
-        end do
-      end do
-    end do
-
+    tmp1 = a(:,:,1) * dU_dxi
+    tmp2 = a(:,:,2) * dU_deta
   else
-
-    do j = 1, ngll
-      do k = 1, ngll
-        do i = 1, ngll
-          f(i,j) = f(i,j)  &
-                 + H(i,k) * ( a(k,j,1)*dU_dxi(k,j) + a(k,j,3)*dU_deta(k,j) )  &
-                 + ( a(i,k,3)*dU_dxi(i,k) + a(i,k,2)*dU_deta(i,k) ) * Ht(k,j)
-        end do
+    tmp1 = a(:,:,1) * dU_dxi + a(:,:,3) * dU_deta
+    tmp2 = a(:,:,3) * dU_dxi + a(:,:,2) * dU_deta
+  end if
+      
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        f(i,j) = f(i,j) + H(i,k) * tmp1(k,j) + tmp2(i,k) * Ht(k,j) 
       end do
     end do
+  end do
 
-  end if
-
-end subroutine ELAST_KD_SH_inlined
+end subroutine ELAST_KD1_SH_inlined
 
 !----------------------------------
 
@@ -774,6 +754,51 @@ end subroutine ELAST_KD_SH_inlined
 
   end function ELAST_KD2_SH
 
+!----------------------------------------------------------------
+
+subroutine ELAST_KD2_SH_inlined(displ,a,nelast,H,Ht,f)
+
+  use constants, only : ngll => OPT_NGLL 
+  
+  integer, intent(in) :: nelast
+  double precision, intent(in) :: displ(ngll,ngll)
+  double precision, intent(in) :: a(ngll,ngll,nelast)
+  double precision, intent(in) :: H(ngll,ngll), Ht(ngll,ngll)
+  double precision, intent(out) :: f(ngll,ngll)
+
+  double precision, dimension(ngll,ngll) :: dU_dxi, dU_deta, tmp1, tmp2
+  integer :: i, j, k
+
+  f = 0.0d0
+  dU_dxi  = 0.0d0
+  dU_deta = 0.0d0 
+  
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        dU_dxi(i,j)  = dU_dxi(i,j)  + Ht(i,k) * displ(k,j)
+        dU_deta(i,j) = dU_deta(i,j) + displ(i,k) * H(k,j)
+      end do
+    end do
+  end do
+
+  if (nelast == 2) then
+    tmp1 = a(:,:,1) * dU_dxi
+    tmp2 = a(:,:,2) * dU_deta
+  else
+    tmp1 = a(:,:,1) * dU_dxi + a(:,:,3) * dU_deta
+    tmp2 = a(:,:,3) * dU_dxi + a(:,:,2) * dU_deta
+  end if
+      
+  do j = 1, ngll
+    do k = 1, ngll
+      do i = 1, ngll
+        f(i,j) = f(i,j) + H(i,k) * tmp1(k,j) + tmp2(i,k) * Ht(k,j) 
+      end do
+    end do
+  end do
+
+end subroutine ELAST_KD2_SH_inlined
 
 !----------------------------------
   function My_MATMUL(A,B) result(C)
